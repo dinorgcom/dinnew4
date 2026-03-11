@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { ensureAppUser } from "@/server/auth/provision";
+import { getTokenBalance } from "@/server/billing/service";
+import { isDatabaseConfigured } from "@/server/runtime";
 import { AppShellNav } from "@/components/app-shell-nav";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +14,7 @@ export default async function AppLayout({
   children: ReactNode;
 }>) {
   const appUser = await ensureAppUser();
+  const balance = appUser?.id && isDatabaseConfigured() ? await getTokenBalance(appUser.id) : 0;
 
   return (
     <div className="min-h-screen bg-[#f6f4ef]">
@@ -33,6 +36,9 @@ export default async function AppLayout({
               {appUser?.fullName || appUser?.email || "Provisioning pending"}
             </div>
             <div className="mt-1 text-sm text-slate-300">{appUser?.role ?? "user"}</div>
+            <div className="mt-4 rounded-2xl bg-white/10 px-3 py-2 text-sm text-slate-100">
+              Token balance: {balance}
+            </div>
           </div>
 
           <AppShellNav role={appUser?.role ?? "user"} />

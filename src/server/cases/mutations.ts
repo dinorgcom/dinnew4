@@ -18,6 +18,7 @@ import {
   messageCreateSchema,
   witnessCreateSchema,
 } from "@/contracts/cases";
+import { spendForAction } from "@/server/billing/service";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -174,6 +175,15 @@ export async function createEvidence(user: AppUser, caseId: string, payload: unk
 
   const parsed = evidenceCreateSchema.parse(payload);
   const db = getDb();
+  const spendResult = await spendForAction(user, {
+    actionCode: "evidence_create",
+    caseId,
+    idempotencyKey: `evidence:${caseId}:${parsed.title}:${parsed.type}`,
+    metadata: { title: parsed.title, type: parsed.type },
+  });
+  if (!spendResult.success) {
+    throw new Error(spendResult.error);
+  }
 
   const countRows = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -228,6 +238,15 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
 
   const parsed = witnessCreateSchema.parse(payload);
   const db = getDb();
+  const spendResult = await spendForAction(user, {
+    actionCode: "witness_create",
+    caseId,
+    idempotencyKey: `witness:${caseId}:${parsed.fullName}:${parsed.email || ""}`,
+    metadata: { fullName: parsed.fullName },
+  });
+  if (!spendResult.success) {
+    throw new Error(spendResult.error);
+  }
   const inserted = await db
     .insert(witnesses)
     .values({
@@ -268,6 +287,15 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
 
   const parsed = consultantCreateSchema.parse(payload);
   const db = getDb();
+  const spendResult = await spendForAction(user, {
+    actionCode: "consultant_create",
+    caseId,
+    idempotencyKey: `consultant:${caseId}:${parsed.fullName}:${parsed.email || ""}`,
+    metadata: { fullName: parsed.fullName },
+  });
+  if (!spendResult.success) {
+    throw new Error(spendResult.error);
+  }
   const inserted = await db
     .insert(consultants)
     .values({
@@ -310,6 +338,15 @@ export async function createExpertise(user: AppUser, caseId: string, payload: un
 
   const parsed = expertiseCreateSchema.parse(payload);
   const db = getDb();
+  const spendResult = await spendForAction(user, {
+    actionCode: "expertise_create",
+    caseId,
+    idempotencyKey: `expertise:${caseId}:${parsed.title}`,
+    metadata: { title: parsed.title },
+  });
+  if (!spendResult.success) {
+    throw new Error(spendResult.error);
+  }
   const inserted = await db
     .insert(expertiseRequests)
     .values({

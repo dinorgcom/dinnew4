@@ -3,13 +3,14 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { FolderOpen, LayoutDashboard, PencilRuler } from "lucide-react";
+import { Coins, FolderOpen, LayoutDashboard, PencilRuler, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/dashboard" as Route, label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases" as Route, label: "Cases", icon: FolderOpen },
   { href: "/cases/new" as Route, label: "New case", icon: PencilRuler },
+  { href: "/billing" as Route, label: "Buy tokens", icon: Coins },
 ];
 
 type AppShellNavProps = {
@@ -44,6 +45,16 @@ export function AppShellNav({ role }: AppShellNavProps) {
       <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
         {role}
       </div>
+
+      {role === "admin" ? (
+        <Link
+          href={"/admin/tokens" as Route}
+          className="mt-3 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+        >
+          <Shield className="h-4 w-4" />
+          <span>Admin tokens</span>
+        </Link>
+      ) : null}
     </nav>
   );
 }
