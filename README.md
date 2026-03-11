@@ -29,12 +29,14 @@ This scaffold intentionally includes:
 - env validation
 - database config and schema foundation
 - service boundaries for auth, blob, AI, and API responses
+- Clerk-backed app user provisioning
+- authenticated dashboard, cases list, and case detail reads
 - migration inventory docs
 
 It intentionally does not include:
 
 - migrated pages
-- production auth flows
+- write-path workflows
 - uploads
 - Stripe flows
 - AI prompts

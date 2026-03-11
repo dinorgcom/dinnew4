@@ -1,3 +1,7 @@
+import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
+import Link from "next/link";
+import { env } from "@/lib/env";
+
 const tracks = [
   "Platform scaffold on Next.js App Router",
   "Neon + Drizzle schema foundation",
@@ -7,6 +11,8 @@ const tracks = [
 ];
 
 export default function HomePage() {
+  const hasClerk = Boolean(env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
   return (
     <main className="min-h-screen px-6 py-10">
       <div className="mx-auto max-w-5xl rounded-[32px] border border-black/5 bg-white/80 p-8 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
@@ -23,6 +29,36 @@ export default function HomePage() {
                 This app is intentionally feature-light. It exists to establish the final platform,
                 service boundaries, and schema foundation before any user-facing workflows are ported.
               </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {hasClerk ? (
+                <>
+                  <SignedOut>
+                    <SignInButton mode="modal">
+                      <button className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+                        Sign in
+                      </button>
+                    </SignInButton>
+                    <SignUpButton mode="modal">
+                      <button className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900">
+                        Create account
+                      </button>
+                    </SignUpButton>
+                  </SignedOut>
+                  <SignedIn>
+                    <Link
+                      href="/dashboard"
+                      className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Open dashboard
+                    </Link>
+                  </SignedIn>
+                </>
+              ) : (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to enable sign-in.
+                </div>
+              )}
             </div>
           </section>
 

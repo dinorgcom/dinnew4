@@ -1,7 +1,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { db } from "@/db/client";
+import { getDb } from "@/db/client";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { isDatabaseConfigured } from "@/server/runtime";
 
 export async function getAuthContext() {
   const { userId } = await auth();
@@ -16,9 +17,9 @@ export async function getAuthContext() {
   }
 
   const clerkUser = await currentUser();
-  const appUser = await db.query.users.findFirst({
-    where: eq(users.clerkUserId, userId),
-  });
+  const appUser = isDatabaseConfigured()
+    ? await getDb().select().from(users).where(eq(users.clerkUserId, userId)).limit(1).then((rows) => rows[0] ?? null)
+    : null;
 
   return {
     isAuthenticated: true as const,
