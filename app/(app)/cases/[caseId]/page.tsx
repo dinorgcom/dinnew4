@@ -15,6 +15,13 @@ const infoPairs = [
   ["Category", "category"],
 ] as const;
 
+const aiLinks = [
+  { href: "audit", label: "AI audit", description: "Review strengths, gaps, and readiness." },
+  { href: "arbitration", label: "Arbitration", description: "Generate or accept a settlement proposal." },
+  { href: "judgement", label: "Judgement", description: "Draft and finalize a structured decision." },
+  { href: "lawyer-chat", label: "Lawyer chat", description: "Get case-specific strategic guidance." },
+] as const;
+
 export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
   const { caseId } = await params;
   const appUser = await ensureAppUser();
@@ -136,6 +143,25 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
         expertiseRequests={detail.expertiseRequests}
         messages={detail.messages}
       />
+
+      <section className="space-y-5 rounded-[28px] border border-slate-200 bg-white p-6">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Phase 5</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">AI workflows</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {aiLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={`/cases/${detail.case.id}/${item.href}`}
+              className="rounded-[24px] border border-slate-200 bg-slate-50 p-5 transition hover:border-slate-300 hover:bg-white"
+            >
+              <div className="font-semibold text-slate-900">{item.label}</div>
+              <div className="mt-2 text-sm leading-6 text-slate-600">{item.description}</div>
+            </Link>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

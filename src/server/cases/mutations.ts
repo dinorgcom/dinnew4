@@ -57,7 +57,13 @@ export async function getAuthorizedCase(user: AppUser, caseId: string) {
   } as const;
 }
 
-async function createActivity(caseId: string, type: typeof caseActivities.$inferInsert.type, title: string, description: string, performedBy: string) {
+export async function createCaseActivity(
+  caseId: string,
+  type: typeof caseActivities.$inferInsert.type,
+  title: string,
+  description: string,
+  performedBy: string,
+) {
   const db = getDb();
 
   await db.insert(caseActivities).values({
@@ -111,7 +117,7 @@ export async function createCase(user: AppUser, payload: unknown) {
     .returning();
 
   const caseItem = inserted[0];
-  await createActivity(
+  await createCaseActivity(
     caseItem.id,
     parsed.saveMode === "file" ? "filing" : "note",
     parsed.saveMode === "file" ? "Case filed" : "Draft created",
@@ -156,7 +162,7 @@ export async function updateCase(user: AppUser, caseId: string, payload: unknown
     .where(eq(cases.id, caseId))
     .returning();
 
-  await createActivity(
+  await createCaseActivity(
     caseId,
     "status_change",
     "Case updated",
@@ -209,7 +215,7 @@ export async function createEvidence(user: AppUser, caseId: string, payload: unk
     })
     .returning();
 
-  await createActivity(
+  await createCaseActivity(
     caseId,
     "evidence_submitted",
     "Evidence submitted",
@@ -264,7 +270,7 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
     })
     .returning();
 
-  await createActivity(caseId, "witness_added", "Witness added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(caseId, "witness_added", "Witness added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
 
   return inserted[0];
 }
@@ -315,7 +321,7 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
     })
     .returning();
 
-  await createActivity(caseId, "note", "Consultant added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(caseId, "note", "Consultant added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
 
   return inserted[0];
 }
@@ -359,7 +365,7 @@ export async function createExpertise(user: AppUser, caseId: string, payload: un
     })
     .returning();
 
-  await createActivity(caseId, "note", "Expertise request created", parsed.title, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(caseId, "note", "Expertise request created", parsed.title, user?.fullName || user?.email || "Unknown user");
 
   return inserted[0];
 }
@@ -399,7 +405,7 @@ export async function createMessage(user: AppUser, caseId: string, payload: unkn
     })
     .returning();
 
-  await createActivity(caseId, "message", "Message sent", parsed.content.slice(0, 120), user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(caseId, "message", "Message sent", parsed.content.slice(0, 120), user?.fullName || user?.email || "Unknown user");
 
   return inserted[0];
 }
