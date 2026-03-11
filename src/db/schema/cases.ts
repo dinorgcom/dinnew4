@@ -1,0 +1,46 @@
+import { index, jsonb, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { caseStatusEnum, priorityEnum } from "./enums";
+import { createdAt, id, updatedAt } from "./common";
+
+export const cases = pgTable(
+  "cases",
+  {
+    id,
+    caseNumber: text("case_number").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    category: text("category"),
+    status: caseStatusEnum("status").default("draft").notNull(),
+    priority: priorityEnum("priority").default("medium").notNull(),
+    claimAmount: numeric("claim_amount", { precision: 12, scale: 2 }),
+    currency: text("currency").default("USD").notNull(),
+    filingDate: timestamp("filing_date", { withTimezone: true }),
+    hearingDate: timestamp("hearing_date", { withTimezone: true }),
+    resolutionDeadline: timestamp("resolution_deadline", { withTimezone: true }),
+    claimantName: text("claimant_name"),
+    claimantEmail: text("claimant_email"),
+    claimantPhone: text("claimant_phone"),
+    respondentName: text("respondent_name"),
+    respondentEmail: text("respondent_email"),
+    respondentPhone: text("respondent_phone"),
+    claimantClaims: jsonb("claimant_claims").$type<Record<string, unknown>[]>(),
+    respondentClaims: jsonb("respondent_claims").$type<Record<string, unknown>[]>(),
+    arbitratorAssignedName: text("arbitrator_assigned_name"),
+    arbitratorAssignedUserId: text("arbitrator_assigned_user_id"),
+    claimantLawyerKey: text("claimant_lawyer_key"),
+    aiSuggestion: text("ai_suggestion"),
+    arbitrationProposalJson: jsonb("arbitration_proposal_json").$type<Record<string, unknown> | null>(),
+    judgementJson: jsonb("judgement_json").$type<Record<string, unknown> | null>(),
+    finalDecision: text("final_decision"),
+    settlementAmount: numeric("settlement_amount", { precision: 12, scale: 2 }),
+    notes: text("notes"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    caseNumberIdx: index("cases_case_number_idx").on(table.caseNumber),
+    statusIdx: index("cases_status_idx").on(table.status),
+    claimantEmailIdx: index("cases_claimant_email_idx").on(table.claimantEmail),
+    respondentEmailIdx: index("cases_respondent_email_idx").on(table.respondentEmail),
+  }),
+);
