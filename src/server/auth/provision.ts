@@ -13,6 +13,15 @@ export type ProvisionedAppUser = {
   accountStatus: "active" | "suspended";
 };
 
+export function assertAppUserActive(user: ProvisionedAppUser | null): asserts user is ProvisionedAppUser {
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+  if (user.accountStatus !== "active") {
+    throw new Error("Account suspended");
+  }
+}
+
 function getPrimaryEmail(user: Awaited<ReturnType<typeof currentUser>>) {
   if (!user) {
     return null;

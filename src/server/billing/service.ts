@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { adminUserActions, processedStripeEvents, tokenLedger, users } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
+import { assertAppUserActive } from "@/server/auth/provision";
 import { env } from "@/lib/env";
 import { ACTION_LABELS, ACTION_COSTS, getActionCost, getPackageById, TOKEN_PACKAGES } from "./config";
 import { getStripe } from "./stripe";
@@ -35,7 +36,8 @@ export async function appendLedgerEntry(input: typeof tokenLedger.$inferInsert) 
 }
 
 export async function previewSpend(user: AppUser, actionCode: string) {
-  if (!user?.id) {
+  assertAppUserActive(user);
+  if (!user.id) {
     throw new Error("Unauthorized");
   }
 
@@ -62,7 +64,8 @@ export async function spendForAction(user: AppUser, input: {
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
 }) {
-  if (!user?.id) {
+  assertAppUserActive(user);
+  if (!user.id) {
     throw new Error("Unauthorized");
   }
 
@@ -153,7 +156,8 @@ export function getPricing() {
 }
 
 export async function createCheckout(user: AppUser, packageId: string) {
-  if (!user?.id) {
+  assertAppUserActive(user);
+  if (!user.id) {
     throw new Error("Unauthorized");
   }
 
@@ -246,7 +250,8 @@ export async function processStripeWebhook(body: string, signature: string | nul
 }
 
 export async function listUsersWithBalances(actor: AppUser) {
-  if (!actor?.id) {
+  assertAppUserActive(actor);
+  if (!actor.id) {
     throw new Error("Unauthorized");
   }
   if (actor.role !== "admin") {
@@ -272,7 +277,8 @@ export async function listUsersWithBalances(actor: AppUser) {
 }
 
 export async function setUserTokenBalance(actor: AppUser, targetUserId: string, targetBalance: number, reason?: string) {
-  if (!actor?.id) {
+  assertAppUserActive(actor);
+  if (!actor.id) {
     throw new Error("Unauthorized");
   }
   if (actor.role !== "admin") {

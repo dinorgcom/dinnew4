@@ -19,6 +19,7 @@ import {
   witnessCreateSchema,
 } from "@/contracts/cases";
 import { spendForAction } from "@/server/billing/service";
+import { assertAppUserActive } from "@/server/auth/provision";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -27,6 +28,7 @@ function normalizeEmail(value: string | null | undefined) {
 }
 
 export async function getAuthorizedCase(user: AppUser, caseId: string) {
+  assertAppUserActive(user);
   if (!user) {
     return null;
   }
@@ -86,9 +88,7 @@ function generateCaseNumber() {
 }
 
 export async function createCase(user: AppUser, payload: unknown) {
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  assertAppUserActive(user);
 
   const parsed = caseMutationSchema.parse(payload);
   const db = getDb();

@@ -10,7 +10,8 @@
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "import:base44": "node scripts/import-base44-export.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.8",

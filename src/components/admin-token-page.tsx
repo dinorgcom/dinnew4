@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { AdminNav } from "@/components/admin-nav";
 
 type UserBalance = {
   id: string;
@@ -58,6 +59,8 @@ export function AdminTokenPage({ users }: AdminTokenPageProps) {
         <div className="text-sm uppercase tracking-[0.2em] text-slate-400">Admin</div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">Token adjustments</h1>
       </div>
+
+      <AdminNav />
 
       {error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
