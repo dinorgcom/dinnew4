@@ -25,7 +25,9 @@ export function AppShellNav({ role }: AppShellNavProps) {
     <nav className="mt-8 space-y-2">
       {items.map((item) => {
         const Icon = item.icon;
-        const active = pathname === item.href || (item.href === "/cases" && pathname.startsWith("/cases/"));
+        const active =
+          pathname === item.href
+          || (item.href === "/cases" && pathname.startsWith("/cases/") && pathname !== "/cases/new");
 
         return (
           <Link
