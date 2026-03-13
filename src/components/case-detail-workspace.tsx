@@ -103,7 +103,6 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>("overview");
   const [claimantClaims, setClaimantClaims] = useState(asClaims(detail.case.claimantClaims));
   const [respondentClaims, setRespondentClaims] = useState(asClaims(detail.case.respondentClaims));
-  const [claimResponse, setClaimResponse] = useState("");
   const [hearingDate, setHearingDate] = useState("");
   const [arbitrator, setArbitrator] = useState(detail.case.arbitratorAssignedName || "");
   const [error, setError] = useState<string | null>(null);
@@ -239,18 +238,22 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">{detail.roleLabel}</div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">{detail.case.title}</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+          <p className="mt-2 max-w-3xl text-sm leading-7 text-[color:var(--ink-soft)]">
             {detail.case.description || "No case description has been added yet."}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div role="tablist" aria-label="Case workspace sections" className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
+              role="tab"
+              id={`tab-${tab.key}`}
+              aria-selected={activeTab === tab.key}
+              aria-controls={`panel-${tab.key}`}
               className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                activeTab === tab.key ? "bg-ink text-white" : "border border-slate-300 text-slate-700"
+                activeTab === tab.key ? "bg-ink text-white" : "border border-slate-300 text-slate-700 hover:border-slate-400"
               }`}
             >
               {tab.label}
@@ -266,7 +269,7 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
       ) : null}
 
       {activeTab === "overview" ? (
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <section className="space-y-6 rounded-[28px] border border-slate-200 bg-white p-6">
             <div className="grid gap-4 md:grid-cols-2">
               {[
@@ -328,18 +331,19 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
                   <button
                     type="button"
                     onClick={() => startTransition(() => void post(`/api/cases/${detail.case.id}/notify`))}
-                    className="w-full rounded-2xl bg-ink px-4 py-3 text-left text-sm font-semibold text-white"
+                    className="w-full rounded-2xl bg-ink px-4 py-3 text-left text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={isPending}
                   >
                     Notify respondent
                   </button>
                 ) : null}
-                <Link href={`/cases/${detail.case.id}/audit` as Route} className="block rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700">
+                <Link href={`/cases/${detail.case.id}/audit` as Route} className="block rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:border-slate-400">
                   Request audit
                 </Link>
-                <Link href={`/cases/${detail.case.id}/arbitration` as Route} className="block rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700">
+                <Link href={`/cases/${detail.case.id}/arbitration` as Route} className="block rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:border-slate-400">
                   Request arbitration
                 </Link>
-                <Link href={`/cases/${detail.case.id}/judgement` as Route} className="block rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700">
+                <Link href={`/cases/${detail.case.id}/judgement` as Route} className="block rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:border-slate-400">
                   Request judgement
                 </Link>
               </div>
@@ -353,13 +357,13 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
                     type="datetime-local"
                     value={hearingDate}
                     onChange={(event) => setHearingDate(event.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
                   />
                   <input
                     value={arbitrator}
                     onChange={(event) => setArbitrator(event.target.value)}
                     placeholder="Arbitrator name"
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
                   />
                   <button
                     type="button"
@@ -371,7 +375,8 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
                         }),
                       )
                     }
-                    className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
+                    className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={isPending}
                   >
                     Schedule hearing
                   </button>
@@ -391,7 +396,7 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
       ) : null}
 
       {activeTab === "claims" ? (
-        <div className="space-y-6">
+        <div id="panel-claims" role="tabpanel" aria-labelledby="tab-claims" className="space-y-6">
           {renderClaims("claimant")}
           {renderClaims("respondent")}
           {detail.role !== "moderator" && detail.role !== "admin" ? (
@@ -419,6 +424,7 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
       ) : null}
 
       {activeTab === "evidence" ? (
+        <div id="panel-evidence" role="tabpanel" aria-labelledby="tab-evidence">
         <CaseWorkspace
           caseId={detail.case.id}
           roleLabel={detail.roleLabel}
@@ -431,9 +437,11 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
           initialSection="evidence"
           hideSectionNav
         />
+        </div>
       ) : null}
 
       {activeTab === "witnesses" ? (
+        <div id="panel-witnesses" role="tabpanel" aria-labelledby="tab-witnesses">
         <CaseWorkspace
           caseId={detail.case.id}
           roleLabel={detail.roleLabel}
@@ -446,9 +454,11 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
           initialSection="witnesses"
           hideSectionNav
         />
+        </div>
       ) : null}
 
       {activeTab === "consultants" ? (
+        <div id="panel-consultants" role="tabpanel" aria-labelledby="tab-consultants">
         <CaseWorkspace
           caseId={detail.case.id}
           roleLabel={detail.roleLabel}
@@ -461,9 +471,11 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
           initialSection="consultants"
           hideSectionNav
         />
+        </div>
       ) : null}
 
       {activeTab === "expertise" ? (
+        <div id="panel-expertise" role="tabpanel" aria-labelledby="tab-expertise">
         <CaseWorkspace
           caseId={detail.case.id}
           roleLabel={detail.roleLabel}
@@ -476,10 +488,11 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
           initialSection="expertise"
           hideSectionNav
         />
+        </div>
       ) : null}
 
       {activeTab === "todo" ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <section id="panel-todo" role="tabpanel" aria-labelledby="tab-todo" className="rounded-[28px] border border-slate-200 bg-white p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">To-do</div>
           <div className="mt-4 space-y-3">
             {detail.todoItems.length === 0 ? (
@@ -498,7 +511,7 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
       ) : null}
 
       {activeTab === "activity" ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <section id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" className="rounded-[28px] border border-slate-200 bg-white p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Activity timeline</div>
           <div className="mt-4 space-y-3">
             {detail.activities.map((activity) => (

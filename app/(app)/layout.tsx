@@ -17,7 +17,7 @@ export default async function AppLayout({
   const balance = appUser?.id && isDatabaseConfigured() ? await getTokenBalance(appUser.id) : 0;
 
   return (
-    <div className="min-h-screen bg-[#f6f4ef]">
+    <div className="min-h-screen bg-[color:var(--bg-canvas)]">
       <div className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="rounded-[28px] bg-ink p-5 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
           <div className="flex items-start justify-between gap-4">
@@ -25,7 +25,7 @@ export default async function AppLayout({
               <Link href="/dashboard" className="text-xl font-semibold tracking-tight text-white">
                 DIN.ORG
               </Link>
-              <p className="mt-1 text-sm text-slate-300">Vercel rewrite workspace</p>
+              <p className="mt-1 text-sm text-slate-300">Arbitration workspace</p>
             </div>
             <UserButton afterSignOutUrl="/" />
           </div>
@@ -44,7 +44,7 @@ export default async function AppLayout({
           <AppShellNav role={appUser?.role ?? "user"} />
         </aside>
 
-        <div className="min-w-0 rounded-[28px] border border-black/5 bg-white/85 p-6 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
+        <div className="min-w-0 rounded-[28px] border border-black/5 bg-white/88 p-6 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
           {children}
         </div>
       </div>

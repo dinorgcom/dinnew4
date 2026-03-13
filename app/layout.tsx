@@ -5,8 +5,8 @@ import { env } from "@/lib/env";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DIN.ORG Rewrite",
-  description: "Greenfield rewrite scaffold for DIN.ORG",
+  title: "DIN.ORG",
+  description: "AI-assisted arbitration workspace for claimants, respondents, and administrators.",
 };
 
 export default function RootLayout({

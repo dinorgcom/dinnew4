@@ -20,24 +20,23 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
       <div className="space-y-2">
         <div className="text-sm uppercase tracking-[0.2em] text-slate-500">Cases</div>
         <h1 className="text-3xl font-semibold tracking-tight text-ink">All accessible cases</h1>
-        <p className="max-w-2xl text-sm leading-6 text-slate-600">
-          The new list view filters cases by the authenticated app user instead of pulling every
-          record client-side and filtering in the browser.
+        <p className="max-w-2xl text-sm leading-6 text-[color:var(--ink-soft)]">
+          Search the cases available to your role, then move directly into the full dispute workspace.
         </p>
       </div>
 
-      <form className="grid gap-4 rounded-[24px] border border-slate-200 bg-slate-50 p-5 md:grid-cols-[minmax(0,1fr)_220px_auto]">
+      <form className="grid gap-4 rounded-[24px] border border-[color:var(--line-soft)] bg-[color:var(--bg-tint)]/35 p-5 md:grid-cols-[minmax(0,1fr)_220px_auto]">
         <input
           type="search"
           name="search"
           defaultValue={search}
           placeholder="Search by case number, title, or party"
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none ring-0 transition focus:border-signal"
+          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm"
         />
         <select
           name="status"
           defaultValue={status}
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-signal"
+          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm"
         >
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -47,7 +46,7 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
         </select>
         <button
           type="submit"
-          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
         >
           Apply
         </button>

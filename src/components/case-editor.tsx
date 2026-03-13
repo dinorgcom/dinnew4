@@ -154,12 +154,12 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
     <div className="space-y-8">
       <div className="space-y-2">
         <div className="text-sm uppercase tracking-[0.2em] text-slate-400">
-          {mode === "create" ? "Phase 2" : "Edit case"}
+          {mode === "create" ? "Lawyer-led filing" : "Edit case"}
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-ink">
           {mode === "create" ? "Create a new case" : "Update case details"}
         </h1>
-        <p className="text-sm text-slate-600">Preview title: {titlePreview}</p>
+        <p className="text-sm text-[color:var(--ink-soft)]">Preview title: {titlePreview}</p>
       </div>
 
       {mode === "create" && selectedLawyer ? (
@@ -175,7 +175,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
             <button
               type="button"
               onClick={() => setSelectedLawyer(null)}
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400"
             >
               Change lawyer
             </button>
@@ -200,7 +200,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
             value={form.description}
             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             rows={4}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-signal"
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           />
         </label>
 
@@ -209,7 +209,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
           <select
             value={form.category}
             onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           >
             {categories.map((category) => (
               <option key={category} value={category}>
@@ -229,7 +229,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
                 priority: event.target.value as (typeof priorities)[number],
               }))
             }
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           >
             {priorities.map((priority) => (
               <option key={priority} value={priority}>
@@ -244,7 +244,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
           <input
             value={form.claimAmount}
             onChange={(event) => setForm((current) => ({ ...current, claimAmount: event.target.value }))}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           />
         </label>
 
@@ -253,7 +253,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
           <input
             value={form.currency}
             onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           />
         </label>
       </section>
@@ -276,7 +276,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
                     [key]: event.target.value,
                   }))
                 }
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
               />
             </label>
           ))}
@@ -299,7 +299,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
                     [key]: event.target.value,
                   }))
                 }
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
               />
             </label>
           ))}
@@ -328,14 +328,14 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
                   value={claim.claim}
                   onChange={(event) => updateClaim(kind, index, "claim", event.target.value)}
                   placeholder="Claim title"
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
                 />
                 <textarea
                   value={claim.details || ""}
                   onChange={(event) => updateClaim(kind, index, "details", event.target.value)}
                   placeholder="Supporting detail"
                   rows={3}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
                 />
                 <div>
                   <button
@@ -357,7 +357,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
           type="button"
           disabled={isPending}
           onClick={() => submit("draft")}
-          className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
+          className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 disabled:opacity-60"
         >
           Save draft
         </button>
@@ -365,7 +365,7 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
           type="button"
           disabled={isPending}
           onClick={() => submit("file")}
-          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
         >
           {mode === "create" ? "Create and file case" : "Save and file"}
         </button>
