@@ -388,6 +388,7 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
               <LawyerChatPanel
                 caseId={detail.case.id}
                 canUseChat
+                lawyerName={selectedLawyer.name}
                 initialConversation={detail.conversation}
               />
             ) : null}

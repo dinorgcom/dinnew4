@@ -5,25 +5,56 @@ import { z } from "zod";
 import { env } from "@/lib/env";
 
 const primaryModel = env.OPENAI_API_KEY ? openai("gpt-4.1-mini") : null;
-const fallbackModel = env.ANTHROPIC_API_KEY ? anthropic("claude-3-5-haiku-latest") : null;
 
 export function isAiConfigured() {
-  return Boolean(primaryModel || fallbackModel);
+  return Boolean(primaryModel || env.ANTHROPIC_API_KEY);
 }
 
-function getModel() {
+async function resolveAnthropicModelId() {
+  if (!env.ANTHROPIC_API_KEY) {
+    throw new Error("No AI provider configured.");
+  }
+  const response = await fetch("https://api.anthropic.com/v1/models", {
+    method: "GET",
+    headers: {
+      "x-api-key": env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch Anthropic models.");
+  }
+
+  const payload = (await response.json()) as { data?: Array<{ id?: string }> };
+  const availableIds = (payload.data || [])
+    .map((item) => item.id)
+    .filter((id): id is string => typeof id === "string");
+  const selectedModel = availableIds[0];
+
+  if (!selectedModel) {
+    throw new Error("No Anthropic models available for this API key.");
+  }
+
+  return selectedModel;
+}
+
+async function getModel() {
   if (primaryModel) {
     return primaryModel;
   }
-  if (fallbackModel) {
-    return fallbackModel;
+  if (env.ANTHROPIC_API_KEY) {
+    const modelId = await resolveAnthropicModelId();
+    return anthropic(modelId);
   }
+
   throw new Error("No AI provider configured.");
 }
 
 export async function generatePlainText(prompt: string) {
   const result = await generateText({
-    model: getModel(),
+    model: await getModel(),
     prompt,
   });
 
@@ -35,7 +66,7 @@ export async function generateStructuredObject<TSchema extends z.ZodTypeAny>(
   schema: TSchema,
 ) {
   const result = await generateObject({
-    model: getModel(),
+    model: await getModel(),
     prompt,
     schema,
   });

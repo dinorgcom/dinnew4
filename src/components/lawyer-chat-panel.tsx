@@ -11,6 +11,7 @@ type LawyerMessage = {
 type LawyerChatPanelProps = {
   caseId: string;
   canUseChat: boolean;
+  lawyerName?: string | null;
   initialConversation: {
     lawyerPersonality?: string | null;
     contextSummary?: string | null;
@@ -18,7 +19,7 @@ type LawyerChatPanelProps = {
   } | null;
 };
 
-export function LawyerChatPanel({ caseId, canUseChat, initialConversation }: LawyerChatPanelProps) {
+export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConversation }: LawyerChatPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [personality, setPersonality] = useState(initialConversation?.lawyerPersonality || "strategic");
@@ -126,7 +127,7 @@ export function LawyerChatPanel({ caseId, canUseChat, initialConversation }: Law
                 }`}
               >
                 <div className={`text-xs uppercase tracking-[0.16em] ${item.role === "assistant" ? "text-slate-300" : "text-slate-500"}`}>
-                  {item.role === "assistant" ? "AI lawyer" : "You"}
+                  {item.role === "assistant" ? lawyerName || "AI lawyer" : "You"}
                 </div>
                 <div className="mt-2">{item.content}</div>
               </div>
