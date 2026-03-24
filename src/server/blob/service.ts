@@ -13,7 +13,7 @@ export async function uploadBlob({ pathname, body, contentType }: UploadInput) {
   }
 
   return put(pathname, body, {
-    access: "public",
+    access: "private",
     contentType,
     token: env.BLOB_READ_WRITE_TOKEN,
     addRandomSuffix: true,

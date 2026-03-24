@@ -1,13 +1,40 @@
 import { NextResponse } from "next/server";
+import { get } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { caseMessages, consultants, evidence, expertiseRequests, witnesses } from "@/db/schema";
+import { env } from "@/lib/env";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getAuthorizedCase } from "@/server/cases/mutations";
 
 type RouteProps = {
   params: Promise<{ entity: string; recordId: string }>;
 };
+
+async function serveBlob(url: string) {
+  if (!env.BLOB_READ_WRITE_TOKEN) {
+    return new Response("Blob token not configured", { status: 500 });
+  }
+
+  const access = url.includes(".private.blob.vercel-storage.com/") ? "private" : "public";
+  const blob = await get(url, {
+    access,
+    token: env.BLOB_READ_WRITE_TOKEN,
+  });
+
+  if (!blob || !blob.stream) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  return new Response(blob.stream, {
+    headers: {
+      "content-type": blob.blob.contentType,
+      "content-disposition": blob.blob.contentDisposition,
+      "cache-control": blob.blob.cacheControl,
+      etag: blob.blob.etag,
+    },
+  });
+}
 
 export async function GET(request: Request, { params }: RouteProps) {
   const { entity, recordId } = await params;
@@ -26,7 +53,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return NextResponse.redirect(record.fileUrl);
+    return serveBlob(record.fileUrl);
   }
 
   if (entity === "witnesses") {
@@ -39,7 +66,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return NextResponse.redirect(record.statementFileUrl);
+    return serveBlob(record.statementFileUrl);
   }
 
   if (entity === "consultants") {
@@ -52,7 +79,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return NextResponse.redirect(record.reportFileUrl);
+    return serveBlob(record.reportFileUrl);
   }
 
   if (entity === "messages") {
@@ -65,7 +92,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return NextResponse.redirect(record.attachmentUrl);
+    return serveBlob(record.attachmentUrl);
   }
 
   if (entity === "expertise") {
@@ -80,7 +107,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return NextResponse.redirect(selected.url);
+    return serveBlob(selected.url);
   }
 
   return new Response("Not found", { status: 404 });
