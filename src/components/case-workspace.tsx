@@ -30,6 +30,7 @@ type RecordSummary = {
   filePathname?: string | null;
   attachmentPathname?: string | null;
   fileReferences?: Record<string, unknown>[] | null;
+  submittedBy?: string | null;
 };
 
 type CaseWorkspaceProps = {
@@ -236,6 +237,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 <div className="text-sm text-slate-600">
                   {record.description || record.content || record.type || record.status || "No details"}
                 </div>
+                {kind === "evidence" && record.submittedBy ? (
+                  <div className="text-xs uppercase tracking-[0.15em] text-slate-400">
+                    Submitted by {record.submittedBy}
+                  </div>
+                ) : null}
                 {renderFiles(record, kind)}
               </div>
               {kind !== "messages" ? (
