@@ -463,7 +463,7 @@ export function CaseDetailWorkspace({ detail, userRole }: CaseDetailWorkspacePro
                       {contactsSaving ? "Saving..." : "Save contacts"}
                     </button>
                     <div className="text-sm text-slate-500">
-                      Updating respondent email controls where "Notify respondent" is sent.
+                      Updating respondent email controls where &ldquo;Notify respondent&rdquo; is sent.
                     </div>
                   </div>
                 </div>
