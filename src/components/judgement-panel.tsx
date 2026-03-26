@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { CourtSimulationPanel } from "./court-simulation-panel";
 
 type JudgementPanelProps = {
   caseId: string;
@@ -14,6 +15,31 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision }
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [showChoiceModal, setShowChoiceModal] = useState(false);
+  const [showSimulationPanel, setShowSimulationPanel] = useState(false);
+  
+  // Check for stored simulation on component mount
+  useEffect(() => {
+    const checkStoredSimulation = async () => {
+      try {
+        const res = await fetch(`/api/cases/${caseId}/court-simulation`);
+        
+        if (res.ok) {
+          const stored = await res.json();
+          
+          // Check for simulationResult which contains the actual simulation data
+          if (stored && stored.data && stored.data.simulationResult) {
+            setShowSimulationPanel(true);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check for stored simulation:', err);
+      }
+    };
+
+    checkStoredSimulation();
+  }, [caseId]);
+  
   const parsed = (judgement || {}) as {
     summary?: string;
     claims_analysis?: Array<{ claim?: string; finding?: string; reasoning?: string }>;
@@ -25,8 +51,19 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision }
     detailed_rationale?: string;
   };
 
-  async function submit(action: "generate" | "accept") {
+  async function submit(action: "generate" | "accept", method: "single" | "simulation" = "single") {
     setError(null);
+    
+    if (action === "generate") {
+      // Close choice modal immediately when a choice is made
+      setShowChoiceModal(false);
+      
+      if (method === "simulation") {
+        setShowSimulationPanel(true);
+        return;
+      }
+    }
+    
     const response = await fetch(`/api/cases/${caseId}/judgement`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -38,6 +75,10 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision }
       return;
     }
     router.refresh();
+  }
+
+  if (showSimulationPanel) {
+    return <CourtSimulationPanel caseId={caseId} onBack={() => setShowSimulationPanel(false)} />;
   }
 
   return (
@@ -55,7 +96,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision }
             <button
               type="button"
               disabled={isPending}
-              onClick={() => startTransition(() => void submit("generate"))}
+              onClick={() => setShowChoiceModal(true)}
               className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
             >
               {isPending ? "Working..." : judgement ? "Regenerate judgement" : "Generate judgement"}
@@ -142,6 +183,76 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision }
             </div>
           ) : null}
         </section>
+      )}
+      
+      {/* Choice Modal */}
+      {showChoiceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Choose Judgement Method</h3>
+              <button
+                onClick={() => setShowChoiceModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <button
+                onClick={() => startTransition(() => submit("generate", "single"))}
+                disabled={isPending}
+                className="w-full p-4 border-2 border-blue-200 rounded-lg hover:bg-blue-50 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">Single AI Judgement</h4>
+                    <p className="text-sm text-gray-600">
+                      {isPending ? "Generating judgement..." : "Quick, direct analysis from one AI model"}
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => startTransition(() => submit("generate", "simulation"))}
+                disabled={isPending}
+                className="w-full p-4 border-2 border-purple-200 rounded-lg hover:bg-purple-50 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">Multi-Agent Court Simulation</h4>
+                    <p className="text-sm text-gray-600">
+                      {isPending ? "Starting simulation..." : "Live debate between AI lawyers with intelligent stopping"}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <div className="mt-4 pt-4 border-t">
+              <button
+                onClick={() => setShowChoiceModal(false)}
+                className="w-full py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

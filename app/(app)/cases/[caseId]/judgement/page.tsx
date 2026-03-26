@@ -4,6 +4,9 @@ import { CaseAiNav } from "@/components/case-ai-nav";
 import { JudgementPanel } from "@/components/judgement-panel";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getCaseDetail } from "@/server/cases/queries";
+import { getDb } from "@/db/client";
+import { cases } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 type PageProps = {
   params: Promise<{ caseId: string }>;
@@ -12,10 +15,51 @@ type PageProps = {
 export default async function CaseJudgementPage({ params }: PageProps) {
   const { caseId } = await params;
   const user = await ensureAppUser();
-  const detail = await getCaseDetail(user, caseId);
-
-  if (!detail) {
-    notFound();
+  
+  // First check if user is admin/moderator
+  const isAdminOrModerator = user?.role === "admin" || user?.role === "moderator";
+  
+  let detail;
+  
+  if (isAdminOrModerator) {
+    // For admins/moderators, try to get case detail but fall back to minimal case info
+    detail = await getCaseDetail(user, caseId);
+    
+    if (detail) {
+      // IMPORTANT: Override the role with admin/moderator role for admins
+      detail.role = user.role as 'admin' | 'moderator';
+    }
+    
+    if (!detail) {
+      // Admin/moderator fallback: get basic case info directly
+      const db = getDb();
+      const caseRows = await db.select().from(cases).where(eq(cases.id, caseId)).limit(1);
+      const caseItem = caseRows[0];
+      
+      if (!caseItem) {
+        notFound();
+      }
+      
+      // Create minimal detail object for admin access
+      detail = {
+        case: caseItem,
+        role: user.role as 'admin' | 'moderator',
+        evidence: [],
+        witnesses: [],
+        consultants: [],
+        activities: [],
+        expertiseRequests: [],
+        messages: [],
+        conversations: [],
+      };
+    }
+  } else {
+    // For regular users, use the normal getCaseDetail which checks case association
+    detail = await getCaseDetail(user, caseId);
+    
+    if (!detail) {
+      notFound();
+    }
   }
 
   return (

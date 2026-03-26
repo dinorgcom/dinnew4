@@ -130,14 +130,46 @@ function compactCaseContext(detail: NonNullable<Awaited<ReturnType<typeof getCas
 }
 
 async function getAiContext(user: AppUser, caseId: string) {
-  const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized) {
-    throw new Error("Forbidden");
-  }
+  // Check if user is admin/moderator first
+  const isAdminOrModerator = user?.role === "admin" || user?.role === "moderator";
+  
+  let authorized;
+  let detail;
+  
+  if (isAdminOrModerator) {
+    // For admins/moderators, bypass case association checks
+    const db = getDb();
+    const caseRows = await db.select().from(cases).where(eq(cases.id, caseId)).limit(1);
+    const caseItem = caseRows[0];
+    
+    if (!caseItem) {
+      throw new Error("Case not found");
+    }
+    
+    // Get full case detail for admin
+    detail = await getCaseDetail(user, caseId);
+    if (!detail) {
+      throw new Error("Case not found");
+    }
+    
+    // Override role to admin/moderator
+    detail.role = user?.role as 'admin' | 'moderator';
+    
+    authorized = {
+      case: caseItem,
+      role: user?.role as 'admin' | 'moderator',
+    };
+  } else {
+    // Regular users go through normal checks
+    authorized = await getAuthorizedCase(user, caseId);
+    if (!authorized) {
+      throw new Error("Forbidden");
+    }
 
-  const detail = await getCaseDetail(user, caseId);
-  if (!detail) {
-    throw new Error("Case not found");
+    detail = await getCaseDetail(user, caseId);
+    if (!detail) {
+      throw new Error("Case not found");
+    }
   }
 
   return { authorized, detail };

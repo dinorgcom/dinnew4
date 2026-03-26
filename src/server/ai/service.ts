@@ -40,7 +40,7 @@ async function resolveAnthropicModelId() {
   return selectedModel;
 }
 
-async function getModel() {
+export async function getModel() {
   if (primaryModel) {
     return primaryModel;
   }
