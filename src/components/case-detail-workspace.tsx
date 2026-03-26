@@ -229,39 +229,52 @@ export function CaseDetailWorkspace({ detail, userRole }: CaseDetailWorkspacePro
           ) : (
             claims.map((claim, index) => (
               <div key={`${kind}-${index}`} className="rounded-2xl bg-slate-50 p-4">
-                {canEdit ? (
-                  <>
-                    <input
-                      value={claim.claim}
-                      onChange={(event) =>
-                        setClaims(
-                          claims.map((item, claimIndex) =>
-                            claimIndex === index ? { ...item, claim: event.target.value } : item,
-                          ),
-                        )
-                      }
-                      placeholder="Claim or defense title"
-                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                    />
-                    <textarea
-                      value={claim.details || ""}
-                      onChange={(event) =>
-                        setClaims(
-                          claims.map((item, claimIndex) =>
-                            claimIndex === index ? { ...item, details: event.target.value } : item,
-                          ),
-                        )
-                      }
-                      rows={3}
-                      className="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div className="font-semibold text-slate-900">{claim.claim}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-600">{claim.details}</div>
-                  </>
-                )}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    {canEdit ? (
+                      <>
+                        <input
+                          value={claim.claim}
+                          onChange={(event) =>
+                            setClaims(
+                              claims.map((item, claimIndex) =>
+                                claimIndex === index ? { ...item, claim: event.target.value } : item,
+                              ),
+                            )
+                          }
+                          placeholder="Claim or defense title"
+                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                        />
+                        <textarea
+                          value={claim.details || ""}
+                          onChange={(event) =>
+                            setClaims(
+                              claims.map((item, claimIndex) =>
+                                claimIndex === index ? { ...item, details: event.target.value } : item,
+                              ),
+                            )
+                          }
+                          rows={3}
+                          className="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-semibold text-slate-900">{claim.claim}</div>
+                        <div className="mt-2 text-sm leading-7 text-slate-600">{claim.details}</div>
+                      </>
+                    )}
+                  </div>
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      onClick={() => setClaims(claims.filter((_, claimIndex) => claimIndex !== index))}
+                      className="ml-3 rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100"
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
                 {claim.responses?.length ? (
                   <div className="mt-4 space-y-2">
                     {claim.responses.map((response, responseIndex) => (
