@@ -65,6 +65,7 @@ type CaseDetailWorkspaceProps = {
     todoItems: Array<{ key: string; label: string }>;
     progressStages: Array<{ key: string; label: string; active: boolean }>;
   };
+  userRole?: string;
 };
 
 const tabs = [
@@ -100,7 +101,7 @@ function asClaims(input: Record<string, unknown>[] | null | undefined): Claim[] 
   }));
 }
 
-export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
+export function CaseDetailWorkspace({ detail, userRole }: CaseDetailWorkspaceProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>("overview");
   const [claimantClaims, setClaimantClaims] = useState(asClaims(detail.case.claimantClaims));
@@ -381,7 +382,7 @@ export function CaseDetailWorkspace({ detail }: CaseDetailWorkspaceProps) {
 
             <div className="rounded-[24px] border border-slate-200 p-5">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Contacts</div>
-              {detail.role === "claimant" || detail.role === "moderator" ? (
+              {detail.role === "claimant" || userRole === "admin" ? (
                 <div className="mt-4 space-y-4">
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-2xl bg-slate-50 p-4">

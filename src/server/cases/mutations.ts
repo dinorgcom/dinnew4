@@ -245,7 +245,7 @@ export async function deleteEvidence(user: AppUser, caseId: string, recordId: st
 
 export async function createWitness(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || authorized.role === "moderator") {
+  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
     throw new Error("Forbidden");
   }
 
@@ -271,7 +271,7 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
       statement: parsed.statement || null,
       statementFileUrl: parsed.attachment?.url ?? null,
       statementFilePathname: parsed.attachment?.pathname ?? null,
-      calledBy: authorized.role,
+      calledBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
       notes: parsed.notes || null,
       status: "pending",
     })
@@ -294,7 +294,7 @@ export async function deleteWitness(user: AppUser, caseId: string, recordId: str
 
 export async function createConsultant(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || authorized.role === "moderator") {
+  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
     throw new Error("Forbidden");
   }
 
@@ -322,7 +322,7 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
       report: parsed.report || null,
       reportFileUrl: parsed.attachment?.url ?? null,
       reportFilePathname: parsed.attachment?.pathname ?? null,
-      calledBy: authorized.role,
+      calledBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
       notes: parsed.notes || null,
       status: "pending",
     })
@@ -345,7 +345,7 @@ export async function deleteConsultant(user: AppUser, caseId: string, recordId: 
 
 export async function createExpertise(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || authorized.role === "moderator") {
+  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
     throw new Error("Forbidden");
   }
 
@@ -431,7 +431,7 @@ export async function getLatestCaseActivity(caseId: string) {
 
 export async function updateCaseClaims(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || authorized.role === "moderator") {
+  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
     throw new Error("Forbidden");
   }
 
@@ -522,7 +522,7 @@ export async function notifyRespondent(user: AppUser, caseId: string) {
 
 export async function updateCaseContacts(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role !== "claimant" && authorized.role !== "moderator")) {
+  if (!authorized || (authorized.role !== "claimant" && user?.role !== "admin")) {
     throw new Error("Forbidden");
   }
 

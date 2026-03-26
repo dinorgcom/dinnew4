@@ -20,5 +20,5 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
     redirect(`/cases/${caseId}/select-lawyer`);
   }
 
-  return <CaseDetailWorkspace detail={detail} />;
+  return <CaseDetailWorkspace detail={detail} userRole={appUser?.role} />;
 }
