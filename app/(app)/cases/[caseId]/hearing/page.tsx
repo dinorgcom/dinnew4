@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CaseAiNav } from "@/components/case-ai-nav";
 import { HearingScheduler } from "@/components/hearing-scheduler";
 import { AITestingInterface } from "@/components/ai-testing-interface";
+import { VoiceTestPanel } from "@/components/voice-test-panel";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getCaseDetail } from "@/server/cases/queries";
 import { getDb } from "@/db/client";
@@ -186,6 +187,11 @@ export default async function CaseHearingPage({ params }: PageProps) {
           {/* AI Testing Interface */}
           <div className="mt-8">
             <AITestingInterface caseId={caseId} caseTitle={detail.case.title} />
+          </div>
+
+          {/* Voice Test Panel */}
+          <div className="mt-8">
+            <VoiceTestPanel caseId={caseId} caseTitle={detail.case.title} />
           </div>
         </div>
       </div>
