@@ -509,6 +509,9 @@ export function CaseDetailWorkspace({ detail, userRole }: CaseDetailWorkspacePro
                 <Link href={`/cases/${detail.case.id}/judgement` as Route} className="block rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:border-slate-400">
                   Request judgement
                 </Link>
+                <Link href={`/cases/${detail.case.id}/hearing` as Route} className="block rounded-2xl border border-purple-300 bg-purple-50 px-4 py-3 text-sm font-medium text-purple-700 hover:border-purple-400 hover:bg-purple-100">
+                  🏛️ Virtual hearing room
+                </Link>
               </div>
             </div>
 
