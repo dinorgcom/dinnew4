@@ -44,6 +44,7 @@ export const cases = pgTable(
     simulationResult: jsonb("simulation_result").$type<Record<string, unknown> | null>(),
     simulationTimeline: jsonb("simulation_timeline").$type<Record<string, unknown> | null>(),
     simulationCompletedAt: timestamp("simulation_completed_at", { withTimezone: true }),
+    meetingUrl: text("meeting_url"),
     notes: text("notes"),
     createdAt,
     updatedAt,

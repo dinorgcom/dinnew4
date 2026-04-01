@@ -32,10 +32,12 @@ export async function PATCH(request: Request, { params }: RouteProps) {
     const db = getDb();
     await db.update(cases)
       .set({
-        hearingDate: body.hearingDate,
+        hearingDate: body.hearingDate ? new Date(body.hearingDate) : undefined,
         updatedAt: new Date(),
         // Add meeting URL if provided
-        ...(body.meetingUrl && { meetingUrl: body.meetingUrl })
+        ...(body.meetingUrl && { meetingUrl: body.meetingUrl }),
+        // Update status if provided - map "scheduled" to "hearing_scheduled"
+        ...(body.status && { status: body.status === 'scheduled' ? 'hearing_scheduled' : body.status })
       })
       .where(eq(cases.id, caseId));
 

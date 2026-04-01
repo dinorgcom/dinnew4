@@ -8,6 +8,13 @@
       "when": 1774535569114,
       "tag": "0000_melted_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775053399069,
+      "tag": "0001_mysterious_colossus",
+      "breakpoints": true
     }
   ]
 }
