@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AIHearingControls } from "./ai-hearing-controls";
 
 interface Hearing {
@@ -35,11 +35,7 @@ export function ExistingHearings({ caseId, caseTitle }: ExistingHearingsProps) {
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchHearings();
-  }, [caseId]);
-
-  const fetchHearings = async () => {
+  const fetchHearings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -56,7 +52,11 @@ export function ExistingHearings({ caseId, caseTitle }: ExistingHearingsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [caseId]);
+
+  useEffect(() => {
+    fetchHearings();
+  }, [fetchHearings]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -285,7 +285,7 @@ export function ExistingHearings({ caseId, caseTitle }: ExistingHearingsProps) {
             {hearing.status === 'scheduled' && new Date(hearing.scheduledStartTime) < new Date() && (
               <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
                 <div className="text-sm text-yellow-800">
-                  ⚠️ This hearing was scheduled for {formatDateTime(hearing.scheduledStartTime)} but hasn't started yet.
+                  ⚠️ This hearing was scheduled for {formatDateTime(hearing.scheduledStartTime)} but hasn&apos;t started yet.
                 </div>
               </div>
             )}
