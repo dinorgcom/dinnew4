@@ -19,7 +19,7 @@ export const hearings = pgTable(
     meetingId: text("meeting_id"), // Platform-specific meeting ID
     
     // Hearing Status & Phase
-    status: text("status").default("scheduled").notNull(), // "scheduled", "in_progress", "paused", "completed", "cancelled"
+    status: text("status").default("scheduled").notNull(), // "scheduled", "ai_ready", "in_progress", "paused", "completed", "cancelled"
     phase: text("phase").default("pre_hearing"), // "pre_hearing", "opening_statements", "evidence", "cross_examination", "closing", "deliberation", "completed"
     currentSpeaker: text("current_speaker"), // "judge", "claimant_lawyer", "respondent_lawyer", "claimant", "respondent", "witness"
     
@@ -30,7 +30,7 @@ export const hearings = pgTable(
     // Real-time Processing
     transcriptionSessionId: text("transcription_session_id"),
     lastTranscriptionAt: timestamp("last_transcription_at", { withTimezone: true }),
-    joinlySessionId: text("joinly_session_id"), // Session ID for Joinly AI agent management
+    pikaSessionId: text("pika_session_id"), // Session ID for Pika Skills AI agent management
     
     // Hearing Control
     isRecording: text("is_recording").default("false").notNull(), // "true", "false"
@@ -120,7 +120,7 @@ export const hearingParticipants = pgTable(
     isActive: text("is_active").default("true").notNull(), // "true", "false"
     
     // Technical Details
-    joinlyParticipantId: text("joinly_participant_id"), // ID from Joinly system
+    pikaParticipantId: text("pika_participant_id"), // ID from Pika Skills system
     meetingParticipantId: text("meeting_participant_id"), // ID from meeting platform
     
     createdAt,

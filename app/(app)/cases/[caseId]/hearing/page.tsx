@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CaseAiNav } from "@/components/case-ai-nav";
 import { HearingScheduler } from "@/components/hearing-scheduler";
+import { ExistingHearings } from "@/components/existing-hearings";
 import { AITestingInterface } from "@/components/ai-testing-interface";
 import { VoiceTestPanel } from "@/components/voice-test-panel";
 import { ensureAppUser } from "@/server/auth/provision";
@@ -179,9 +180,17 @@ export default async function CaseHearingPage({ params }: PageProps) {
             </div>
           </div>
 
+          {/* Existing Hearings */}
+          <div className="mt-8">
+            <ExistingHearings caseId={caseId} caseTitle={detail.case.title} />
+          </div>
+
           {/* Hearing Scheduler */}
           <div className="mt-8">
-            <HearingScheduler caseId={caseId} caseTitle={detail.case.title} />
+            <div className="border-t pt-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Schedule New Hearing</h3>
+              <HearingScheduler caseId={caseId} caseTitle={detail.case.title} />
+            </div>
           </div>
 
           {/* AI Testing Interface */}

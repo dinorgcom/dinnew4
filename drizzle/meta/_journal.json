@@ -15,6 +15,13 @@
       "when": 1775053399069,
       "tag": "0001_mysterious_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775477162111,
+      "tag": "0002_dear_microbe",
+      "breakpoints": true
     }
   ]
 }

@@ -45,7 +45,6 @@ type CaseDetailWorkspaceProps = {
       respondentClaims: Record<string, unknown>[] | null;
       claimantLawyerKey: string | null;
       respondentLawyerKey?: string | null;
-      hearingDate: string | Date | null;
       arbitratorAssignedName: string | null;
       finalDecision: string | null;
     };
@@ -106,7 +105,6 @@ export function CaseDetailWorkspace({ detail, userRole }: CaseDetailWorkspacePro
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>("overview");
   const [claimantClaims, setClaimantClaims] = useState(asClaims(detail.case.claimantClaims));
   const [respondentClaims, setRespondentClaims] = useState(asClaims(detail.case.respondentClaims));
-  const [hearingDate, setHearingDate] = useState("");
   const [arbitrator, setArbitrator] = useState(detail.case.arbitratorAssignedName || "");
   const [error, setError] = useState<string | null>(null);
   const [contactsError, setContactsError] = useState<string | null>(null);
@@ -520,12 +518,6 @@ export function CaseDetailWorkspace({ detail, userRole }: CaseDetailWorkspacePro
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Hearing</div>
                 <div className="mt-4 space-y-3">
                   <input
-                    type="datetime-local"
-                    value={hearingDate}
-                    onChange={(event) => setHearingDate(event.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
-                  />
-                  <input
                     value={arbitrator}
                     onChange={(event) => setArbitrator(event.target.value)}
                     placeholder="Arbitrator name"
@@ -536,7 +528,6 @@ export function CaseDetailWorkspace({ detail, userRole }: CaseDetailWorkspacePro
                     onClick={() =>
                       startTransition(() =>
                         void post(`/api/cases/${detail.case.id}/hearing`, {
-                          hearingDate,
                           arbitrator,
                         }),
                       )

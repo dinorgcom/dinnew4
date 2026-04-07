@@ -39,6 +39,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
   ELEVENLABS_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
+  AI_AGENT_WEBHOOK_URL: z.string().url().optional(),
 });
 
 export const env = envSchema.parse({
@@ -59,4 +60,5 @@ export const env = envSchema.parse({
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  AI_AGENT_WEBHOOK_URL: process.env.AI_AGENT_WEBHOOK_URL,
 });

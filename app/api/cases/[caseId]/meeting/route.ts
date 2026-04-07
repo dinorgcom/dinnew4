@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureAppUser } from '@/server/auth/provision';
 import { getCaseDetail } from '@/server/cases/queries';
 import { createGoogleMeet, GoogleMeetError } from '@/lib/google-meet';
+import { getDb } from '@/db/client';
+import { hearings } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(
   request: NextRequest,
@@ -21,22 +24,37 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { title, startTime, duration, description, attendees } = body;
+    const { title, startTime, duration, description, attendees, hearingId } = body;
 
     // Validate input
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    if (!title?.trim()) {
       return NextResponse.json(
         { error: { message: 'Meeting title is required' } },
         { status: 400 }
       );
     }
 
+    if (!caseId?.trim()) {
+      return NextResponse.json(
+        { error: { message: 'Case ID is required' } },
+        { status: 400 }
+      );
+    }
+
+    // If hearingId is provided, this is an update to existing hearing
+    // Otherwise, this is creating a new meeting for a new hearing
+    const isUpdate = hearingId && hearingId.trim() !== '';
+
+    const startTimeDate = startTime ? new Date(startTime) : new Date();
+    const durationMinutes = Math.max(15, Math.min(480, duration ? parseInt(duration) : 60)); // Between 15min and 8 hours
+    const endTime = new Date(startTimeDate.getTime() + durationMinutes * 60 * 1000);
+
     // Create real Google Meet
     const meetingData = await createGoogleMeet({
       title: title.trim(),
       caseId,
-      startTime: startTime ? new Date(startTime) : undefined,
-      duration: duration ? parseInt(duration) : undefined,
+      startTime: startTimeDate,
+      duration: durationMinutes,
       description,
       attendees,
       claimantEmail: caseDetail.case.claimantEmail || undefined,
@@ -44,7 +62,39 @@ export async function POST(
     });
 
     // Save meeting data to database
-    // await saveMeetingToDatabase(caseId, meetingData);
+    const db = getDb();
+    let hearing;
+    
+    if (isUpdate) {
+      // Update existing hearing
+      hearing = await db.update(hearings)
+        .set({
+          meetingUrl: meetingData.meetingUrl,
+          meetingId: meetingData.calendarEventId,
+          meetingPlatform: 'google_meet',
+          updatedAt: new Date(),
+        })
+        .where(eq(hearings.id, hearingId))
+        .returning()
+        .then(rows => rows[0]);
+    } else {
+      // Create new hearing record
+      const hearingData = {
+        caseId,
+        scheduledStartTime: startTimeDate,
+        scheduledEndTime: endTime,
+        meetingUrl: meetingData.meetingUrl,
+        meetingId: meetingData.calendarEventId,
+        meetingPlatform: 'google_meet',
+        status: 'scheduled',
+        phase: 'pre_hearing',
+        isRecording: 'false',
+        isTranscribing: 'true',
+        autoTranscribe: 'true',
+      };
+      
+      [hearing] = await db.insert(hearings).values(hearingData).returning();
+    }
 
     return NextResponse.json({
       success: true,
@@ -55,6 +105,7 @@ export async function POST(
         startTime: meetingData.startTime,
         endTime: meetingData.endTime,
         calendarEventId: meetingData.calendarEventId,
+        hearingId: isUpdate ? hearingId : hearing.id,
         settings: {
           recordingEnabled: true,
           waitingRoomEnabled: true,
@@ -94,6 +145,7 @@ export async function POST(
     );
   }
 }
+
 
 export async function GET(
   request: NextRequest,

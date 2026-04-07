@@ -309,3 +309,39 @@ export async function createGoogleMeet(params: CreateMeetingParams): Promise<Mee
     );
   }
 }
+
+// Delete a Google Calendar event
+export const deleteGoogleCalendarEvent = async (eventId: string) => {
+  try {
+    const calendar = await getAuthenticatedCalendarClient();
+    const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
+    
+    await calendar.events.delete({
+      calendarId,
+      eventId,
+    });
+    
+    console.log(`✅ Deleted Google Calendar event: ${eventId}`);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 404) {
+      // Event not found - that's okay, it might have been deleted already
+      console.log(`⚠️ Calendar event not found (may already be deleted): ${eventId}`);
+      return;
+    }
+    
+    if (error && typeof error === 'object' && 'code' in error && error.code === 403) {
+      throw new GoogleMeetError(
+        'Access denied to calendar. Please ensure OAuth authorization includes calendar access.',
+        'CALENDAR_ACCESS_DENIED',
+        error
+      );
+    }
+    
+    console.error('Failed to delete calendar event:', error);
+    throw new GoogleMeetError(
+      'Failed to delete calendar event',
+      'DELETE_ERROR',
+      error
+    );
+  }
+};

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AIHearingControls } from "./ai-hearing-controls";
 
 interface HearingSchedulerProps {
   caseId: string;
@@ -13,6 +14,7 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
   const [duration, setDuration] = useState("60"); // Default 60 minutes
   const [startNow, setStartNow] = useState(false);
   const [meetingUrl, setMeetingUrl] = useState<string | null>(null);
+  const [hearingId, setHearingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -28,7 +30,7 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
     setSuccess(false);
 
     try {
-      // Prepare meeting data
+      // Create the Google Meet meeting first
       const meetingData = {
         title: `Court Hearing - ${caseTitle}`,
         type: 'hearing',
@@ -36,42 +38,25 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
         duration: parseInt(duration)
       };
 
-      // Create meeting
-      const response = await fetch(`/api/cases/${caseId}/meeting`, {
+      const meetingResponse = await fetch(`/api/cases/${caseId}/meeting`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(meetingData)
       });
 
-      if (!response.ok) {
+      if (!meetingResponse.ok) {
         throw new Error('Failed to create meeting');
       }
 
-      const data = await response.json();
-      setMeetingUrl(data.meeting?.meetingUrl);
-      setSuccess(true);
-
-      // Update hearing status in database
-      const hearingPayload = {
-        hearingDate: startNow ? new Date().toISOString() : hearingDate,
-        meetingUrl: data.meeting?.meetingUrl,
-        meetingId: data.meeting?.meetingId,
-        endTime: startNow 
-          ? new Date(Date.now() + parseInt(duration) * 60 * 1000).toISOString() 
-          : new Date(new Date(hearingDate).getTime() + parseInt(duration) * 60 * 1000).toISOString(),
-        status: 'scheduled'
-      };
+      const meetingDataResult = await meetingResponse.json();
       
-      const hearingResponse = await fetch(`/api/cases/${caseId}/hearing`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(hearingPayload)
-      });
+      // The meeting API now creates the hearing record and returns the hearingId
+      const actualHearingId = meetingDataResult.meeting?.hearingId;
       
-      if (!hearingResponse.ok) {
-        const errorText = await hearingResponse.text();
-        throw new Error(`Failed to update hearing: ${hearingResponse.status}`);
-      }
+      setMeetingUrl(meetingDataResult.meeting?.meetingUrl);
+      setHearingId(actualHearingId); 
+      console.log('Set hearingId to:', actualHearingId); 
+      setSuccess(true); 
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create meeting');
@@ -117,6 +102,7 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
               onClick={() => {
                 setSuccess(false);
                 setMeetingUrl(null);
+                setHearingId(null);
                 setHearingDate("");
                 setStartNow(false);
               }}
@@ -125,6 +111,24 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
               Create Another
             </button>
           </div>
+
+          {/* AI Controls - Integrated with Hearing */}
+          {hearingId && (
+            <div className="mt-6 pt-6 border-t border-green-200">
+              <AIHearingControls 
+                hearingId={hearingId} 
+                meetingUrl={meetingUrl || ""} 
+                isActive={false}
+              />
+            </div>
+          )}
+          {!hearingId && success && (
+            <div className="mt-6 pt-6 border-t border-green-200">
+              <div className="text-sm text-amber-700">
+                Debug: hearingId is null, AI controls hidden
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
