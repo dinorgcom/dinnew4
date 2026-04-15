@@ -199,6 +199,11 @@ export async function processStripeWebhook(body: string, signature: string | nul
   const stripe = getStripe();
   const event = stripe.webhooks.constructEvent(body, signature || "", webhookSecret);
 
+  if (event.type.startsWith("identity.verification_session.")) {
+    const { processIdentityWebhookEvent } = await import("@/server/identity/service");
+    return processIdentityWebhookEvent(event);
+  }
+
   if (event.type !== "checkout.session.completed") {
     return { received: true, ignored: true };
   }
