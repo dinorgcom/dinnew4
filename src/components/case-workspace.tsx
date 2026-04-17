@@ -31,6 +31,9 @@ type RecordSummary = {
   attachmentPathname?: string | null;
   fileReferences?: Record<string, unknown>[] | null;
   submittedBy?: string | null;
+  invitationTokenExpiresAt?: string | Date | null;
+  kycVerificationId?: string | null;
+  kycStatus?: string | null;
 };
 
 type CaseWorkspaceProps = {
@@ -220,10 +223,34 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     );
   }
 
+  function getVerificationBadge(record: RecordSummary) {
+    if (record.kycStatus === "verified" || record.status === "accepted") {
+      return <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Verified</span>;
+    }
+    if (record.invitationTokenExpiresAt) {
+      const expiry = new Date(record.invitationTokenExpiresAt);
+      if (expiry < new Date()) {
+        return <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Link expired</span>;
+      }
+    }
+    return <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Pending</span>;
+  }
+
+  function handleResend(kind: "witnesses" | "consultants", recordId: string) {
+    startTransition(async () => {
+      const response = await fetch(`/api/cases/${props.caseId}/${kind}/${recordId}/resend`, { method: "POST" });
+      if (response.ok) {
+        router.refresh();
+      }
+    });
+  }
+
   function renderList(records: RecordSummary[], kind: "evidence" | "witnesses" | "consultants" | "expertise" | "messages") {
     if (records.length === 0) {
       return <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">No records yet.</div>;
     }
+
+    const showVerification = kind === "witnesses" || kind === "consultants";
 
     return (
       <div className="space-y-3">
@@ -231,8 +258,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
           <div key={record.id} className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
-                <div className="font-semibold text-slate-900">
-                  {record.title || record.fullName || record.senderName || "Record"}
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-900">
+                    {record.title || record.fullName || record.senderName || "Record"}
+                  </span>
+                  {showVerification ? getVerificationBadge(record) : null}
                 </div>
                 <div className="text-sm text-slate-600">
                   {record.description || record.content || record.type || record.status || "No details"}
@@ -244,21 +274,33 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 ) : null}
                 {renderFiles(record, kind)}
               </div>
-              {kind !== "messages" ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    startTransition(() =>
-                      remove(
-                        `/api/cases/${props.caseId}/${kind === "expertise" ? "expertise" : kind}/${record.id}`,
-                      ),
-                    )
-                  }
-                  className="text-sm font-medium text-rose-600 hover:text-rose-700"
-                >
-                  Delete
-                </button>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {showVerification && props.canContribute && record.kycStatus !== "verified" && record.status !== "accepted" ? (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleResend(kind, record.id)}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 disabled:opacity-60"
+                  >
+                    Resend
+                  </button>
+                ) : null}
+                {kind !== "messages" ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      startTransition(() =>
+                        remove(
+                          `/api/cases/${props.caseId}/${kind === "expertise" ? "expertise" : kind}/${record.id}`,
+                        ),
+                      )
+                    }
+                    className="text-sm font-medium text-rose-600 hover:text-rose-700"
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         ))}
@@ -417,7 +459,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                       witness: { ...current.witness, [key]: event.target.value },
                     }))
                   }
-                  placeholder={key}
+                  placeholder={key === "email" ? "email (required)" : key}
+                  required={key === "fullName" || key === "email"}
+                  type={key === "email" ? "email" : "text"}
                   className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
                 />
               ))}
@@ -500,7 +544,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                       consultant: { ...current.consultant, [key]: event.target.value },
                     }))
                   }
-                  placeholder={key}
+                  placeholder={key === "email" ? "email (required)" : key}
+                  required={key === "fullName" || key === "email"}
+                  type={key === "email" ? "email" : "text"}
                   className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
                 />
               ))}

@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, lawyerConversations, witnesses, hearings, caseAudits } from "@/db/schema";
+import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, witnesses, hearings, caseAudits } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { isDatabaseConfigured } from "@/server/runtime";
 
@@ -307,8 +307,8 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
       .orderBy(desc(caseActivities.createdAt))
       .limit(8),
     db.select().from(evidence).where(eq(evidence.caseId, caseId)).orderBy(desc(evidence.createdAt)),
-    db.select().from(witnesses).where(eq(witnesses.caseId, caseId)).orderBy(desc(witnesses.createdAt)),
-    db.select().from(consultants).where(eq(consultants.caseId, caseId)).orderBy(desc(consultants.createdAt)),
+    db.select({ witness: witnesses, kycStatus: kycVerifications.status }).from(witnesses).leftJoin(kycVerifications, eq(witnesses.kycVerificationId, kycVerifications.id)).where(eq(witnesses.caseId, caseId)).orderBy(desc(witnesses.createdAt)),
+    db.select({ consultant: consultants, kycStatus: kycVerifications.status }).from(consultants).leftJoin(kycVerifications, eq(consultants.kycVerificationId, kycVerifications.id)).where(eq(consultants.caseId, caseId)).orderBy(desc(consultants.createdAt)),
     db.select().from(expertiseRequests).where(eq(expertiseRequests.caseId, caseId)).orderBy(desc(expertiseRequests.createdAt)),
     db.select().from(caseMessages).where(eq(caseMessages.caseId, caseId)).orderBy(desc(caseMessages.createdAt)).limit(20),
     user.email
@@ -362,14 +362,18 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     { key: "decision", label: "Decision phase", active: ["in_arbitration", "awaiting_decision", "resolved"].includes(caseItem.status) },
   ];
 
+  // Flatten joined witness/consultant results to include kycStatus
+  const flatWitnesses = witnessRows.map((row) => ({ ...row.witness, kycStatus: row.kycStatus }));
+  const flatConsultants = consultantRows.map((row) => ({ ...row.consultant, kycStatus: row.kycStatus }));
+
   return {
     case: caseItem,
     role,
     roleLabel: toRoleLabel(role),
     activities: activityRows,
     evidence: evidenceRows,
-    witnesses: witnessRows,
-    consultants: consultantRows,
+    witnesses: flatWitnesses,
+    consultants: flatConsultants,
     expertiseRequests: expertiseRows,
     messages: messageRows,
     conversation: conversations[0] ?? null,
@@ -378,9 +382,9 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     todoItems,
     progressStages,
     summaryCards: [
-      { label: "Evidence", value: evidenceRows.length },
-      { label: "Witnesses", value: witnessRows.length },
-      { label: "Consultants", value: consultantRows.length },
+      { label: "Evidence", value: flatWitnesses.length },
+      { label: "Witnesses", value: flatWitnesses.length },
+      { label: "Consultants", value: flatConsultants.length },
       { label: "Expertise", value: expertiseRows.length },
     ],
   };

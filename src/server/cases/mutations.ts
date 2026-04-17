@@ -27,7 +27,9 @@ import { spendForAction } from "@/server/billing/service";
 import { assertAppUserActive } from "@/server/auth/provision";
 import { isUserKycVerified } from "@/server/identity/service";
 import { sendRespondentNotifyEmail } from "@/server/email/respondent-notify";
+import { sendWitnessInvitationEmail, sendConsultantInvitationEmail } from "@/server/email/witness-notify";
 import { randomUUID } from "crypto";
+import { nanoid } from "nanoid";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -275,18 +277,22 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
   const spendResult = await spendForAction(user, {
     actionCode: "witness_create",
     caseId,
-    idempotencyKey: `witness:${caseId}:${parsed.fullName}:${parsed.email || ""}`,
+    idempotencyKey: `witness:${caseId}:${parsed.fullName}:${parsed.email}`,
     metadata: { fullName: parsed.fullName },
   });
   if (!spendResult.success) {
     throw new Error(spendResult.error);
   }
+
+  const token = nanoid(22);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
   const inserted = await db
     .insert(witnesses)
     .values({
       caseId,
       fullName: parsed.fullName,
-      email: parsed.email || null,
+      email: parsed.email,
       phone: parsed.phone || null,
       relationship: parsed.relationship || null,
       statement: parsed.statement || null,
@@ -295,10 +301,31 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
       calledBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
       notes: parsed.notes || null,
       status: "pending",
+      invitationToken: token,
+      invitationTokenExpiresAt: expiresAt,
     })
     .returning();
 
   await createCaseActivity(caseId, "witness_added", "Witness added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
+
+  // Send invitation email
+  const calledBy = authorized.role === "moderator" ? "arbitrator" : authorized.role;
+  const calledByPartyName =
+    calledBy === "claimant"
+      ? authorized.case.claimantName || "the claimant"
+      : calledBy === "respondent"
+        ? authorized.case.respondentName || "the respondent"
+        : "the arbitrator";
+
+  try {
+    await sendWitnessInvitationEmail(parsed.email, {
+      witnessName: parsed.fullName,
+      calledByPartyName,
+      token,
+    });
+  } catch (err) {
+    console.error("Failed to send witness invitation email:", err);
+  }
 
   return inserted[0];
 }
@@ -324,18 +351,22 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
   const spendResult = await spendForAction(user, {
     actionCode: "consultant_create",
     caseId,
-    idempotencyKey: `consultant:${caseId}:${parsed.fullName}:${parsed.email || ""}`,
+    idempotencyKey: `consultant:${caseId}:${parsed.fullName}:${parsed.email}`,
     metadata: { fullName: parsed.fullName },
   });
   if (!spendResult.success) {
     throw new Error(spendResult.error);
   }
+
+  const token = nanoid(22);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
   const inserted = await db
     .insert(consultants)
     .values({
       caseId,
       fullName: parsed.fullName,
-      email: parsed.email || null,
+      email: parsed.email,
       phone: parsed.phone || null,
       company: parsed.company || null,
       expertise: parsed.expertise || null,
@@ -346,10 +377,31 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
       calledBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
       notes: parsed.notes || null,
       status: "pending",
+      invitationToken: token,
+      invitationTokenExpiresAt: expiresAt,
     })
     .returning();
 
   await createCaseActivity(caseId, "note", "Consultant added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
+
+  // Send invitation email
+  const calledBy = authorized.role === "moderator" ? "arbitrator" : authorized.role;
+  const calledByPartyName =
+    calledBy === "claimant"
+      ? authorized.case.claimantName || "the claimant"
+      : calledBy === "respondent"
+        ? authorized.case.respondentName || "the respondent"
+        : "the arbitrator";
+
+  try {
+    await sendConsultantInvitationEmail(parsed.email, {
+      consultantName: parsed.fullName,
+      calledByPartyName,
+      token,
+    });
+  } catch (err) {
+    console.error("Failed to send consultant invitation email:", err);
+  }
 
   return inserted[0];
 }
@@ -362,6 +414,80 @@ export async function deleteConsultant(user: AppUser, caseId: string, recordId: 
 
   const db = getDb();
   await db.delete(consultants).where(and(eq(consultants.id, recordId), eq(consultants.caseId, caseId)));
+}
+
+export async function resendWitnessInvitation(user: AppUser, caseId: string, witnessId: string) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
+    throw new Error("Forbidden");
+  }
+
+  const db = getDb();
+  const rows = await db.select().from(witnesses).where(and(eq(witnesses.id, witnessId), eq(witnesses.caseId, caseId))).limit(1);
+  const witness = rows[0];
+  if (!witness) {
+    throw new Error("Witness not found");
+  }
+
+  const token = nanoid(22);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  await db
+    .update(witnesses)
+    .set({ invitationToken: token, invitationTokenExpiresAt: expiresAt })
+    .where(eq(witnesses.id, witnessId));
+
+  const calledByPartyName =
+    witness.calledBy === "claimant"
+      ? authorized.case.claimantName || "the claimant"
+      : witness.calledBy === "respondent"
+        ? authorized.case.respondentName || "the respondent"
+        : "the arbitrator";
+
+  await sendWitnessInvitationEmail(witness.email, {
+    witnessName: witness.fullName,
+    calledByPartyName,
+    token,
+  });
+
+  return { success: true };
+}
+
+export async function resendConsultantInvitation(user: AppUser, caseId: string, consultantId: string) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
+    throw new Error("Forbidden");
+  }
+
+  const db = getDb();
+  const rows = await db.select().from(consultants).where(and(eq(consultants.id, consultantId), eq(consultants.caseId, caseId))).limit(1);
+  const consultant = rows[0];
+  if (!consultant) {
+    throw new Error("Consultant not found");
+  }
+
+  const token = nanoid(22);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  await db
+    .update(consultants)
+    .set({ invitationToken: token, invitationTokenExpiresAt: expiresAt })
+    .where(eq(consultants.id, consultantId));
+
+  const calledByPartyName =
+    consultant.calledBy === "claimant"
+      ? authorized.case.claimantName || "the claimant"
+      : consultant.calledBy === "respondent"
+        ? authorized.case.respondentName || "the respondent"
+        : "the arbitrator";
+
+  await sendConsultantInvitationEmail(consultant.email, {
+    consultantName: consultant.fullName,
+    calledByPartyName,
+    token,
+  });
+
+  return { success: true };
 }
 
 export async function createExpertise(user: AppUser, caseId: string, payload: unknown) {
