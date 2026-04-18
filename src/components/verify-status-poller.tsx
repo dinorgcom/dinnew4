@@ -19,7 +19,17 @@ export function VerifyStatusPoller({ initialStatus }: VerifyStatusPollerProps) {
     setRedirecting(true);
     const returnTo = localStorage.getItem("kyc_return_to");
     localStorage.removeItem("kyc_return_to");
-    const destination = returnTo || "/dashboard";
+
+    // Only trust same-origin absolute paths. Reject protocol-relative ("//…"),
+    // absolute URLs ("http://…"), and anything with a protocol separator so a
+    // tampered localStorage value can't redirect offsite.
+    const isSafeInternalPath =
+      typeof returnTo === "string" &&
+      returnTo.startsWith("/") &&
+      !returnTo.startsWith("//") &&
+      !returnTo.includes("\\") &&
+      !/^\/[^/]*:/.test(returnTo);
+    const destination = isSafeInternalPath ? returnTo! : "/dashboard";
 
     // Brief delay so the user sees the success state
     setTimeout(() => {

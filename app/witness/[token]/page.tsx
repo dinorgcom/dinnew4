@@ -23,28 +23,8 @@ export default async function WitnessVerificationPage({ params }: PageProps) {
     notFound();
   }
 
-  // Check if link expired
-  if (witness.invitationTokenExpiresAt && witness.invitationTokenExpiresAt < new Date()) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[color:var(--bg-canvas)] px-4">
-        <div className="w-full max-w-md space-y-6 rounded-[28px] border border-black/5 bg-white/88 p-8 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
-          <div className="space-y-4 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-              <svg className="h-7 w-7 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink">Link Expired</h1>
-            <p className="text-sm text-slate-500">
-              This invitation link has expired. Please contact the party who invited you to request a new link.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Check if already verified
+  // Check if already verified (takes priority over expiry — a verified
+  // witness shouldn't see "Link Expired" just because 7 days passed).
   if (witness.kycVerificationId) {
     const kycRows = await db
       .select({ status: kycVerifications.status })
@@ -71,6 +51,27 @@ export default async function WitnessVerificationPage({ params }: PageProps) {
         </div>
       );
     }
+  }
+
+  // Check if link expired
+  if (witness.invitationTokenExpiresAt && witness.invitationTokenExpiresAt < new Date()) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[color:var(--bg-canvas)] px-4">
+        <div className="w-full max-w-md space-y-6 rounded-[28px] border border-black/5 bg-white/88 p-8 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
+          <div className="space-y-4 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+              <svg className="h-7 w-7 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">Link Expired</h1>
+            <p className="text-sm text-slate-500">
+              This invitation link has expired. Please contact the party who invited you to request a new link.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Resolve who called the witness

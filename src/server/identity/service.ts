@@ -550,6 +550,10 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
                 originalFullName: current.originalFullName ?? current.fullName,
                 nameUpdatedAt: new Date(),
                 status: "accepted",
+                // Invalidate the invitation token — a successful verification
+                // consumes the link. A resend will rotate the token.
+                invitationToken: null,
+                invitationTokenExpiresAt: null,
               })
               .where(eq(witnesses.id, witnessId));
 
@@ -561,7 +565,10 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
               performedBy: "system",
             });
           } else {
-            await db.update(witnesses).set({ status: "accepted" }).where(eq(witnesses.id, witnessId));
+            await db
+              .update(witnesses)
+              .set({ status: "accepted", invitationToken: null, invitationTokenExpiresAt: null })
+              .where(eq(witnesses.id, witnessId));
           }
         }
       }
@@ -578,6 +585,10 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
                 originalFullName: current.originalFullName ?? current.fullName,
                 nameUpdatedAt: new Date(),
                 status: "accepted",
+                // Invalidate the invitation token — a successful verification
+                // consumes the link. A resend will rotate the token.
+                invitationToken: null,
+                invitationTokenExpiresAt: null,
               })
               .where(eq(consultants.id, consultantId));
 
@@ -589,7 +600,10 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
               performedBy: "system",
             });
           } else {
-            await db.update(consultants).set({ status: "accepted" }).where(eq(consultants.id, consultantId));
+            await db
+              .update(consultants)
+              .set({ status: "accepted", invitationToken: null, invitationTokenExpiresAt: null })
+              .where(eq(consultants.id, consultantId));
           }
         }
       }

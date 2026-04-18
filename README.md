@@ -43,6 +43,6 @@ It intentionally does not include:
 - data import scripts
 
 ## Local DB
-'''sh
+```sh
 docker run --name KYC-postgres -e POSTGRES_PASSWORD=admin -p 5432:5432 -d postgres
-'''
+```

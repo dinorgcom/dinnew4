@@ -390,7 +390,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     todoItems,
     progressStages,
     summaryCards: [
-      { label: "Evidence", value: flatWitnesses.length },
+      { label: "Evidence", value: evidenceRows.length },
       { label: "Witnesses", value: flatWitnesses.length },
       { label: "Consultants", value: flatConsultants.length },
       { label: "Expertise", value: expertiseRows.length },
