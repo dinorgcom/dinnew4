@@ -22,9 +22,11 @@ export async function createVerificationSession(user: AppUser) {
     return { alreadyVerified: true as const, url: null, sessionId: null };
   }
 
+  const db = getDb();
+  const stripe = getStripe();
+
   // If there's a pending session, check if it's still usable
   if (existing.status === "pending" && existing.stripeSessionId) {
-    const stripe = getStripe();
     try {
       const existingSession = await stripe.identity.verificationSessions.retrieve(existing.stripeSessionId);
       if (existingSession.url && existingSession.status === "requires_input") {
@@ -34,9 +36,21 @@ export async function createVerificationSession(user: AppUser) {
     } catch {
       // Session expired or invalid, create a new one
     }
+
+    // Prior session is unusable — cancel it at Stripe and mark the DB row
+    // canceled so a late "verified" webhook for this orphaned session can be
+    // detected and skipped downstream (see processIdentityWebhookEvent).
+    try {
+      await stripe.identity.verificationSessions.cancel(existing.stripeSessionId);
+    } catch {
+      // Already terminal at Stripe — safe to ignore.
+    }
+    await db
+      .update(kycVerifications)
+      .set({ status: "canceled" })
+      .where(eq(kycVerifications.stripeSessionId, existing.stripeSessionId));
   }
 
-  const stripe = getStripe();
   const returnUrl = `${env.NEXT_PUBLIC_APP_URL}/verify/result`;
 
   const session = await stripe.identity.verificationSessions.create({
@@ -49,8 +63,6 @@ export async function createVerificationSession(user: AppUser) {
     },
     return_url: returnUrl,
   });
-
-  const db = getDb();
 
   // Insert new KYC row
   const inserted = await db
@@ -289,16 +301,25 @@ export async function getConsultantVerificationStatus(token: string) {
   return { status: rows[0].kycStatus || ("not_started" as const) };
 }
 
+type RespondentLinkedEmailJob = {
+  to: string;
+  caseId: string;
+  title: string;
+  caseNumber: string;
+  respondentAllegedName: string | null;
+  respondentVerifiedName: string | null;
+};
+
 async function autoLinkRespondentOnKycVerified(
   userId: string,
   kycVerificationId: string,
   verifiedName: string | null,
-) {
+): Promise<RespondentLinkedEmailJob[]> {
   const db = getDb();
 
   const userRows = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
   const userEmail = userRows[0]?.email?.toLowerCase();
-  if (!userEmail) return;
+  if (!userEmail) return [];
 
   const candidates = await db
     .select()
@@ -310,9 +331,16 @@ async function autoLinkRespondentOnKycVerified(
       ),
     );
 
+  const emailJobs: RespondentLinkedEmailJob[] = [];
+
   for (const caseRow of candidates) {
     const allegedSnapshot = caseRow.respondentNameAlleged ?? caseRow.respondentName;
-    await db
+
+    // Guard on `respondentUserId IS NULL` inside the UPDATE so a concurrent
+    // retry (same event replayed before the idempotency row lands) won't
+    // double-link or re-queue emails. `.returning()` tells us whether this
+    // call actually performed the update.
+    const linked = await db
       .update(cases)
       .set({
         respondentUserId: userId,
@@ -322,7 +350,10 @@ async function autoLinkRespondentOnKycVerified(
         respondentName: verifiedName ?? caseRow.respondentName,
         respondentLinkedAt: new Date(),
       })
-      .where(eq(cases.id, caseRow.id));
+      .where(and(eq(cases.id, caseRow.id), isNull(cases.respondentUserId)))
+      .returning({ id: cases.id });
+
+    if (linked.length === 0) continue;
 
     await db.insert(caseActivities).values({
       caseId: caseRow.id,
@@ -335,19 +366,18 @@ async function autoLinkRespondentOnKycVerified(
     });
 
     if (caseRow.claimantEmail) {
-      try {
-        await sendRespondentLinkedEmail(caseRow.claimantEmail, {
-          id: caseRow.id,
-          title: caseRow.title,
-          caseNumber: caseRow.caseNumber,
-          respondentAllegedName: caseRow.respondentNameAlleged ?? caseRow.respondentName,
-          respondentVerifiedName: verifiedName,
-        });
-      } catch (err) {
-        console.error("sendRespondentLinkedEmail (webhook) failed", err);
-      }
+      emailJobs.push({
+        to: caseRow.claimantEmail,
+        caseId: caseRow.id,
+        title: caseRow.title,
+        caseNumber: caseRow.caseNumber,
+        respondentAllegedName: caseRow.respondentNameAlleged ?? caseRow.respondentName,
+        respondentVerifiedName: verifiedName,
+      });
     }
   }
+
+  return emailJobs;
 }
 
 export async function linkRespondentIfMatching(
@@ -431,6 +461,11 @@ export async function linkRespondentIfMatching(
 export async function processIdentityWebhookEvent(event: Stripe.Event) {
   const db = getDb();
 
+  // Emails are collected during processing and dispatched *after* the
+  // idempotency row is written, so a crash mid-handler can never leave the
+  // system having emailed without a persisted record.
+  const pendingEmails: RespondentLinkedEmailJob[] = [];
+
   // Idempotency check
   const replay = await db
     .select()
@@ -494,6 +529,11 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
     // Identity resolution: overwrite witness/consultant names with the verified
     // identity, preserve the originally-alleged name, and try to auto-link any
     // case where this verified user is the respondent.
+    //
+    // Side effects (entity updates, activity inserts, auto-link, emails) only
+    // run when the KYC row the event targets is still the *current* row for
+    // its owning entity. If the entity rotated to a newer session, we still
+    // record this row's verified outputs for audit, but skip downstream work.
     const verifiedName = `${outputs?.first_name ?? ""} ${outputs?.last_name ?? ""}`.trim();
 
     const entityType = session.metadata?.entity_type;
@@ -501,7 +541,7 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
       const witnessId = session.metadata?.witness_id;
       if (witnessId) {
         const [current] = await db.select().from(witnesses).where(eq(witnesses.id, witnessId)).limit(1);
-        if (current) {
+        if (current && current.kycVerificationId === kycRow.id) {
           if (verifiedName && current.fullName !== verifiedName) {
             await db
               .update(witnesses)
@@ -529,7 +569,7 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
       const consultantId = session.metadata?.consultant_id;
       if (consultantId) {
         const [current] = await db.select().from(consultants).where(eq(consultants.id, consultantId)).limit(1);
-        if (current) {
+        if (current && current.kycVerificationId === kycRow.id) {
           if (verifiedName && current.fullName !== verifiedName) {
             await db
               .update(consultants)
@@ -557,10 +597,19 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
       // Regular user KYC — try to auto-link any case where this user is the respondent.
       const userId = session.metadata?.user_id;
       if (userId) {
-        try {
-          await autoLinkRespondentOnKycVerified(userId, kycRow.id, verifiedName || null);
-        } catch (err) {
-          console.error("autoLinkRespondentOnKycVerified failed", err);
+        const [currentUser] = await db
+          .select({ kycId: users.kycVerificationId })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+
+        if (currentUser?.kycId === kycRow.id) {
+          try {
+            const jobs = await autoLinkRespondentOnKycVerified(userId, kycRow.id, verifiedName || null);
+            pendingEmails.push(...jobs);
+          } catch (err) {
+            console.error("autoLinkRespondentOnKycVerified failed", err);
+          }
         }
       }
     }
@@ -593,6 +642,23 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
     creditedTokens: 0,
     processedAt: new Date(),
   });
+
+  // Dispatch queued emails after the idempotency record is persisted. A
+  // failure here must not fail the webhook — the DB state is committed and
+  // Stripe would otherwise retry, producing duplicate writes.
+  for (const job of pendingEmails) {
+    try {
+      await sendRespondentLinkedEmail(job.to, {
+        id: job.caseId,
+        title: job.title,
+        caseNumber: job.caseNumber,
+        respondentAllegedName: job.respondentAllegedName,
+        respondentVerifiedName: job.respondentVerifiedName,
+      });
+    } catch (err) {
+      console.error("sendRespondentLinkedEmail (webhook) failed", err);
+    }
+  }
 
   return { received: true };
 }

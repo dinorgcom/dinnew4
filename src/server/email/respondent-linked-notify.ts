@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { env } from "@/lib/env";
+import { escapeHtml } from "@/server/email/html";
 
 type Args = {
   id: string;
@@ -28,9 +29,9 @@ export async function sendRespondentLinkedEmail(to: string, caseItem: Args) {
     subject: `${caseItem.caseNumber}: respondent identity verified`,
     html: [
       `<p>Hello,</p>`,
-      `<p>The respondent you named in case <strong>${caseItem.caseNumber}</strong> (${caseItem.title}) has completed identity verification on the platform.</p>`,
-      `<p>Filed as: <strong>${alleged}</strong><br/>Verified as: <strong>${verified}</strong></p>`,
-      `<p><a href="${caseUrl}">Open the case workspace</a> to review.</p>`,
+      `<p>The respondent you named in case <strong>${escapeHtml(caseItem.caseNumber)}</strong> (${escapeHtml(caseItem.title)}) has completed identity verification on the platform.</p>`,
+      `<p>Filed as: <strong>${escapeHtml(alleged)}</strong><br/>Verified as: <strong>${escapeHtml(verified)}</strong></p>`,
+      `<p><a href="${escapeHtml(caseUrl)}">Open the case workspace</a> to review.</p>`,
     ].join("\n"),
   });
 

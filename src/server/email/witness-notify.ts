@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { env } from "@/lib/env";
+import { escapeHtml } from "@/server/email/html";
 
 export async function sendWitnessInvitationEmail(
   to: string,
@@ -20,10 +21,10 @@ export async function sendWitnessInvitationEmail(
     to: [to],
     subject: "You have been called as a witness",
     html: [
-      `<p>Hello ${data.witnessName},</p>`,
-      `<p>You have been called as a witness by <strong>${data.calledByPartyName}</strong> in an arbitration case.</p>`,
+      `<p>Hello ${escapeHtml(data.witnessName)},</p>`,
+      `<p>You have been called as a witness by <strong>${escapeHtml(data.calledByPartyName)}</strong> in an arbitration case.</p>`,
       `<p>Please review the statement prepared on your behalf and verify your identity:</p>`,
-      `<p><a href="${verifyUrl}">Review statement &amp; verify identity</a></p>`,
+      `<p><a href="${escapeHtml(verifyUrl)}">Review statement &amp; verify identity</a></p>`,
       `<p>This link will expire in 7 days. If it has expired, the party who called you can resend the invitation.</p>`,
       `<p>This message was sent by the arbitration platform. If you were not expecting it, you can ignore it.</p>`,
     ].join("\n"),
@@ -53,10 +54,10 @@ export async function sendConsultantInvitationEmail(
     to: [to],
     subject: "You have been called as a consultant",
     html: [
-      `<p>Hello ${data.consultantName},</p>`,
-      `<p>You have been called as a consultant by <strong>${data.calledByPartyName}</strong> in an arbitration case.</p>`,
+      `<p>Hello ${escapeHtml(data.consultantName)},</p>`,
+      `<p>You have been called as a consultant by <strong>${escapeHtml(data.calledByPartyName)}</strong> in an arbitration case.</p>`,
       `<p>Please review the report prepared on your behalf and verify your identity:</p>`,
-      `<p><a href="${verifyUrl}">Review report &amp; verify identity</a></p>`,
+      `<p><a href="${escapeHtml(verifyUrl)}">Review report &amp; verify identity</a></p>`,
       `<p>This link will expire in 7 days. If it has expired, the party who called you can resend the invitation.</p>`,
       `<p>This message was sent by the arbitration platform. If you were not expecting it, you can ignore it.</p>`,
     ].join("\n"),

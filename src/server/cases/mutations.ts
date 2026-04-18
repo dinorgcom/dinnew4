@@ -140,19 +140,18 @@ export async function createCase(user: AppUser, payload: unknown) {
   const saveMode = needsKycGate ? "draft" : parsed.saveMode;
   const enrichment = await getVerifiedClaimantEnrichment(user?.id);
   const verifiedName = enrichment?.verifiedName ?? null;
-  const effectiveClaimantName = verifiedName ?? parsed.claimantName;
 
   const inserted = await db
     .insert(cases)
     .values({
       caseNumber: generateCaseNumber(),
-      title: buildCaseTitle(effectiveClaimantName, parsed.respondentName),
+      title: buildCaseTitle(parsed.claimantName, parsed.respondentName),
       description: parsed.description,
       category: parsed.category,
       priority: parsed.priority,
       status: saveMode === "file" ? "filed" : "draft",
       filingDate: saveMode === "file" ? new Date() : null,
-      claimantName: effectiveClaimantName,
+      claimantName: parsed.claimantName,
       claimantEmail: parsed.claimantEmail,
       claimantPhone: parsed.claimantPhone || null,
       claimantUserId: user?.id ?? null,
@@ -216,22 +215,25 @@ export async function updateCase(user: AppUser, caseId: string, payload: unknown
   const effectiveSaveMode = needsKycGate ? "draft" : parsed.saveMode;
   const status = effectiveSaveMode === "file" ? "filed" : authorized.case.status;
 
-  const enrichment = await getVerifiedClaimantEnrichment(user?.id);
+  const actingUserIsClaimant =
+    !!user?.id && authorized.case.claimantUserId === user.id;
+  const enrichment = actingUserIsClaimant
+    ? await getVerifiedClaimantEnrichment(user!.id)
+    : null;
   const verifiedName = enrichment?.verifiedName ?? null;
-  const effectiveClaimantName = verifiedName ?? parsed.claimantName;
   const isTransitioningToFiled = status === "filed" && authorized.case.status !== "filed";
 
   const updated = await db
     .update(cases)
     .set({
-      title: buildCaseTitle(effectiveClaimantName, parsed.respondentName),
+      title: buildCaseTitle(parsed.claimantName, parsed.respondentName),
       description: parsed.description,
       category: parsed.category,
       priority: parsed.priority,
       status,
       filingDate:
         status === "filed" && !authorized.case.filingDate ? new Date() : authorized.case.filingDate,
-      claimantName: effectiveClaimantName,
+      claimantName: parsed.claimantName,
       claimantEmail: parsed.claimantEmail,
       claimantPhone: parsed.claimantPhone || null,
       claimantUserId: authorized.case.claimantUserId ?? user?.id ?? null,
