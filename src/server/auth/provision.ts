@@ -95,16 +95,27 @@ export async function ensureAppUser() {
     return updated[0] ?? appUser;
   }
 
-  const inserted = await db
-    .insert(users)
-    .values({
-      clerkUserId: userId,
-      email,
-      fullName,
-      role: "user",
-      accountStatus: "active",
-    })
-    .returning();
+  try {
+    const inserted = await db
+      .insert(users)
+      .values({
+        clerkUserId: userId,
+        email,
+        fullName,
+        role: "user",
+        accountStatus: "active",
+      })
+      .returning();
 
-  return inserted[0] ?? null;
+    return inserted[0] ?? null;
+  } catch (error: any) {
+    // Handle duplicate key error - user was created by another concurrent request
+    if (error.code === '23505' && error.constraint === 'users_clerk_user_id_idx') {
+      // User already exists, fetch and return them
+      const existing = await db.select().from(users).where(eq(users.clerkUserId, userId)).limit(1);
+      return existing[0] ?? null;
+    }
+    // Re-throw other errors
+    throw error;
+  }
 }
