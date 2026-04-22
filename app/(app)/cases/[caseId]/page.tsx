@@ -2,8 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getCaseDetail } from "@/server/cases/queries";
 import { getDb } from "@/db/client";
-import { cases, hearings, lawyerConversations } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { cases, hearings, lawyerConversations, caseActivities } from "@/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { CaseDetailWorkspace } from "@/components/case-detail-workspace";
 
 type CaseDetailPageProps = {
@@ -33,6 +33,16 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
     // Get actual conversation data for admin access
     const conversationRows = await db.select().from(lawyerConversations).where(eq(lawyerConversations.caseId, caseId));
     
+    // Check if respondent has been notified
+    const notificationCheck = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(caseActivities)
+      .where(and(
+        eq(caseActivities.caseId, caseId),
+        eq(caseActivities.title, "Defendant notified")
+      ));
+    const respondentNotified = notificationCheck[0]?.count > 0;
+    
     // Create minimal detail object for admin access
     detail = {
       case: caseItem,
@@ -48,6 +58,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       hearings: hearingRows,
       audits: [],
       todoItems: [],
+      respondentNotified,
       progressStages: [],
       summaryCards: [],
     };

@@ -553,7 +553,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
         </section>
       ) : (
         <section className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          No analysis has been generated yet. Click "Start analysis" to begin.
+          No analysis has been generated yet. Click &quot;Start analysis&quot; to begin.
         </section>
       )}
 

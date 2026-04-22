@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import { ensureAppUser } from "../../../../../src/server/auth/provision";
 import { getCaseDetail } from "../../../../../src/server/cases/queries";
 import { getDb } from "../../../../../src/db/client";
-import { cases, lawyerConversations } from "../../../../../src/db/schema";
-import { eq } from "drizzle-orm";
+import { cases, lawyerConversations, caseActivities } from "../../../../../src/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { CaseEditor } from "../../../../../src/components/case-editor";
 
 type EditCasePageProps = {
@@ -31,6 +31,16 @@ export default async function EditCasePage({ params }: EditCasePageProps) {
     
     // Get actual conversation data for admin access
     const conversationRows = await db.select().from(lawyerConversations).where(eq(lawyerConversations.caseId, caseId));
+    
+    // Check if respondent has been notified
+    const notificationCheck = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(caseActivities)
+      .where(and(
+        eq(caseActivities.caseId, caseId),
+        eq(caseActivities.title, "Defendant notified")
+      ));
+    const respondentNotified = notificationCheck[0]?.count > 0;
         
     // Create minimal detail object for admin access
     detail = {
@@ -47,6 +57,7 @@ export default async function EditCasePage({ params }: EditCasePageProps) {
       hearings: [],
       audits: [],
       todoItems: [],
+      respondentNotified,
       progressStages: [],
       summaryCards: [],
     };

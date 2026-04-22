@@ -358,7 +358,7 @@ export function AnamAvatarBot({
         console.log(`[anam-avatar] ð Clearing global connection for ${globalConnectionKey} (cleanup)`);
       }
     };
-  }, [sessionToken, interviewId]);
+  }, [sessionToken, interviewId, globalConnectionKey, hasActiveClient, isConnected, isGloballyConnecting, onConnected, onDisconnected, onStatusChange, retryCount]);
 
   return (
     <div className="relative">
