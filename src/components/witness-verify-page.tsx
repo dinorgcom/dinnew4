@@ -149,7 +149,7 @@ export function WitnessVerifyPage({
                 <div>
                   <p className="text-sm font-medium text-ink">Photo ID</p>
                   <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                    Passport, driver's license, or government-issued ID
+                    Passport, driver&apos;s license, or government-issued ID
                   </p>
                 </div>
               </div>
