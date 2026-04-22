@@ -4,3 +4,4 @@ node_modules
 coverage
 tsconfig.tsbuildinfo
 .tokens
+.idea/

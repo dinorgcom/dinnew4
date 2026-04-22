@@ -185,6 +185,24 @@ export async function listCaseAudits(user: AppUser, caseId: string) {
   return db.select().from(caseAudits).where(eq(caseAudits.caseId, caseId)).orderBy(desc(caseAudits.createdAt));
 }
 
+export async function deleteAudit(user: AppUser, caseId: string, auditId: string) {
+  const { authorized } = await getAiContext(user, caseId);
+  assertModerator(authorized.role);
+  
+  const db = getDb();
+  const deleted = await db
+    .delete(caseAudits)
+    .where(and(eq(caseAudits.id, auditId), eq(caseAudits.caseId, caseId)))
+    .returning();
+    
+  if (deleted.length === 0) {
+    throw new Error("Audit not found");
+  }
+  
+  await createCaseActivity(caseId, "note", "Audit deleted", `Audit "${deleted[0].title || 'Untitled'}" was deleted`, user?.fullName || user?.email || "Unknown user");
+  return deleted[0];
+}
+
 export async function requestAudit(user: AppUser, caseId: string, payload: unknown) {
   ensureAiReady();
   const { authorized, detail } = await getAiContext(user, caseId);

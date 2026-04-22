@@ -27,11 +27,15 @@ async function resolveAnthropicModelId() {
     throw new Error("Failed to fetch Anthropic models.");
   }
 
-  const payload = (await response.json()) as { data?: Array<{ id?: string }> };
-  const availableIds = (payload.data || [])
-    .map((item) => item.id)
-    .filter((id): id is string => typeof id === "string");
-  const selectedModel = availableIds[0];
+  // const payload = (await response.json()) as { data?: Array<{ id?: string }> };
+  // const availableIds = (payload.data || [])
+  //   .map((item) => item.id)
+  //   .filter((id): id is string => typeof id === "string");
+  
+  // // Log available models for debugging
+  // console.log("Available Anthropic models:", availableIds);
+  
+  const selectedModel = "claude-sonnet-4-20250514"; // Use available Claude 4 model
 
   if (!selectedModel) {
     throw new Error("No Anthropic models available for this API key.");
@@ -56,6 +60,8 @@ export async function generatePlainText(prompt: string) {
   const result = await generateText({
     model: await getModel(),
     prompt,
+    // Explicitly avoid temperature for Claude 4 compatibility
+    temperature: undefined,
   });
 
   return result.text;
@@ -69,6 +75,8 @@ export async function generateStructuredObject<TSchema extends z.ZodTypeAny>(
     model: await getModel(),
     prompt,
     schema,
+    // Explicitly avoid temperature for Claude 4 compatibility
+    temperature: undefined,
   });
 
   return result.object;

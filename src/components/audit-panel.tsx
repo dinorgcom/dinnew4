@@ -14,29 +14,59 @@ type AuditRecord = {
 type AuditPanelProps = {
   caseId: string;
   audits: AuditRecord[];
+  userRole?: string;
 };
 
-export function AuditPanel({ caseId, audits }: AuditPanelProps) {
+export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [side, setSide] = useState<"claimant" | "respondent">("claimant");
   const [title, setTitle] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [, startDeletingTransition] = useTransition();
 
   async function generateAudit() {
     setError(null);
-    const response = await fetch(`/api/cases/${caseId}/audit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ side, title }),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      setError(result.error?.message || "Failed to generate audit.");
-      return;
+    setIsGenerating(true); // Immediately set loading state
+    
+    try {
+      const response = await fetch(`/api/cases/${caseId}/audit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ side, title }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error?.message || "Failed to generate audit.");
+        return;
+      }
+      setTitle("");
+      router.refresh();
+    } finally {
+      setIsGenerating(false); // Clear loading state when done
     }
-    setTitle("");
-    router.refresh();
+  }
+
+  async function deleteAudit(auditId: string) {
+    setError(null);
+    setIsDeleting(true); // Immediately set loading state
+    
+    try {
+      const response = await fetch(`/api/cases/${caseId}/audit?auditId=${auditId}`, {
+        method: "DELETE",
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error?.message || "Failed to delete audit.");
+        return;
+      }
+      startDeletingTransition(() => {
+        router.refresh();
+      });
+    } finally {
+      setIsDeleting(false); // Clear loading state when done
+    }
   }
 
   return (
@@ -66,11 +96,11 @@ export function AuditPanel({ caseId, audits }: AuditPanelProps) {
           />
           <button
             type="button"
-            disabled={isPending}
-            onClick={() => startTransition(() => void generateAudit())}
+            disabled={isGenerating}
+            onClick={() => void generateAudit()}
             className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
           >
-            {isPending ? "Generating..." : "Generate audit"}
+            {isGenerating ? "Generating..." : "Generate audit"}
           </button>
         </div>
 
@@ -108,8 +138,20 @@ export function AuditPanel({ caseId, audits }: AuditPanelProps) {
                     </div>
                     <h3 className="mt-2 text-xl font-semibold text-ink">{audit.title || "Untitled audit"}</h3>
                   </div>
-                  <div className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
-                    {body.overall_readiness || "unknown"} readiness
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                      {body.overall_readiness || "unknown"} readiness
+                    </div>
+                    {(userRole === "admin" || userRole === "moderator") ? (
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={() => void deleteAudit(audit.id)}
+                        className="rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100 disabled:opacity-50"
+                      >
+                        {isDeleting ? "Deleting..." : "Delete"}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
