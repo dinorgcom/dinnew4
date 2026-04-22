@@ -31,6 +31,12 @@ type RecordSummary = {
   attachmentPathname?: string | null;
   fileReferences?: Record<string, unknown>[] | null;
   submittedBy?: string | null;
+  // Witness-specific fields
+  email?: string | null;
+  phone?: string | null;
+  relationship?: string | null;
+  statement?: string | null;
+  notes?: string | null;
 };
 
 type CaseWorkspaceProps = {
@@ -43,6 +49,7 @@ type CaseWorkspaceProps = {
   expertiseRequests: RecordSummary[];
   messages: RecordSummary[];
   initialSection?: (typeof sections)[number]["key"];
+  userRole?: string;
   hideSectionNav?: boolean;
 };
 
@@ -85,7 +92,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     props.initialSection || "evidence",
   );
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [fullNameError, setFullNameError] = useState<string | null>(null);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedWitness, setExpandedWitness] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const evidenceFileRef = useRef<HTMLInputElement | null>(null);
   const witnessFileRef = useRef<HTMLInputElement | null>(null);
@@ -227,41 +238,96 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
     return (
       <div className="space-y-3">
-        {records.map((record) => (
-          <div key={record.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <div className="font-semibold text-slate-900">
-                  {record.title || record.fullName || record.senderName || "Record"}
-                </div>
-                <div className="text-sm text-slate-600">
-                  {record.description || record.content || record.type || record.status || "No details"}
-                </div>
-                {kind === "evidence" && record.submittedBy ? (
-                  <div className="text-xs uppercase tracking-[0.15em] text-slate-400">
-                    Submitted by {record.submittedBy}
+        {records.map((record) => {
+          const isExpanded = kind === "witnesses" && expandedWitness === record.id;
+          const isDeleting = deletingId === record.id;
+          
+          return (
+            <div key={record.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1 flex-1">
+                  <div className="font-semibold text-slate-900">
+                    {record.title || record.fullName || record.senderName || "Record"}
                   </div>
-                ) : null}
-                {renderFiles(record, kind)}
+                  <div className="text-sm text-slate-600">
+                    {record.description || record.content || record.type || record.status || "No details"}
+                  </div>
+                  {kind === "evidence" && record.submittedBy ? (
+                    <div className="text-xs uppercase tracking-[0.15em] text-slate-400">
+                      Submitted by {record.submittedBy}
+                    </div>
+                  ) : null}
+                  {renderFiles(record, kind)}
+                  
+                  {/* Expanded witness details */}
+                  {isExpanded && kind === "witnesses" && (
+                    <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                      {record.email && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Email:</span> {record.email}
+                        </div>
+                      )}
+                      {record.phone && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Phone:</span> {record.phone}
+                        </div>
+                      )}
+                      {record.relationship && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Relationship:</span> {record.relationship}
+                        </div>
+                      )}
+                      {record.statement && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Statement:</span>
+                          <p className="mt-1 text-slate-600 whitespace-pre-wrap">{record.statement}</p>
+                        </div>
+                      )}
+                      {record.notes && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Notes:</span>
+                          <p className="mt-1 text-slate-600 whitespace-pre-wrap">{record.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-2">
+                  {kind === "witnesses" && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedWitness(isExpanded ? null : record.id)}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      {isExpanded ? "Hide" : "View"}
+                    </button>
+                  )}
+                  
+                  {kind !== "messages" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeletingId(record.id);
+                        startTransition(() =>
+                          remove(
+                            `/api/cases/${props.caseId}/${kind === "expertise" ? "expertise" : kind}/${record.id}`,
+                          ).then(() => {
+                            setDeletingId(null);
+                          })
+                        );
+                      }}
+                      className="text-sm font-medium text-rose-600 hover:text-rose-700 disabled:opacity-60"
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
-              {kind !== "messages" ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    startTransition(() =>
-                      remove(
-                        `/api/cases/${props.caseId}/${kind === "expertise" ? "expertise" : kind}/${record.id}`,
-                      ),
-                    )
-                  }
-                  className="text-sm font-medium text-rose-600 hover:text-rose-700"
-                >
-                  Delete
-                </button>
-              ) : null}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -396,30 +462,84 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               className="grid gap-3 rounded-2xl bg-slate-50 p-4 md:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
+                
+                // Validate required fields before submission
+                const email = forms.witness.email;
+                const fullName = forms.witness.fullName;
+                
+                if (!fullName.trim()) {
+                  setFullNameError("Please enter a full name");
+                  return;
+                }
+                
+                if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/)) {
+                  setEmailError("Please enter a valid email address");
+                  return;
+                }
+                
                 startTransition(async () => {
-                  const success = await submit(`/api/cases/${props.caseId}/witnesses`, forms.witness);
+                  // Filter out null/undefined values before sending to API
+                  const cleanPayload = Object.fromEntries(
+                    Object.entries(forms.witness).filter(([_, value]) => value !== null && value !== undefined)
+                  );
+                  const success = await submit(`/api/cases/${props.caseId}/witnesses`, cleanPayload);
                   if (success) {
                     setForms((current) => ({
                       ...current,
                       witness: { fullName: "", email: "", phone: "", relationship: "", statement: "", notes: "", attachment: null },
                     }));
+                    setEmailError(null);
+                    setFullNameError(null);
                   }
                 });
               }}
             >
-              {["fullName", "email", "phone", "relationship"].map((key) => (
-                <input
-                  key={key}
-                  value={forms.witness[key as "fullName" | "email" | "phone" | "relationship"]}
-                  onChange={(event) =>
-                    setForms((current) => ({
-                      ...current,
-                      witness: { ...current.witness, [key]: event.target.value },
-                    }))
-                  }
-                  placeholder={key}
-                  className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                />
+              {[
+                { key: "fullName", label: "Full Name" },
+                { key: "email", label: "Email" },
+                { key: "phone", label: "Phone (optional)" },
+                { key: "relationship", label: "Relationship (optional)" }
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <input
+                    value={forms.witness[key as "fullName" | "email" | "phone" | "relationship"]}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setForms((current) => ({
+                        ...current,
+                        witness: { ...current.witness, [key]: value },
+                      }));
+                      
+                      // Validate email format
+                      if (key === "email") {
+                        setEmailError(null);
+                        if (value && !value.match(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/)) {
+                          setEmailError("Please enter a valid email address");
+                        }
+                      }
+                      
+                      // Validate full name
+                      if (key === "fullName") {
+                        setFullNameError(null);
+                        if (!value.trim()) {
+                          setFullNameError("Please enter a full name");
+                        }
+                      }
+                    }}
+                    placeholder={label}
+                    className={`rounded-2xl border px-4 py-3 text-sm w-full ${
+                      (key === "email" && emailError) || (key === "fullName" && fullNameError)
+                        ? "border-red-300 focus:border-red-500"
+                        : "border-slate-300 focus:border-slate-400"
+                    }`}
+                  />
+                  {key === "email" && emailError && (
+                    <p className="text-red-600 text-xs mt-1">{emailError}</p>
+                  )}
+                  {key === "fullName" && fullNameError && (
+                    <p className="text-red-600 text-xs mt-1">{fullNameError}</p>
+                  )}
+                </div>
               ))}
               <textarea
                 value={forms.witness.statement}
@@ -453,7 +573,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   {uploadingKey === "witnesses" ? "Uploading..." : "Attach statement file"}
                 </button>
               </div>
-              <button type="submit" disabled={isPending || uploadingKey === "witnesses"} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2">
+              <button 
+                type="submit" 
+                disabled={isPending || uploadingKey === "witnesses" || !!emailError || !!fullNameError} 
+                className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
+              >
                 Add witness
               </button>
             </form>

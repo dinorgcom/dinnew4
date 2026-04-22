@@ -700,6 +700,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             messages={detail.messages}
             initialSection="evidence"
             hideSectionNav
+            userRole={userRole}
           />
         </div>
       ) : null}
@@ -717,6 +718,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             messages={detail.messages}
             initialSection="witnesses"
             hideSectionNav
+            userRole={userRole}
           />
         </div>
       ) : null}
@@ -734,6 +736,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             messages={detail.messages}
             initialSection="consultants"
             hideSectionNav
+            userRole={userRole}
           />
         </div>
       ) : null}
@@ -751,6 +754,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             messages={detail.messages}
             initialSection="expertise"
             hideSectionNav
+            userRole={userRole}
           />
         </div>
       ) : null}
