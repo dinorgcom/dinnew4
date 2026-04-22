@@ -178,14 +178,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     expertise: detail.expertiseRequests.length
   };
 
-  function toggleTodoItem(key: string) {
-    setTodoItems(items => 
-      items.map((item: InteractiveTodoItem) => 
-        item.key === key ? { ...item, completed: !item.completed } : item
-      )
-    );
-  }
-  
+    
   // Store original values to track changes
   const originalContacts = {
     claimantName: detail.case.claimantName || "",
@@ -230,7 +223,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       { key: "arbitration", label: "Request arbitration", completed: !!(detail.case as any).arbitrationProposalJson },
       { key: "judgement", label: "Request judgement", completed: !!(detail.case as any).judgementJson },
       { key: "appeal", label: "Request appeal", completed: false }, // TODO: Parked for future implementation
-      { key: "verdict", label: "Request final verdict", completed: Boolean(detail.case.finalDecision) }
+      { key: "verdict", label: "Request final verdict", completed: false }, // TODO: Parked for future implementation
     ];
     
     setTodoItems(currentItems => 
@@ -619,26 +612,23 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 {todoItems.map((item) => (
                   <div 
                     key={item.key} 
-                    className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors"
-                    onClick={() => toggleTodoItem(item.key)}
+                    className={`rounded-2xl p-4 text-sm transition-all duration-300 ${
+                      item.completed 
+                        ? 'bg-gradient-to-r from-signal/10 to-teal-50 border border-signal/30 text-slate-800 shadow-sm' 
+                        : 'bg-slate-50 text-slate-600 border border-slate-200'
+                    }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5">
-                        <div className={`h-4 w-4 rounded border-2 flex items-center justify-center ${
-                          item.completed 
-                            ? 'bg-signal border-signal' 
-                            : 'border-slate-300 bg-white'
-                        }`}>
-                          {item.completed && (
-                            <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                      </div>
-                      <div className={`flex-1 ${item.completed ? 'line-through text-slate-500' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <div className={`font-medium ${item.completed ? 'text-slate-900' : 'text-slate-600'}`}>
                         {item.label}
                       </div>
+                      {item.completed && (
+                        <div className="flex-shrink-0">
+                          <span className="inline-flex items-center rounded-full bg-signal/20 px-2.5 py-0.5 text-xs font-medium text-signal">
+                            Completed
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
