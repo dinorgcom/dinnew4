@@ -25,6 +25,8 @@ export const arbitrationActionSchema = z.discriminatedUnion("action", [
 export const judgementActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("generate"),
+    clearSimulationData: z.boolean().optional(),
+    clearDataImmediately: z.boolean().optional(),
   }),
   z.object({
     action: z.literal("accept"),

@@ -25,11 +25,19 @@ function calculateSmartStatus(caseItem: typeof cases.$inferSelect, hearingRows: 
     const decisionContent = typeof caseItem.finalDecision === 'string' ? caseItem.finalDecision.toLowerCase() : '';
     
     // Don't treat aborted/failed processes as final resolutions
-    if (decisionContent.includes('aborted') || 
-        decisionContent.includes('lack of evidence') || 
-        decisionContent.includes('insufficient') ||
-        decisionContent.includes('failed') ||
-        decisionContent.includes('incomplete')) {
+    // But allow legitimate settlements that mention evidence issues
+    const isAbortedProcess = decisionContent.includes('aborted') || 
+                           decisionContent.includes('failed') ||
+                           decisionContent.includes('incomplete');
+    
+    const isEvidenceIssueButSettled = decisionContent.includes('compromise settlement') ||
+                                     decisionContent.includes('settlement of') ||
+                                     decisionContent.includes('settled for') ||
+                                     decisionContent.includes('agreed to pay');
+    
+    if (isAbortedProcess || 
+        (decisionContent.includes('lack of evidence') && !isEvidenceIssueButSettled) || 
+        (decisionContent.includes('insufficient') && !isEvidenceIssueButSettled)) {
       // This is a failed process, not a final resolution
       if (caseItem.judgementJson) return "awaiting_decision";
       if (caseItem.arbitrationProposalJson) return "in_arbitration";

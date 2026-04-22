@@ -1,6 +1,6 @@
 import { eq, desc } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { cases, evidence, witnesses, consultants } from '@/db/schema';
+import { cases, evidence, witnesses, consultants, simulations } from '@/db/schema';
 import { runCourtSimulation, type CourtSimulationResult, type CourtTranscriptEntry } from '@/lib/court-simulation';
 import { getAuthorizedCase, createCaseActivity } from '@/server/cases/mutations';
 import { getCaseDetail } from '@/server/cases/queries';
@@ -117,15 +117,16 @@ export async function runAndPersistCourtSimulation(
   // Check if simulation is already running or recently completed
   const existingCases = await db
     .select({
-      simulationSessionId: cases.simulationSessionId,
-      simulationCompletedAt: cases.simulationCompletedAt,
+      sessionId: simulations.sessionId,
+      completedAt: simulations.completedAt,
     })
-    .from(cases)
-    .where(eq(cases.id, caseId))
+    .from(simulations)
+    .where(eq(simulations.caseId, caseId))
+    .orderBy(desc(simulations.createdAt))
     .limit(1);
-  const existingCase = existingCases[0];
+  const existingSimulation = existingCases[0];
 
-  if (existingCase?.simulationSessionId && !existingCase.simulationCompletedAt) {
+  if (existingSimulation?.sessionId && !existingSimulation.completedAt) {
     throw new Error('Simulation is already in progress for this case');
   }
 
@@ -164,27 +165,38 @@ export async function runAndPersistCourtSimulation(
 
     // Convert simulation outcome to judgement format for storage
     const judgementJson = convertSimulationOutcomeToJudgement(simulation.outcome);
-    const finalDecision = `${simulation.outcome.type}: ${simulation.outcome.summary}`;
 
-    // Update the case with simulation results
+    // Create simulation record
+    const simulationRecord = await db
+      .insert(simulations)
+      .values({
+        caseId: caseId,
+        sessionId: simulation.sessionId,
+        shareToken: simulation.shareToken,
+        outcomeType: simulation.outcome.type,
+        stoppingReason: simulation.stoppingReason,
+        rounds: simulation.roundsCompleted,
+        tokensUsed: simulation.tokensUsed,
+        result: {
+          ...simulation,
+          timeline: undefined // Remove timeline from result since we store it separately
+        } as any,
+        timeline: simulation.timeline as any,
+        completedAt: new Date(),
+      } as any)
+      .returning();
+
+    // Update the case to reference the new simulation
     const updated = await db
       .update(cases)
       .set({
+        status: "awaiting_decision", // Set to awaiting decision until judgement is accepted
         judgementJson,
-        finalDecision,
+        finalDecision: null, // Only set when judgement is accepted, not during simulation
         settlementAmount: simulation.outcome.type === 'Settlement' && simulation.outcome.amount 
           ? simulation.outcome.amount.toString() 
           : null,
-        // Store simulation-specific data
-        simulationSessionId: simulation.sessionId,
-        simulationShareToken: simulation.shareToken,
-        simulationOutcomeType: simulation.outcome.type,
-        simulationStoppingReason: simulation.stoppingReason,
-        simulationRounds: simulation.roundsCompleted.toString(),
-        simulationTokensUsed: simulation.tokensUsed.toString(),
-        simulationResult: simulation as any,
-        simulationTimeline: simulation.timeline as any,
-        simulationCompletedAt: new Date(),
+        currentSimulationId: simulationRecord[0].id,
         updatedAt: new Date(),
       })
       .where(eq(cases.id, caseId))
@@ -214,27 +226,38 @@ export async function runAndPersistCourtSimulation(
 
   // Convert simulation outcome to judgement format for storage
   const judgementJson = convertSimulationOutcomeToJudgement(simulation.outcome);
-  const finalDecision = `${simulation.outcome.type}: ${simulation.outcome.summary}`;
 
-  // Update the case with simulation results
+  // Create simulation record
+  const simulationRecord = await db
+    .insert(simulations)
+    .values({
+      caseId: caseId,
+      sessionId: simulation.sessionId,
+      shareToken: simulation.shareToken,
+      outcomeType: simulation.outcome.type,
+      stoppingReason: simulation.stoppingReason,
+      rounds: simulation.roundsCompleted,
+      tokensUsed: simulation.tokensUsed,
+      result: {
+        ...simulation,
+        timeline: undefined // Remove timeline from result since we store it separately
+      } as any,
+      timeline: simulation.timeline as any,
+      completedAt: new Date(),
+    } as any)
+    .returning();
+
+  // Update the case to reference the new simulation
   const updated = await db
     .update(cases)
     .set({
+      status: "awaiting_decision", // Set to awaiting decision until judgement is accepted
       judgementJson,
-      finalDecision,
+      finalDecision: null, // Only set when judgement is accepted, not during simulation
       settlementAmount: simulation.outcome.type === 'Settlement' && simulation.outcome.amount 
         ? simulation.outcome.amount.toString() 
         : null,
-      // Store simulation-specific data
-      simulationSessionId: simulation.sessionId,
-      simulationShareToken: simulation.shareToken,
-      simulationOutcomeType: simulation.outcome.type,
-      simulationStoppingReason: simulation.stoppingReason,
-      simulationRounds: simulation.roundsCompleted.toString(),
-      simulationTokensUsed: simulation.tokensUsed.toString(),
-      simulationResult: simulation as any,
-      simulationTimeline: simulation.timeline as any,
-      simulationCompletedAt: new Date(),
+      currentSimulationId: simulationRecord[0].id,
       updatedAt: new Date(),
     })
     .where(eq(cases.id, caseId))
@@ -323,15 +346,25 @@ export async function getStoredSimulation(user: ProvisionedAppUser | null, caseI
     throw new Error('Forbidden');
   }
 
-  const detail = await getCaseDetail(user, caseId);
-  if (!detail || !detail.case.simulationResult) {
+  const db = getDb();
+  
+  // Get the most recent simulation for this case
+  const simulationRows = await db
+    .select()
+    .from(simulations)
+    .where(eq(simulations.caseId, caseId))
+    .orderBy(desc(simulations.createdAt))
+    .limit(1);
+    
+  const simulation = simulationRows[0];
+  if (!simulation || !simulation.result) {
     return null;
   }
 
   try {
-    const result = typeof detail.case.simulationResult === 'string' 
-      ? JSON.parse(detail.case.simulationResult) 
-      : detail.case.simulationResult;
+    const result = typeof simulation.result === 'string' 
+      ? JSON.parse(simulation.result) 
+      : simulation.result;
     return result as CourtSimulationResult;
   } catch (error) {
     console.error('Failed to parse stored simulation result:', error);

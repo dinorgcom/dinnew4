@@ -35,16 +35,8 @@ export const cases = pgTable(
     judgementJson: jsonb("judgement_json").$type<Record<string, unknown> | null>(),
     finalDecision: text("final_decision"),
     settlementAmount: numeric("settlement_amount", { precision: 12, scale: 2 }),
-    // Court simulation fields
-    simulationSessionId: text("simulation_session_id"),
-    simulationShareToken: text("simulation_share_token"),
-    simulationOutcomeType: text("simulation_outcome_type"),
-    simulationStoppingReason: text("simulation_stopping_reason"),
-    simulationRounds: numeric("simulation_rounds", { precision: 3, scale: 0 }),
-    simulationTokensUsed: numeric("simulation_tokens_used", { precision: 8, scale: 0 }),
-    simulationResult: jsonb("simulation_result").$type<Record<string, unknown> | null>(),
-    simulationTimeline: jsonb("simulation_timeline").$type<Record<string, unknown> | null>(),
-    simulationCompletedAt: timestamp("simulation_completed_at", { withTimezone: true }),
+    // Reference to current simulation
+    currentSimulationId: text("current_simulation_id"),
     notes: text("notes"),
     createdAt,
     updatedAt,
@@ -54,5 +46,6 @@ export const cases = pgTable(
     statusIdx: index("cases_status_idx").on(table.status),
     claimantEmailIdx: index("cases_claimant_email_idx").on(table.claimantEmail),
     respondentEmailIdx: index("cases_respondent_email_idx").on(table.respondentEmail),
+    currentSimulationIdIdx: index("cases_current_simulation_id_idx").on(table.currentSimulationId),
   }),
 );

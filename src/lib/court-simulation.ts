@@ -346,30 +346,49 @@ function buildTimeline(
   transcript: CourtTranscriptEntry[],
   outcome: CourtOutcome
 ): CourtTimeline {
-  const steps: CourtTimelineStep[] = transcript.map((entry, index) => ({
-    id: `step_${index + 1}`,
-    round: entry.round,
-    type: entry.speaker === 'judge'
-      ? (entry.content.toLowerCase().includes('directive') ? 'round_open' : 'judge_intervention')
-      : 'argument',
-    speaker: entry.speaker,
-    label:
-      entry.speaker === 'judge'
-        ? 'Judge Intervention'
-        : entry.speaker === 'barrister_a'
-        ? 'Barrister A Argument'
-        : 'Barrister B Argument',
-    highlight: truncate(entry.content, 240),
-    createdAt: entry.createdAt,
-  }));
+  const steps: CourtTimelineStep[] = [];
 
+  // Process transcript entries and generate strategic highlights
+  transcript.forEach((entry, index) => {
+    let strategicHighlight = '';
+    let eventType: EventType;
+    let label: string;
+
+    if (entry.speaker === 'judge') {
+      if (entry.content.toLowerCase().includes('directive')) {
+        eventType = 'round_open';
+        label = 'Case Opening';
+        strategicHighlight = 'Judge establishes key issues and procedural framework for this round';
+      } else {
+        eventType = 'judge_intervention';
+        label = 'Judge Intervention';
+        strategicHighlight = generateStrategicJudgeHighlight(entry.content);
+      }
+    } else {
+      eventType = 'argument';
+      label = entry.speaker === 'barrister_a' ? 'Claimant Argument' : 'Respondent Argument';
+      strategicHighlight = generateStrategicArgumentHighlight(entry.content, entry.speaker);
+    }
+
+    steps.push({
+      id: `step_${index + 1}`,
+      round: entry.round,
+      type: eventType,
+      speaker: entry.speaker,
+      label,
+      highlight: strategicHighlight,
+      createdAt: entry.createdAt,
+    });
+  });
+
+  // Add outcome step
   steps.push({
     id: `step_${steps.length + 1}`,
     round: transcript.length > 0 ? transcript[transcript.length - 1].round : 1,
     type: 'outcome',
     speaker: 'judge',
     label: `Outcome: ${outcome.type}`,
-    highlight: truncate(outcome.summary, 240),
+    highlight: generateOutcomeHighlight(outcome),
     createdAt: new Date().toISOString(),
   });
 
@@ -389,6 +408,54 @@ function buildTimeline(
     steps,
     outcomeBadge: badge,
   };
+}
+
+function generateStrategicJudgeHighlight(content: string): string {
+  const lowerContent = content.toLowerCase();
+  
+  if (lowerContent.includes('clarification question')) {
+    return 'Judge requests specific clarification to resolve key factual uncertainty';
+  } else if (lowerContent.includes('evidence') || lowerContent.includes('proof')) {
+    return 'Judge emphasizes evidentiary requirements and burden of proof standards';
+  } else if (lowerContent.includes('liability') || lowerContent.includes('responsibility')) {
+    return 'Judge focuses analysis on core liability determination';
+  } else if (lowerContent.includes('damages') || lowerContent.includes('compensation')) {
+    return 'Judge addresses damages assessment and compensation principles';
+  } else {
+    return 'Judge provides procedural guidance and legal framework direction';
+  }
+}
+
+function generateStrategicArgumentHighlight(content: string, speaker: 'barrister_a' | 'barrister_b'): string {
+  const lowerContent = content.toLowerCase();
+  const party = speaker === 'barrister_a' ? 'Claimant' : 'Respondent';
+  
+  if (lowerContent.includes('evidence') || lowerContent.includes('proof')) {
+    return `${party} emphasizes evidentiary support and factual foundation`;
+  } else if (lowerContent.includes('objection') || lowerContent.includes('inadmissible')) {
+    return `${party} challenges evidence admissibility or procedural compliance`;
+  } else if (lowerContent.includes('liability') || lowerContent.includes('responsible')) {
+    return `${party} argues liability attribution and causal responsibility`;
+  } else if (lowerContent.includes('damages') || lowerContent.includes('compensation')) {
+    return `${party} addresses damages calculation and compensation justification`;
+  } else if (lowerContent.includes('witness') || lowerContent.includes('testimony')) {
+    return `${party} relies on witness testimony and credibility assessments`;
+  } else {
+    return `${party} presents core legal position and supporting arguments`;
+  }
+}
+
+function generateOutcomeHighlight(outcome: CourtOutcome): string {
+  switch (outcome.type) {
+    case 'Settlement':
+      return 'Parties reach mutual agreement through negotiated resolution';
+    case 'Verdict':
+      return `Judge issues final verdict: ${outcome.winner === 'PartyA' ? 'Claimant' : 'Respondent'} prevails`;
+    case 'Abort':
+      return 'Process halted due to insufficient evidence for fair determination';
+    default:
+      return 'Case concluded with formal resolution';
+  }
 }
 
 function newTranscriptEntry(round: number, speaker: Speaker, content: string): CourtTranscriptEntry {

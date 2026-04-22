@@ -870,6 +870,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             canModerate={userRole === "moderator" || userRole === "admin"}
             judgement={(detail.case as any).judgementJson}
             finalDecision={detail.case.finalDecision}
+            caseStatus={detail.case.status}
           />
         </div>
       ) : null}

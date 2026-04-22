@@ -17,6 +17,7 @@ export function getDb() {
   }
 
   if (!database) {
+    console.log('Database URL being used:', env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@')); // Hide credentials
     let sql;
     try {
       sql = neon(env.DATABASE_URL);
@@ -27,6 +28,7 @@ export function getDb() {
       );
     }
     database = drizzle(sql, { schema });
+    console.log('Database connection established');
   }
 
   return database;

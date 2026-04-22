@@ -2,6 +2,9 @@ import { fail, ok } from "@/server/api/responses";
 import { ensureAppUser } from "@/server/auth/provision";
 import { runAndPersistCourtSimulation, getStoredSimulation } from "@/lib/court-simulation-runner";
 import { z } from "zod";
+import { eq, desc } from 'drizzle-orm';
+import { getDb } from '@/db/client';
+import { simulations } from '@/db/schema';
 
 const simulateSchema = z.object({
   maxRounds: z.number().int().min(1).max(8).optional(),
@@ -23,27 +26,34 @@ export async function GET(request: Request, { params }: RouteProps) {
       return ok({ simulation: null });
     }
 
-    // Also get the case data to return all simulation-related fields
-    const { getCaseDetail } = await import('@/server/cases/queries');
-    const detail = await getCaseDetail(user, caseId);
+    // Get the most recent simulation record from the database
+    const db = getDb();
+    const simulationRecords = await db
+      .select()
+      .from(simulations)
+      .where(eq(simulations.caseId, caseId))
+      .orderBy(desc(simulations.createdAt))
+      .limit(1);
     
-    if (!detail) {
+    const simulationRecord = simulationRecords[0];
+    
+    if (!simulationRecord) {
       return ok({ simulation: null });
     }
 
     return ok({
       simulation,
       timeline: simulation.timeline,
-      // Include all the database fields
-      simulationSessionId: detail.case.simulationSessionId,
-      simulationShareToken: detail.case.simulationShareToken,
-      simulationOutcomeType: detail.case.simulationOutcomeType,
-      simulationStoppingReason: detail.case.simulationStoppingReason,
-      simulationRounds: detail.case.simulationRounds,
-      simulationTokensUsed: detail.case.simulationTokensUsed,
-      simulationResult: detail.case.simulationResult,
-      simulationTimeline: detail.case.simulationTimeline,
-      simulationCompletedAt: detail.case.simulationCompletedAt,
+      // Include all the database fields from the simulations table
+      simulationSessionId: simulationRecord.sessionId,
+      simulationShareToken: simulationRecord.shareToken,
+      simulationOutcomeType: simulationRecord.outcomeType,
+      simulationStoppingReason: simulationRecord.stoppingReason,
+      simulationRounds: simulationRecord.rounds?.toString(),
+      simulationTokensUsed: simulationRecord.tokensUsed?.toString(),
+      simulationResult: simulationRecord.result,
+      simulationTimeline: simulationRecord.timeline,
+      simulationCompletedAt: simulationRecord.completedAt,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to get simulation";
