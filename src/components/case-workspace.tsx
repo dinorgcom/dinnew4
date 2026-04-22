@@ -37,6 +37,11 @@ type RecordSummary = {
   relationship?: string | null;
   statement?: string | null;
   notes?: string | null;
+  // Consultant-specific fields
+  company?: string | null;
+  expertise?: string | null;
+  consultantRole?: string | null; // renamed from 'role' to avoid conflict
+  report?: string | null;
 };
 
 type CaseWorkspaceProps = {
@@ -94,9 +99,12 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const [error, setError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [fullNameError, setFullNameError] = useState<string | null>(null);
+  const [consultantEmailError, setConsultantEmailError] = useState<string | null>(null);
+  const [consultantFullNameError, setConsultantFullNameError] = useState<string | null>(null);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedWitness, setExpandedWitness] = useState<string | null>(null);
+  const [expandedConsultant, setExpandedConsultant] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const evidenceFileRef = useRef<HTMLInputElement | null>(null);
   const witnessFileRef = useRef<HTMLInputElement | null>(null);
@@ -239,7 +247,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     return (
       <div className="space-y-3">
         {records.map((record) => {
-          const isExpanded = kind === "witnesses" && expandedWitness === record.id;
+          const isExpanded = 
+            (kind === "witnesses" && expandedWitness === record.id) ||
+            (kind === "consultants" && expandedConsultant === record.id);
           const isDeleting = deletingId === record.id;
           
           return (
@@ -291,13 +301,62 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                       )}
                     </div>
                   )}
+                  
+                  {/* Expanded consultant details */}
+                  {isExpanded && kind === "consultants" && (
+                    <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                      {record.email && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Email:</span> {record.email}
+                        </div>
+                      )}
+                      {record.phone && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Phone:</span> {record.phone}
+                        </div>
+                      )}
+                      {record.company && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Company:</span> {record.company}
+                        </div>
+                      )}
+                      {record.expertise && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Expertise:</span> {record.expertise}
+                        </div>
+                      )}
+                      {record.consultantRole && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Role:</span> {record.consultantRole}
+                        </div>
+                      )}
+                      {record.report && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Report:</span>
+                          <p className="mt-1 text-slate-600 whitespace-pre-wrap">{record.report}</p>
+                        </div>
+                      )}
+                      {record.notes && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Notes:</span>
+                          <p className="mt-1 text-slate-600 whitespace-pre-wrap">{record.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex gap-2">
-                  {kind === "witnesses" && (
+                  {(kind === "witnesses" || kind === "consultants") && (
                     <button
                       type="button"
-                      onClick={() => setExpandedWitness(isExpanded ? null : record.id)}
+                      onClick={() => {
+                        if (kind === "witnesses") {
+                          setExpandedWitness(isExpanded ? null : record.id);
+                        } else if (kind === "consultants") {
+                          setExpandedConsultant(isExpanded ? null : record.id);
+                        }
+                      }}
                       className="text-sm font-medium text-blue-600 hover:text-blue-700"
                     >
                       {isExpanded ? "Hide" : "View"}
@@ -593,8 +652,27 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               className="grid gap-3 rounded-2xl bg-slate-50 p-4 md:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
+                
+                // Validate required fields before submission
+                const email = forms.consultant.email;
+                const fullName = forms.consultant.fullName;
+                
+                if (!fullName.trim()) {
+                  setConsultantFullNameError("Please enter a full name");
+                  return;
+                }
+                
+                if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/)) {
+                  setConsultantEmailError("Please enter a valid email address");
+                  return;
+                }
+                
                 startTransition(async () => {
-                  const success = await submit(`/api/cases/${props.caseId}/consultants`, forms.consultant);
+                  // Filter out null/undefined values before sending to API
+                  const cleanPayload = Object.fromEntries(
+                    Object.entries(forms.consultant).filter(([_, value]) => value !== null && value !== undefined)
+                  );
+                  const success = await submit(`/api/cases/${props.caseId}/consultants`, cleanPayload);
                   if (success) {
                     setForms((current) => ({
                       ...current,
@@ -610,23 +688,60 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                         attachment: null,
                       },
                     }));
+                    setConsultantEmailError(null);
+                    setConsultantFullNameError(null);
                   }
                 });
               }}
             >
-              {["fullName", "email", "phone", "company", "expertise", "role"].map((key) => (
-                <input
-                  key={key}
-                  value={forms.consultant[key as "fullName" | "email" | "phone" | "company" | "expertise" | "role"]}
-                  onChange={(event) =>
-                    setForms((current) => ({
-                      ...current,
-                      consultant: { ...current.consultant, [key]: event.target.value },
-                    }))
-                  }
-                  placeholder={key}
-                  className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                />
+              {[
+                { key: "fullName", label: "Full Name" },
+                { key: "email", label: "Email" },
+                { key: "phone", label: "Phone (optional)" },
+                { key: "company", label: "Company (optional)" },
+                { key: "expertise", label: "Expertise (optional)" },
+                { key: "role", label: "Role (optional)" }
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <input
+                    value={forms.consultant[key as "fullName" | "email" | "phone" | "company" | "expertise" | "role"]}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setForms((current) => ({
+                        ...current,
+                        consultant: { ...current.consultant, [key]: value },
+                      }));
+                      
+                      // Validate email format
+                      if (key === "email") {
+                        setConsultantEmailError(null);
+                        if (value && !value.match(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/)) {
+                          setConsultantEmailError("Please enter a valid email address");
+                        }
+                      }
+                      
+                      // Validate full name
+                      if (key === "fullName") {
+                        setConsultantFullNameError(null);
+                        if (!value.trim()) {
+                          setConsultantFullNameError("Please enter a full name");
+                        }
+                      }
+                    }}
+                    placeholder={label}
+                    className={`rounded-2xl border px-4 py-3 text-sm w-full ${
+                      (key === "email" && consultantEmailError) || (key === "fullName" && consultantFullNameError)
+                        ? "border-red-300 focus:border-red-500"
+                        : "border-slate-300 focus:border-slate-400"
+                    }`}
+                  />
+                  {key === "email" && consultantEmailError && (
+                    <p className="text-red-600 text-xs mt-1">{consultantEmailError}</p>
+                  )}
+                  {key === "fullName" && consultantFullNameError && (
+                    <p className="text-red-600 text-xs mt-1">{consultantFullNameError}</p>
+                  )}
+                </div>
               ))}
               <textarea
                 value={forms.consultant.report}
@@ -660,7 +775,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   {uploadingKey === "consultants" ? "Uploading..." : "Attach report file"}
                 </button>
               </div>
-              <button type="submit" disabled={isPending || uploadingKey === "consultants"} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2">
+              <button type="submit" disabled={isPending || uploadingKey === "consultants" || !!consultantEmailError || !!consultantFullNameError} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2">
                 Add consultant
               </button>
             </form>
