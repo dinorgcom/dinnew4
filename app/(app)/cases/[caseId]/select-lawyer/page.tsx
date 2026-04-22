@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getCaseDetail } from "@/server/cases/queries";
 import { LawyerSelectScreen } from "@/components/lawyer-select-screen";
@@ -14,11 +14,6 @@ export default async function SelectCaseLawyerPage({ params }: PageProps) {
 
   if (!detail || (detail.role !== "claimant" && detail.role !== "respondent")) {
     notFound();
-  }
-
-  // KYC gate: respondent must verify identity before selecting lawyer
-  if (detail.role === "respondent" && !user?.kycVerified) {
-    redirect(`/verify/start?returnTo=/cases/${caseId}` as never);
   }
 
   return <LawyerSelectScreen caseId={caseId} partyRole={detail.role} />;
