@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { AIHearingControls } from "./ai-hearing-controls";
 
 interface Hearing {
   id: string;
@@ -46,7 +45,9 @@ export function ExistingHearings({ caseId, caseTitle }: ExistingHearingsProps) {
       }
       
       const data = await response.json();
-      setHearings(data.data.hearings || []);
+      // Filter out cancelled hearings from display but keep them in database
+      const allHearings = data.data.hearings || [];
+      setHearings(allHearings.filter((hearing: Hearing) => hearing.status !== 'cancelled'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -163,7 +164,22 @@ export function ExistingHearings({ caseId, caseTitle }: ExistingHearingsProps) {
   }
 
   if (hearings.length === 0) {
-    return null; // Don't show anything if no hearings exist
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">Existing Hearings</h3>
+          <button 
+            onClick={fetchHearings}
+            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Refresh
+          </button>
+        </div>
+        <div className="text-center py-8 text-gray-500">
+          No planned meetings
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -264,21 +280,13 @@ export function ExistingHearings({ caseId, caseTitle }: ExistingHearingsProps) {
                         <svg className="h-4 w-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                        Cancel {hearing.meetingId ? 'Hearing + Calendar' : 'Hearing'}
+                        Cancel Hearing
                       </>
                     )}
                   </button>
                 )}
 
-                {/* AI Controls - Only show for active or recently completed hearings */}
-                {(isHearingActive(hearing) || hearing.status === 'completed') && (
-                  <AIHearingControls 
-                    hearingId={hearing.id}
-                    meetingUrl={hearing.meetingUrl || ''}
-                    isActive={isHearingActive(hearing)}
-                  />
-                )}
-              </div>
+                              </div>
             </div>
 
             {/* Show warning if hearing is scheduled but past its time */}

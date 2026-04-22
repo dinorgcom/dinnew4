@@ -10,8 +10,6 @@ import { AuditPanel } from "@/components/audit-panel";
 import { ArbitrationPanel } from "@/components/arbitration-panel";
 import { HearingScheduler } from "@/components/hearing-scheduler";
 import { ExistingHearings } from "./existing-hearings";
-import { AITestingInterface } from "@/components/ai-testing-interface";
-import { VoiceTestPanel } from "@/components/voice-test-panel";
 import { JudgementPanel } from "@/components/judgement-panel";
 import { LivekitAnamPanel } from "@/components/livekit-anam-panel";
 import { getLawyerById } from "@/lib/lawyers";
@@ -780,66 +778,9 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "hearing" ? (
         <div id="panel-hearing" role="tabpanel" aria-labelledby="tab-hearing" className="space-y-6">
-          {/* Hearing Room Placeholder */}
-          <div className="rounded-lg border border-slate-200 bg-white p-8">
-            <div className="space-y-6">
-              {/* Header */}
-              <div className="text-center">
-                <h2 className="text-2xl font-semibold text-ink">Court Hearing Room</h2>
-                <p className="mt-2 text-slate-600">Case: {detail.case.title}</p>
-                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800">
-                  <div className="h-2 w-2 rounded-full bg-amber-600 animate-pulse"></div>
-                  Session Not Started
-                </div>
-              </div>
-
-              {/* Participants Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-                {/* Judge */}
-                <div className="rounded-lg border-2 border-slate-300 bg-slate-50 p-4 text-center">
-                  <div className="mx-auto mb-3 h-16 w-16 rounded-full bg-slate-200 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="h-8 w-8 text-slate-500">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-medium text-ink">Judge</h3>
-                  <p className="text-sm text-slate-500 mt-1">Awaiting</p>
-                </div>
-
-                {/* Claimant */}
-                <div className="rounded-lg border-2 border-slate-300 bg-slate-50 p-4 text-center">
-                  <div className="mx-auto mb-3 h-16 w-16 rounded-full bg-blue-200 flex items-center justify-center">
-                    <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-medium text-ink">Claimant</h3>
-                  <p className="text-sm text-slate-500 mt-1">{detail.case.claimantName}</p>
-                </div>
-
-                {/* Defendant */}
-                <div className="rounded-lg border-2 border-slate-300 bg-slate-50 p-4 text-center">
-                  <div className="mx-auto mb-3 h-16 w-16 rounded-full bg-red-200 flex items-center justify-center">
-                    <svg className="h-8 w-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-medium text-ink">Defendant</h3>
-                  <p className="text-sm text-slate-500 mt-1">{detail.case.respondentName}</p>
-                </div>
-
-                {/* Lawyers */}
-                <div className="rounded-lg border-2 border-slate-300 bg-slate-50 p-4 text-center">
-                  <div className="mx-auto mb-3 h-16 w-16 rounded-full bg-green-200 flex items-center justify-center">
-                    <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-medium text-ink">Legal Counsel</h3>
-                  <p className="text-sm text-slate-500 mt-1">Both Parties</p>
-                </div>
-              </div>
-            </div>
+          {/* 1:1 AI Judge Session */}
+          <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+            <LivekitAnamPanel caseId={detail.case.id} caseTitle={detail.case.title} />
           </div>
 
           {/* Existing Hearings */}
@@ -852,19 +793,8 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             <HearingScheduler caseId={detail.case.id} caseTitle={detail.case.title} />
           </div>
 
-          {/* 1:1 AI Judge Session */}
-          <LivekitAnamPanel caseId={detail.case.id} caseTitle={detail.case.title} />
-
-          {/* AI Testing Interface */}
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6">
-            <AITestingInterface caseId={detail.case.id} caseTitle={detail.case.title} />
-          </div>
-
-          {/* Voice Test Panel */}
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6">
-            <VoiceTestPanel caseId={detail.case.id} caseTitle={detail.case.title} />
-          </div>
-        </div>
+          
+                  </div>
       ) : null}
 
       {activeTab === "judgement" ? (

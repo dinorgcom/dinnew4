@@ -84,18 +84,10 @@ export async function createGoogleMeet(params: CreateMeetingParams): Promise<Mee
     // Get authenticated calendar client with OAuth
     const calendar = await getAuthenticatedCalendarClient();
     
-    // Check calendar's supported conference solution types
+    // Create calendar event without any conference functionality
     const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
     
     try {
-      const calendarInfo = await calendar.calendars.get({
-        calendarId: calendarId
-      });
-      
-      const allowedTypes = calendarInfo.data.conferenceProperties?.allowedConferenceSolutionTypes || [];
-      const supportedMeetType = allowedTypes.find((type: any) => 
-        type === 'hangoutsMeet' || type === 'eventHangout' || type === 'eventNamedHangout'
-      );
       
       // Build attendees list with validation (claimant, defendant, and additional attendees)
       const attendees = [
@@ -115,98 +107,13 @@ export async function createGoogleMeet(params: CreateMeetingParams): Promise<Mee
         }
       }
       
-      if (!supportedMeetType) {
-        // Create event without conference data first
-        const calendarEvent = await calendar.events.insert({
-          calendarId: calendarId,
-          conferenceDataVersion: 0, // Don't try to create conference
-          sendUpdates: 'all', // Send email invitations to all attendees
-          requestBody: {
-            summary: params.title.trim(),
-            description: params.description || `Court Hearing for Case ID: ${params.caseId}`,
-            start: {
-              dateTime: startTime.toISOString(),
-              timeZone: 'UTC'
-            },
-            end: {
-              dateTime: endTime.toISOString(),
-              timeZone: 'UTC'
-            },
-            attendees: attendees.length > 0 ? attendees : undefined,
-            reminders: {
-              useDefault: false,
-              overrides: [
-                { method: 'email' as const, minutes: 60 },
-                { method: 'popup' as const, minutes: 15 }
-              ]
-            },
-            visibility: 'public',
-            transparency: 'opaque'
-          }
-        });
-        
-        const event = calendarEvent.data;
-        
-        // Now try to add Google Meet to the created event
-        try {
-          const updatedEvent = await calendar.events.patch({
-            calendarId: calendarId,
-            eventId: event.id!,
-            conferenceDataVersion: 1,
-            sendUpdates: 'all', // Send email invitations to all attendees
-            requestBody: {
-              conferenceData: {
-                createRequest: {
-                  requestId: `hearing_${params.caseId}_${Date.now()}`,
-                  conferenceSolutionKey: {
-                    type: 'hangoutsMeet'
-                  }
-                }
-              }
-            }
-          });
-          
-          const updatedEventData = updatedEvent.data;
-          const meetUrl = updatedEventData.conferenceData?.entryPoints?.[0]?.uri || updatedEventData.htmlLink;
-          
-          return {
-            id: event.id || `hearing_${params.caseId}_${Date.now()}`,
-            title: params.title,
-            meetingUrl: meetUrl || '',
-            startTime: startTime.toISOString(),
-            endTime: endTime.toISOString(),
-            calendarEventId: event.id || undefined
-          };
-          
-        } catch (meetError) {
-          // Return calendar event link as fallback
-          const meetingUrl = event.htmlLink;
-          
-          return {
-            id: event.id || `hearing_${params.caseId}_${Date.now()}`,
-            title: params.title,
-            meetingUrl: meetingUrl || '',
-            startTime: startTime.toISOString(),
-            endTime: endTime.toISOString(),
-            calendarEventId: event.id || undefined
-          };
-        }
-      }
-      
+      // Create calendar event without any conference functionality
       const calendarEvent = await calendar.events.insert({
         calendarId: calendarId,
         sendUpdates: 'all', // Send email invitations to all attendees
         requestBody: {
           summary: params.title.trim(),
-          description: params.description || `Court Hearing for Case ID: ${params.caseId}`,
-          conferenceData: {
-            createRequest: {
-              requestId: `hearing_${params.caseId}_${Date.now()}`,
-              conferenceSolutionKey: {
-                type: supportedMeetType as any
-              }
-            }
-          },
+          description: params.description || `Court hearing scheduled for case: ${params.caseId}\n\nJoin the hearing at: ${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/cases/${params.caseId}`,
           start: {
             dateTime: startTime.toISOString(),
             timeZone: 'UTC'
@@ -223,35 +130,20 @@ export async function createGoogleMeet(params: CreateMeetingParams): Promise<Mee
               { method: 'popup' as const, minutes: 15 }
             ]
           },
-          // Add visibility and transparency settings
           visibility: 'public',
           transparency: 'opaque'
-        },
-        // Ensure conference data is created
-        conferenceDataVersion: 1
+        }
       });
       
       const event = calendarEvent.data;
       
-      // Extract meeting URL from conference data or fallback to htmlLink
-      let meetingUrl = event.htmlLink;
-      if (event.conferenceData?.entryPoints?.[0]?.uri) {
-        meetingUrl = event.conferenceData.entryPoints[0].uri;
-      }
-      
-      if (!meetingUrl) {
-        throw new GoogleMeetError(
-          'No meeting URL generated',
-          'NO_MEETING_URL',
-          event
-        );
-      }
-      
+      // Use case page URL as the meeting URL
+      const meetingUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/cases/${params.caseId}`;
       
       return {
         id: event.id || `hearing_${params.caseId}_${Date.now()}`,
         title: params.title,
-        meetingUrl: meetingUrl || '',
+        meetingUrl: meetingUrl,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
         calendarEventId: event.id || undefined
@@ -303,7 +195,7 @@ export async function createGoogleMeet(params: CreateMeetingParams): Promise<Mee
     }
     
     throw new GoogleMeetError(
-      'Failed to create Google Meet',
+      'Failed to create calendar event',
       'CREATE_ERROR',
       error
     );

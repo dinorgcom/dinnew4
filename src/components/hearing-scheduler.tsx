@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { AIHearingControls } from "./ai-hearing-controls";
 
 interface HearingSchedulerProps {
   caseId: string;
@@ -12,15 +11,14 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [hearingDate, setHearingDate] = useState("");
   const [duration, setDuration] = useState("60"); // Default 60 minutes
-  const [startNow, setStartNow] = useState(false);
   const [meetingUrl, setMeetingUrl] = useState<string | null>(null);
   const [hearingId, setHearingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const createMeeting = async () => {
-    // Validate based on mode
-    if (!startNow && !hearingDate) {
+    // Validate hearing date
+    if (!hearingDate) {
       setError("Please select a hearing date and time");
       return;
     }
@@ -30,15 +28,16 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
     setSuccess(false);
 
     try {
-      // Create the Google Meet meeting first
+      // Create the Google Calendar event
       const meetingData = {
         title: `Court Hearing - ${caseTitle}`,
         type: 'hearing',
-        startTime: startNow ? new Date().toISOString() : hearingDate,
-        duration: parseInt(duration)
+        startTime: hearingDate,
+        duration: parseInt(duration),
+        description: `Court hearing scheduled for case: ${caseTitle}\n\nJoin the hearing at: ${typeof window !== 'undefined' ? window.location.origin : ''}/cases/${caseId}`
       };
 
-      const meetingResponse = await fetch(`/api/cases/${caseId}/meeting`, {
+      const meetingResponse = await fetch(`/api/cases/${caseId}/calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(meetingData)
@@ -50,10 +49,10 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
 
       const meetingDataResult = await meetingResponse.json();
       
-      // The meeting API now creates the hearing record and returns the hearingId
-      const actualHearingId = meetingDataResult.meeting?.hearingId;
+      // The calendar API creates the hearing record and returns the hearingId
+      const actualHearingId = meetingDataResult.event?.hearingId;
       
-      setMeetingUrl(meetingDataResult.meeting?.meetingUrl);
+      setMeetingUrl(`${typeof window !== 'undefined' ? window.location.origin : ''}/cases/${caseId}`);
       setHearingId(actualHearingId); 
       console.log('Set hearingId to:', actualHearingId); 
       setSuccess(true); 
@@ -75,19 +74,12 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
     return (
       <div className="rounded-lg border border-green-200 bg-green-50 p-6">
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-green-900 mb-2">✅ {startNow ? 'Meeting Started!' : 'Hearing Scheduled!'}</h3>
+          <h3 className="text-lg font-semibold text-green-900 mb-2">✅ Hearing Scheduled!</h3>
           <div className="space-y-2 text-sm text-green-800">
-            {!startNow && (
-              <>
-                <p><strong>Date:</strong> {new Date(hearingDate).toLocaleString()}</p>
-                <p><strong>Duration:</strong> {duration} minutes</p>
-              </>
-            )}
-            {startNow && (
-              <p><strong>Started:</strong> {new Date().toLocaleString()}</p>
-            )}
+            <p><strong>Date:</strong> {new Date(hearingDate).toLocaleString()}</p>
+            <p><strong>Duration:</strong> {duration} minutes</p>
             <div className="mt-3 p-3 bg-white rounded border border-green-200">
-              <p className="font-medium text-green-900">Meeting Link:</p>
+              <p className="font-medium text-green-900">Case Page:</p>
               <p className="text-xs break-all mt-1">{meetingUrl}</p>
             </div>
           </div>
@@ -96,7 +88,7 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
               onClick={() => window.open(meetingUrl, '_blank')}
               className="rounded-lg bg-green-600 px-4 py-2 text-white font-medium hover:bg-green-700"
             >
-              🚪 Join Meeting
+              🚪 Go to Case Page
             </button>
             <button
               onClick={() => {
@@ -104,7 +96,6 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
                 setMeetingUrl(null);
                 setHearingId(null);
                 setHearingDate("");
-                setStartNow(false);
               }}
               className="rounded-lg border border-green-300 px-4 py-2 text-green-700 font-medium hover:bg-green-100"
             >
@@ -112,24 +103,7 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
             </button>
           </div>
 
-          {/* AI Controls - Integrated with Hearing */}
-          {hearingId && (
-            <div className="mt-6 pt-6 border-t border-green-200">
-              <AIHearingControls 
-                hearingId={hearingId} 
-                meetingUrl={meetingUrl || ""} 
-                isActive={false}
-              />
-            </div>
-          )}
-          {!hearingId && success && (
-            <div className="mt-6 pt-6 border-t border-green-200">
-              <div className="text-sm text-amber-700">
-                Debug: hearingId is null, AI controls hidden
-              </div>
-            </div>
-          )}
-        </div>
+                  </div>
       </div>
     );
   }
@@ -151,30 +125,8 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
         )}
 
         <div className="space-y-4">
-          {/* Mode Selection */}
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                checked={!startNow}
-                onChange={() => setStartNow(false)}
-                className="mr-2 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-slate-700">Schedule for later</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                checked={startNow}
-                onChange={() => setStartNow(true)}
-                className="mr-2 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-slate-700">Start now (testing)</span>
-            </label>
-          </div>
 
-          {/* Conditional fields based on mode */}
-          {!startNow && (
+          {/* Hearing Date & Time */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Hearing Date & Time
@@ -187,15 +139,6 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
-          )}
-
-          {startNow && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm text-amber-800">
-                ⚠️ Meeting will start immediately. This option is for testing purposes only.
-              </p>
-            </div>
-          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -216,10 +159,10 @@ export function HearingScheduler({ caseId, caseTitle }: HearingSchedulerProps) {
 
           <button
             onClick={createMeeting}
-            disabled={isCreating || (!startNow && !hearingDate)}
+            disabled={isCreating || !hearingDate}
             className="w-full rounded-lg bg-blue-600 px-4 py-3 text-white font-medium disabled:bg-blue-400 disabled:cursor-not-allowed"
           >
-            {isCreating ? 'Creating Meeting...' : (startNow ? '🚀 Start Meeting Now' : '📅 Schedule Hearing')}
+            {isCreating ? 'Creating Calendar Event...' : '📅 Schedule Hearing'}
           </button>
         </div>
       </div>
