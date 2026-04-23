@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { fail, ok } from "@/server/api/responses";
 import { ensureAppUser } from "@/server/auth/provision";
 import {
@@ -5,6 +6,8 @@ import {
   writeImpersonationCookie,
   type ImpersonationRole,
 } from "@/server/auth/impersonation";
+import { getDb } from "@/db/client";
+import { cases } from "@/db/schema";
 
 async function requireAdmin() {
   const user = await ensureAppUser();
@@ -29,6 +32,23 @@ export async function POST(request: Request) {
 
     if (!caseId || !role) {
       return fail("IMPERSONATE_INVALID", "caseId and role ('claimant'|'respondent') are required", 400);
+    }
+
+    const db = getDb();
+    const rows = await db.select().from(cases).where(eq(cases.id, caseId)).limit(1);
+    const caseItem = rows[0];
+    if (!caseItem) {
+      return fail("IMPERSONATE_CASE_NOT_FOUND", "Case not found", 404);
+    }
+
+    const partyEmail =
+      role === "claimant" ? caseItem.claimantEmail : caseItem.respondentEmail;
+    if (!partyEmail) {
+      return fail(
+        "IMPERSONATE_PARTY_MISSING",
+        `Case has no ${role} email on record to impersonate`,
+        400,
+      );
     }
 
     await writeImpersonationCookie({ caseId, role });
