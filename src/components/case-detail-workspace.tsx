@@ -129,6 +129,7 @@ function asClaims(input: Record<string, unknown>[] | null | undefined): Claim[] 
 
 export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorkspaceProps) {
   const router = useRouter();
+  const effectiveRole = detail.impersonation ? detail.impersonation.role : userRole;
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>("overview");
   const [claimantClaims, setClaimantClaims] = useState(asClaims(detail.case.claimantClaims));
   const [respondentClaims, setRespondentClaims] = useState(asClaims(detail.case.respondentClaims));
@@ -446,7 +447,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           </div>
           
           {/* Admin Edit Button */}
-          {userRole === "admin" || userRole === "moderator" ? (
+          {effectiveRole === "admin" || effectiveRole === "moderator" ? (
             <Link
               href={`/cases/${detail.case.id}/edit` as Route}
               className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 whitespace-nowrap"
@@ -501,7 +502,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
             <div className="rounded-[24px] border border-slate-200 p-5">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Contacts</div>
-              {detail.role === "claimant" || userRole === "admin" ? (
+              {detail.role === "claimant" || effectiveRole === "admin" ? (
                 <div className="mt-4 space-y-4">
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-2xl bg-slate-50 p-4">
@@ -771,7 +772,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "audit" ? (
         <div id="panel-audit" role="tabpanel" aria-labelledby="tab-audit" className="rounded-[28px] border border-slate-200 bg-white p-6">
-          <AuditPanel caseId={detail.case.id} audits={detail.audits || []} userRole={userRole} />
+          <AuditPanel caseId={detail.case.id} audits={detail.audits || []} userRole={effectiveRole} />
         </div>
       ) : null}
 
@@ -816,7 +817,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         <div id="panel-judgement" role="tabpanel" aria-labelledby="tab-judgement" className="rounded-[28px] border border-slate-200 bg-white p-6">
           <JudgementPanel
             caseId={detail.case.id}
-            canModerate={userRole === "moderator" || userRole === "admin"}
+            canModerate={effectiveRole === "moderator" || effectiveRole === "admin"}
             judgement={(detail.case as any).judgementJson}
             finalDecision={detail.case.finalDecision}
             caseStatus={detail.case.status}
