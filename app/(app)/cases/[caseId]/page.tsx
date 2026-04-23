@@ -48,6 +48,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       case: caseItem,
       role: appUser.role as 'admin' | 'moderator',
       roleLabel: appUser.role === 'admin' ? 'Admin' : 'Moderator',
+      impersonation: null,
       evidence: [],
       witnesses: [],
       consultants: [],

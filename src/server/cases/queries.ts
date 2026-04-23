@@ -3,6 +3,7 @@ import type { SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, lawyerConversations, witnesses, hearings, caseAudits } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
+import { getImpersonationContext, type ImpersonationContext } from "@/server/auth/impersonation";
 import { isDatabaseConfigured } from "@/server/runtime";
 
 type AppUser = ProvisionedAppUser | null;
@@ -66,7 +67,15 @@ function calculateSmartStatus(caseItem: typeof cases.$inferSelect, hearingRows: 
   return "draft";
 }
 
-function resolveCaseRole(caseItem: typeof cases.$inferSelect, user: NonNullable<AppUser>) {
+function resolveCaseRole(
+  caseItem: typeof cases.$inferSelect,
+  user: NonNullable<AppUser>,
+  impersonation: ImpersonationContext | null = null,
+) {
+  if (impersonation && impersonation.caseId === caseItem.id) {
+    return impersonation.role;
+  }
+
   const userEmail = normalizeEmail(user.email);
 
   if (normalizeEmail(caseItem.claimantEmail) === userEmail) {
@@ -302,7 +311,8 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     return null;
   }
 
-  const role = resolveCaseRole(caseItem, user);
+  const impersonation = await getImpersonationContext(user, caseId);
+  const role = resolveCaseRole(caseItem, user, impersonation);
   if (!role) {
     return null;
   }
@@ -319,19 +329,22 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     db.select().from(consultants).where(eq(consultants.caseId, caseId)).orderBy(desc(consultants.createdAt)),
     db.select().from(expertiseRequests).where(eq(expertiseRequests.caseId, caseId)).orderBy(desc(expertiseRequests.createdAt)),
     db.select().from(caseMessages).where(eq(caseMessages.caseId, caseId)).orderBy(desc(caseMessages.createdAt)).limit(20),
-    user.email
-      ? db
-          .select()
-          .from(lawyerConversations)
-          .where(
-            and(
-              eq(lawyerConversations.caseId, caseId),
-              eq(lawyerConversations.userEmail, user.email),
-            ),
-          )
-          .orderBy(desc(lawyerConversations.updatedAt))
-          .limit(1)
-      : Promise.resolve([]),
+    (() => {
+      const lawyerEmail = impersonation?.targetEmail || user.email;
+      return lawyerEmail
+        ? db
+            .select()
+            .from(lawyerConversations)
+            .where(
+              and(
+                eq(lawyerConversations.caseId, caseId),
+                eq(lawyerConversations.userEmail, lawyerEmail),
+              ),
+            )
+            .orderBy(desc(lawyerConversations.updatedAt))
+            .limit(1)
+        : Promise.resolve([]);
+    })(),
     db.select().from(caseAudits).where(eq(caseAudits.caseId, caseId)).orderBy(desc(caseAudits.createdAt)),
     db
       .select({ count: sql<number>`count(*)` })
@@ -383,6 +396,13 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     case: caseItem,
     role,
     roleLabel: toRoleLabel(role),
+    impersonation: impersonation
+      ? {
+          role: impersonation.role,
+          targetEmail: impersonation.targetEmail,
+          targetName: impersonation.targetName,
+        }
+      : null,
     activities: activityRows,
     evidence: evidenceRows,
     witnesses: witnessRows,

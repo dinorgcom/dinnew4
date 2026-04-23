@@ -12,6 +12,11 @@ import {
 } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import {
+  getImpersonationContext,
+  formatPerformedBy,
+  type ImpersonationContext,
+} from "@/server/auth/impersonation";
+import {
   caseMutationSchema,
   caseClaimsUpdateSchema,
   caseLawyerSelectionSchema,
@@ -34,7 +39,13 @@ function normalizeEmail(value: string | null | undefined) {
   return (value || "").trim().toLowerCase();
 }
 
-export async function getAuthorizedCase(user: AppUser, caseId: string) {
+type AuthorizedCase = {
+  case: typeof cases.$inferSelect;
+  role: "claimant" | "respondent" | "moderator";
+  impersonation: ImpersonationContext | null;
+};
+
+export async function getAuthorizedCase(user: AppUser, caseId: string): Promise<AuthorizedCase | null> {
   assertAppUserActive(user);
   if (!user) {
     return null;
@@ -46,6 +57,15 @@ export async function getAuthorizedCase(user: AppUser, caseId: string) {
 
   if (!caseItem) {
     return null;
+  }
+
+  const impersonation = await getImpersonationContext(user, caseId);
+  if (impersonation) {
+    return {
+      case: caseItem,
+      role: impersonation.role,
+      impersonation,
+    };
   }
 
   const userEmail = normalizeEmail(user.email);
@@ -63,7 +83,8 @@ export async function getAuthorizedCase(user: AppUser, caseId: string) {
   return {
     case: caseItem,
     role: claimant ? "claimant" : respondent ? "respondent" : "moderator",
-  } as const;
+    impersonation: null,
+  };
 }
 
 export async function createCaseActivity(
@@ -176,7 +197,7 @@ export async function updateCase(user: AppUser, caseId: string, payload: unknown
     "status_change",
     "Case updated",
     "Case details updated in the rewrite workspace.",
-    user?.fullName || user?.email || "Unknown user",
+    formatPerformedBy(user, authorized.impersonation),
   );
 
   return updated[0];
@@ -229,7 +250,7 @@ export async function createEvidence(user: AppUser, caseId: string, payload: unk
     "evidence_submitted",
     "Evidence submitted",
     parsed.title,
-    user?.fullName || user?.email || "Unknown user",
+    formatPerformedBy(user, authorized.impersonation),
   );
 
   return inserted[0];
@@ -279,7 +300,7 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
     })
     .returning();
 
-  await createCaseActivity(caseId, "witness_added", "Witness added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(caseId, "witness_added", "Witness added", parsed.fullName, formatPerformedBy(user, authorized.impersonation));
 
   return inserted[0];
 }
@@ -330,7 +351,7 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
     })
     .returning();
 
-  await createCaseActivity(caseId, "note", "Consultant added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(caseId, "note", "Consultant added", parsed.fullName, formatPerformedBy(user, authorized.impersonation));
 
   return inserted[0];
 }
@@ -374,7 +395,7 @@ export async function createExpertise(user: AppUser, caseId: string, payload: un
     })
     .returning();
 
-  await createCaseActivity(caseId, "note", "Expertise request created", parsed.title, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(caseId, "note", "Expertise request created", parsed.title, formatPerformedBy(user, authorized.impersonation));
 
   return inserted[0];
 }
@@ -414,7 +435,7 @@ export async function createMessage(user: AppUser, caseId: string, payload: unkn
     })
     .returning();
 
-  await createCaseActivity(caseId, "message", "Message sent", parsed.content.slice(0, 120), user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(caseId, "message", "Message sent", parsed.content.slice(0, 120), formatPerformedBy(user, authorized.impersonation));
 
   return inserted[0];
 }
@@ -453,7 +474,7 @@ export async function updateCaseClaims(user: AppUser, caseId: string, payload: u
     "note",
     "Claims updated",
     "Claim and response details were updated.",
-    user?.fullName || user?.email || "Unknown user",
+    formatPerformedBy(user, authorized.impersonation),
   );
 
   return updated[0];
@@ -486,7 +507,7 @@ export async function selectCaseLawyer(user: AppUser, caseId: string, payload: u
     "note",
     "Lawyer selected",
     `${parsed.side} selected lawyer ${parsed.lawyerKey}.`,
-    user?.fullName || user?.email || "Unknown user",
+    formatPerformedBy(user, authorized.impersonation),
   );
 
   return updated[0];
@@ -516,7 +537,7 @@ export async function notifyRespondent(user: AppUser, caseId: string) {
     "other",
     "Defendant notified",
     `Respondent notified by email at ${respondentEmail}.`,
-    user?.fullName || user?.email || "Unknown user",
+    formatPerformedBy(user, authorized.impersonation),
   );
 
   return { success: true };
@@ -550,7 +571,7 @@ export async function updateCaseContacts(user: AppUser, caseId: string, payload:
     "status_change",
     "Contacts updated",
     "Claimant updated party contact information.",
-    user?.fullName || user?.email || "Unknown user",
+    formatPerformedBy(user, authorized.impersonation),
   );
 
   return updated[0];
@@ -597,7 +618,7 @@ export async function scheduleHearing(user: AppUser, caseId: string, payload: un
     "hearing_scheduled",
     "Hearing scheduled",
     `${parsed.arbitrator} scheduled a hearing for ${parsed.hearingDate}.`,
-    user?.fullName || user?.email || "Unknown user",
+    formatPerformedBy(user, authorized.impersonation),
   );
 
   return updated[0];

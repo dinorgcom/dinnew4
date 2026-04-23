@@ -47,6 +47,7 @@ export default async function EditCasePage({ params }: EditCasePageProps) {
       case: caseItem,
       role: appUser.role as 'admin' | 'moderator',
       roleLabel: appUser.role === 'admin' ? 'Admin' : 'Moderator',
+      impersonation: null,
       evidence: [],
       witnesses: [],
       consultants: [],
