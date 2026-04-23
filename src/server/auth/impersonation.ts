@@ -48,7 +48,12 @@ export async function writeImpersonationCookie(value: ImpersonationCookie) {
   const store = await cookies();
   store.set(IMPERSONATION_COOKIE, JSON.stringify(value), {
     httpOnly: true,
-    sameSite: "lax",
+    // Keep path at "/" because the cookie is consumed from both /cases/*
+    // pages and /api/cases/* workflow routes with no shared narrow prefix.
+    // Offset the broader path with sameSite: "strict" so the cookie never
+    // travels on cross-site navigations — impersonation must be initiated
+    // from within the admin UI itself.
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: IMPERSONATION_COOKIE_MAX_AGE_SECONDS,
