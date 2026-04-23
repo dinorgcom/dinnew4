@@ -42,6 +42,8 @@ export async function readImpersonationCookie(): Promise<ImpersonationCookie | n
   }
 }
 
+export const IMPERSONATION_COOKIE_MAX_AGE_SECONDS = 60 * 60;
+
 export async function writeImpersonationCookie(value: ImpersonationCookie) {
   const store = await cookies();
   store.set(IMPERSONATION_COOKIE, JSON.stringify(value), {
@@ -49,6 +51,7 @@ export async function writeImpersonationCookie(value: ImpersonationCookie) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
+    maxAge: IMPERSONATION_COOKIE_MAX_AGE_SECONDS,
   });
 }
 
