@@ -14,7 +14,6 @@ import type { ProvisionedAppUser } from "@/server/auth/provision";
 import {
   getImpersonationContext,
   formatPerformedBy,
-  hasAdminBypass,
   type ImpersonationContext,
 } from "@/server/auth/impersonation";
 import {
@@ -269,7 +268,7 @@ export async function deleteEvidence(user: AppUser, caseId: string, recordId: st
 
 export async function createWitness(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && !hasAdminBypass(user, authorized.impersonation))) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -295,7 +294,7 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
       statement: parsed.statement || null,
       statementFileUrl: parsed.attachment?.url ?? null,
       statementFilePathname: parsed.attachment?.pathname ?? null,
-      calledBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
+      calledBy: authorized.role,
       notes: parsed.notes || null,
       status: "pending",
     })
@@ -318,7 +317,7 @@ export async function deleteWitness(user: AppUser, caseId: string, recordId: str
 
 export async function createConsultant(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && !hasAdminBypass(user, authorized.impersonation))) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -346,7 +345,7 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
       report: parsed.report || null,
       reportFileUrl: parsed.attachment?.url ?? null,
       reportFilePathname: parsed.attachment?.pathname ?? null,
-      calledBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
+      calledBy: authorized.role,
       notes: parsed.notes || null,
       status: "pending",
     })
@@ -369,7 +368,7 @@ export async function deleteConsultant(user: AppUser, caseId: string, recordId: 
 
 export async function createExpertise(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && !hasAdminBypass(user, authorized.impersonation))) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -455,7 +454,7 @@ export async function getLatestCaseActivity(caseId: string) {
 
 export async function updateCaseClaims(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && !hasAdminBypass(user, authorized.impersonation))) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -546,7 +545,7 @@ export async function notifyRespondent(user: AppUser, caseId: string) {
 
 export async function updateCaseContacts(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role !== "claimant" && !hasAdminBypass(user, authorized.impersonation))) {
+  if (!authorized || authorized.role !== "claimant") {
     throw new Error("Forbidden");
   }
 
@@ -580,7 +579,7 @@ export async function updateCaseContacts(user: AppUser, caseId: string, payload:
 
 export async function scheduleHearing(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role !== "moderator" && !hasAdminBypass(user, authorized.impersonation))) {
+  if (!authorized || authorized.role !== "moderator") {
     throw new Error("Forbidden");
   }
 

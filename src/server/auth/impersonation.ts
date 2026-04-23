@@ -94,13 +94,6 @@ export async function getImpersonationContext(
   };
 }
 
-export function hasAdminBypass(
-  user: ProvisionedAppUser | null,
-  impersonation: ImpersonationContext | null,
-) {
-  return user?.role === "admin" && !impersonation;
-}
-
 export function formatPerformedBy(
   user: ProvisionedAppUser | null,
   context: ImpersonationContext | null,

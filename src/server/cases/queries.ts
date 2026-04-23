@@ -84,10 +84,7 @@ function resolveCaseRole(
   if (normalizeEmail(caseItem.respondentEmail) === userEmail) {
     return "respondent";
   }
-  if (user.role === "admin") {
-    return "admin";
-  }
-  if (user.role === "moderator") {
+  if (user.role === "admin" || user.role === "moderator") {
     return "moderator";
   }
   if (caseItem.arbitratorAssignedUserId && caseItem.arbitratorAssignedUserId === user.id) {
@@ -119,8 +116,6 @@ function toRoleLabel(role: string | null) {
       return "Respondent";
     case "moderator":
       return "Moderator";
-    case "admin":
-      return "Admin";
     default:
       return "Viewer";
   }
