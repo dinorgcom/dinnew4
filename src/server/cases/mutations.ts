@@ -14,6 +14,11 @@ import {
 } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import {
+  getImpersonationContext,
+  formatPerformedBy,
+  type ImpersonationContext,
+} from "@/server/auth/impersonation";
+import {
   caseMutationSchema,
   caseClaimsUpdateSchema,
   caseLawyerSelectionSchema,
@@ -38,6 +43,19 @@ type AppUser = ProvisionedAppUser | null;
 function normalizeEmail(value: string | null | undefined) {
   return (value || "").trim().toLowerCase();
 }
+
+export type ActivityActor = {
+  user: AppUser;
+  impersonation: ImpersonationContext | null;
+};
+
+const SYSTEM_ACTOR: ActivityActor = { user: null, impersonation: null };
+
+type AuthorizedCase = {
+  case: typeof cases.$inferSelect;
+  role: "claimant" | "respondent" | "moderator";
+  impersonation: ImpersonationContext | null;
+};
 
 async function getVerifiedClaimantEnrichment(userId: string | null | undefined) {
   if (!userId) return null;
@@ -66,7 +84,7 @@ async function getVerifiedClaimantEnrichment(userId: string | null | undefined) 
   };
 }
 
-export async function getAuthorizedCase(user: AppUser, caseId: string) {
+export async function getAuthorizedCase(user: AppUser, caseId: string): Promise<AuthorizedCase | null> {
   assertAppUserActive(user);
   if (!user) {
     return null;
@@ -78,6 +96,15 @@ export async function getAuthorizedCase(user: AppUser, caseId: string) {
 
   if (!caseItem) {
     return null;
+  }
+
+  const impersonation = await getImpersonationContext(user, caseId);
+  if (impersonation) {
+    return {
+      case: caseItem,
+      role: impersonation.role,
+      impersonation,
+    };
   }
 
   const userEmail = normalizeEmail(user.email);
@@ -95,7 +122,8 @@ export async function getAuthorizedCase(user: AppUser, caseId: string) {
   return {
     case: caseItem,
     role: claimant ? "claimant" : respondent ? "respondent" : "moderator",
-  } as const;
+    impersonation: null,
+  };
 }
 
 export async function createCaseActivity(
@@ -103,7 +131,7 @@ export async function createCaseActivity(
   type: typeof caseActivities.$inferInsert.type,
   title: string,
   description: string,
-  performedBy: string,
+  actor: ActivityActor,
 ) {
   const db = getDb();
 
@@ -112,7 +140,7 @@ export async function createCaseActivity(
     type,
     title,
     description,
-    performedBy,
+    performedBy: formatPerformedBy(actor.user, actor.impersonation),
   });
 }
 
@@ -176,7 +204,7 @@ export async function createCase(user: AppUser, payload: unknown) {
     saveMode === "file" ? "filing" : "note",
     saveMode === "file" ? "Case filed" : "Draft created",
     parsed.description,
-    user.fullName || user.email,
+    { user, impersonation: null },
   );
 
   if (saveMode === "file" && verifiedName) {
@@ -185,7 +213,7 @@ export async function createCase(user: AppUser, payload: unknown) {
       "identity_verified",
       "Claimant identity verified",
       `Filed by verified user ${verifiedName}.`,
-      "system",
+      SYSTEM_ACTOR,
     );
   }
 
@@ -258,7 +286,7 @@ export async function updateCase(user: AppUser, caseId: string, payload: unknown
     "status_change",
     "Case updated",
     "Case details updated in the rewrite workspace.",
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation: authorized.impersonation },
   );
 
   if (isTransitioningToFiled && verifiedName) {
@@ -267,7 +295,7 @@ export async function updateCase(user: AppUser, caseId: string, payload: unknown
       "identity_verified",
       "Claimant identity verified",
       `Filed by verified user ${verifiedName}.`,
-      "system",
+      SYSTEM_ACTOR,
     );
   }
 
@@ -327,7 +355,7 @@ export async function createEvidence(user: AppUser, caseId: string, payload: unk
     "evidence_submitted",
     "Evidence submitted",
     parsed.title,
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation: authorized.impersonation },
   );
 
   return inserted[0];
@@ -345,7 +373,7 @@ export async function deleteEvidence(user: AppUser, caseId: string, recordId: st
 
 export async function createWitness(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -375,7 +403,7 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
       statement: parsed.statement || null,
       statementFileUrl: parsed.attachment?.url ?? null,
       statementFilePathname: parsed.attachment?.pathname ?? null,
-      calledBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
+      calledBy: authorized.role,
       notes: parsed.notes || null,
       status: "pending",
       invitationToken: token,
@@ -383,16 +411,19 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
     })
     .returning();
 
-  await createCaseActivity(caseId, "witness_added", "Witness added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(
+    caseId,
+    "witness_added",
+    "Witness added",
+    parsed.fullName,
+    { user, impersonation: authorized.impersonation },
+  );
 
   // Send invitation email
-  const calledBy = authorized.role === "moderator" ? "arbitrator" : authorized.role;
   const calledByPartyName =
-    calledBy === "claimant"
+    authorized.role === "claimant"
       ? authorized.case.claimantName || "the claimant"
-      : calledBy === "respondent"
-        ? authorized.case.respondentName || "the respondent"
-        : "the arbitrator";
+      : authorized.case.respondentName || "the respondent";
 
   try {
     await sendWitnessInvitationEmail(parsed.email, {
@@ -419,7 +450,7 @@ export async function deleteWitness(user: AppUser, caseId: string, recordId: str
 
 export async function createConsultant(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -451,7 +482,7 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
       report: parsed.report || null,
       reportFileUrl: parsed.attachment?.url ?? null,
       reportFilePathname: parsed.attachment?.pathname ?? null,
-      calledBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
+      calledBy: authorized.role,
       notes: parsed.notes || null,
       status: "pending",
       invitationToken: token,
@@ -459,16 +490,19 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
     })
     .returning();
 
-  await createCaseActivity(caseId, "note", "Consultant added", parsed.fullName, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(
+    caseId,
+    "note",
+    "Consultant added",
+    parsed.fullName,
+    { user, impersonation: authorized.impersonation },
+  );
 
   // Send invitation email
-  const calledBy = authorized.role === "moderator" ? "arbitrator" : authorized.role;
   const calledByPartyName =
-    calledBy === "claimant"
+    authorized.role === "claimant"
       ? authorized.case.claimantName || "the claimant"
-      : calledBy === "respondent"
-        ? authorized.case.respondentName || "the respondent"
-        : "the arbitrator";
+      : authorized.case.respondentName || "the respondent";
 
   try {
     await sendConsultantInvitationEmail(parsed.email, {
@@ -495,7 +529,7 @@ export async function deleteConsultant(user: AppUser, caseId: string, recordId: 
 
 export async function resendWitnessInvitation(user: AppUser, caseId: string, witnessId: string) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -532,7 +566,7 @@ export async function resendWitnessInvitation(user: AppUser, caseId: string, wit
 
 export async function resendConsultantInvitation(user: AppUser, caseId: string, consultantId: string) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -569,7 +603,7 @@ export async function resendConsultantInvitation(user: AppUser, caseId: string, 
 
 export async function createExpertise(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -596,7 +630,13 @@ export async function createExpertise(user: AppUser, caseId: string, payload: un
     })
     .returning();
 
-  await createCaseActivity(caseId, "note", "Expertise request created", parsed.title, user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(
+    caseId,
+    "note",
+    "Expertise request created",
+    parsed.title,
+    { user, impersonation: authorized.impersonation },
+  );
 
   return inserted[0];
 }
@@ -636,7 +676,13 @@ export async function createMessage(user: AppUser, caseId: string, payload: unkn
     })
     .returning();
 
-  await createCaseActivity(caseId, "message", "Message sent", parsed.content.slice(0, 120), user?.fullName || user?.email || "Unknown user");
+  await createCaseActivity(
+    caseId,
+    "message",
+    "Message sent",
+    parsed.content.slice(0, 120),
+    { user, impersonation: authorized.impersonation },
+  );
 
   return inserted[0];
 }
@@ -655,7 +701,7 @@ export async function getLatestCaseActivity(caseId: string) {
 
 export async function updateCaseClaims(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role === "moderator" && user?.role !== "admin")) {
+  if (!authorized || authorized.role === "moderator") {
     throw new Error("Forbidden");
   }
 
@@ -675,7 +721,7 @@ export async function updateCaseClaims(user: AppUser, caseId: string, payload: u
     "note",
     "Claims updated",
     "Claim and response details were updated.",
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation: authorized.impersonation },
   );
 
   return updated[0];
@@ -708,7 +754,7 @@ export async function selectCaseLawyer(user: AppUser, caseId: string, payload: u
     "note",
     "Lawyer selected",
     `${parsed.side} selected lawyer ${parsed.lawyerKey}.`,
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation: authorized.impersonation },
   );
 
   return updated[0];
@@ -738,7 +784,7 @@ export async function notifyRespondent(user: AppUser, caseId: string) {
     "other",
     "Defendant notified",
     `Respondent notified by email at ${respondentEmail}.`,
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation: authorized.impersonation },
   );
 
   return { success: true };
@@ -746,7 +792,7 @@ export async function notifyRespondent(user: AppUser, caseId: string) {
 
 export async function updateCaseContacts(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role !== "claimant" && user?.role !== "admin")) {
+  if (!authorized || authorized.role !== "claimant") {
     throw new Error("Forbidden");
   }
 
@@ -772,7 +818,7 @@ export async function updateCaseContacts(user: AppUser, caseId: string, payload:
     "status_change",
     "Contacts updated",
     "Claimant updated party contact information.",
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation: authorized.impersonation },
   );
 
   return updated[0];
@@ -780,13 +826,13 @@ export async function updateCaseContacts(user: AppUser, caseId: string, payload:
 
 export async function scheduleHearing(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || (authorized.role !== "moderator" && user?.role !== "admin")) {
+  if (!authorized || authorized.role !== "moderator") {
     throw new Error("Forbidden");
   }
 
   const parsed = hearingScheduleSchema.parse(payload);
   const db = getDb();
-  
+
   // Create hearing record
   const hearingId = randomUUID();
   await db.insert(hearings).values({
@@ -819,7 +865,7 @@ export async function scheduleHearing(user: AppUser, caseId: string, payload: un
     "hearing_scheduled",
     "Hearing scheduled",
     `${parsed.arbitrator} scheduled a hearing for ${parsed.hearingDate}.`,
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation: authorized.impersonation },
   );
 
   return updated[0];

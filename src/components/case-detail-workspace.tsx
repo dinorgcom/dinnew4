@@ -12,6 +12,7 @@ import { HearingScheduler } from "@/components/hearing-scheduler";
 import { ExistingHearings } from "./existing-hearings";
 import { JudgementPanel } from "@/components/judgement-panel";
 import { LivekitAnamPanel } from "@/components/livekit-anam-panel";
+import { AdminImpersonationBanner } from "@/components/admin-impersonation-banner";
 import { getLawyerById } from "@/lib/lawyers";
 import { formatCurrency, formatDateTime } from "@/server/format";
 import { resolveCaseClaimant, resolveCaseRespondent, type KycStatus } from "@/server/identity/resolve";
@@ -86,6 +87,11 @@ type CaseDetailWorkspaceProps = {
     todoItems: Array<{ key: string; label: string }>;
     progressStages: Array<{ key: string; label: string; active: boolean }>;
     respondentNotified: boolean;
+    impersonation?: {
+      role: "claimant" | "respondent";
+      targetEmail: string;
+      targetName: string | null;
+    } | null;
     claimantKyc?: {
       status: KycStatus | null;
       verifiedAt: Date | string | null;
@@ -401,6 +407,15 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
   return (
     <div className="space-y-8">
+      <AdminImpersonationBanner
+        caseId={detail.case.id}
+        userRole={userRole}
+        impersonation={detail.impersonation ?? null}
+        claimantName={detail.case.claimantName}
+        claimantEmail={detail.case.claimantEmail}
+        respondentName={detail.case.respondentName}
+        respondentEmail={detail.case.respondentEmail}
+      />
       <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
         <Link href="/cases" className="font-medium text-signal hover:text-teal-800">
           Cases
@@ -498,8 +513,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           ))}
           </div>
           
-          {/* Admin Edit Button */}
-          {userRole === "admin" || userRole === "moderator" ? (
+          {detail.role === "moderator" ? (
             <Link
               href={`/cases/${detail.case.id}/edit` as Route}
               className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 whitespace-nowrap"
@@ -554,7 +568,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
             <div className="rounded-[24px] border border-slate-200 p-5">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Contacts</div>
-              {detail.role === "claimant" || userRole === "admin" ? (
+              {detail.role === "claimant" ? (
                 <div className="mt-4 space-y-4">
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-2xl bg-slate-50 p-4">
@@ -824,7 +838,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "audit" ? (
         <div id="panel-audit" role="tabpanel" aria-labelledby="tab-audit" className="rounded-[28px] border border-slate-200 bg-white p-6">
-          <AuditPanel caseId={detail.case.id} audits={detail.audits || []} userRole={userRole} />
+          <AuditPanel caseId={detail.case.id} audits={detail.audits || []} userRole={detail.role} />
         </div>
       ) : null}
 
@@ -874,7 +888,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         <div id="panel-judgement" role="tabpanel" aria-labelledby="tab-judgement" className="rounded-[28px] border border-slate-200 bg-white p-6">
           <JudgementPanel
             caseId={detail.case.id}
-            canModerate={userRole === "moderator" || userRole === "admin"}
+            canModerate={detail.role === "moderator"}
             judgement={(detail.case as any).judgementJson}
             finalDecision={detail.case.finalDecision}
             caseStatus={detail.case.status}

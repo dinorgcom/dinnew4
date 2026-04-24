@@ -142,7 +142,7 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
                     <div className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                       {body.overall_readiness || "unknown"} readiness
                     </div>
-                    {(userRole === "admin" || userRole === "moderator") ? (
+                    {userRole === "moderator" ? (
                       <button
                         type="button"
                         disabled={isDeleting}

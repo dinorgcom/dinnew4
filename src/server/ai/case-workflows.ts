@@ -130,49 +130,17 @@ function compactCaseContext(detail: NonNullable<Awaited<ReturnType<typeof getCas
 }
 
 async function getAiContext(user: AppUser, caseId: string) {
-  // Check if user is admin/moderator first
-  const isAdminOrModerator = user?.role === "admin" || user?.role === "moderator";
-  
-  let authorized;
-  let detail;
-  
-  if (isAdminOrModerator) {
-    // For admins/moderators, bypass case association checks
-    const db = getDb();
-    const caseRows = await db.select().from(cases).where(eq(cases.id, caseId)).limit(1);
-    const caseItem = caseRows[0];
-    
-    if (!caseItem) {
-      throw new Error("Case not found");
-    }
-    
-    // Get full case detail for admin
-    detail = await getCaseDetail(user, caseId);
-    if (!detail) {
-      throw new Error("Case not found");
-    }
-    
-    // Override role to admin/moderator
-    detail.role = user?.role as 'admin' | 'moderator';
-    
-    authorized = {
-      case: caseItem,
-      role: user?.role as 'admin' | 'moderator',
-    };
-  } else {
-    // Regular users go through normal checks
-    authorized = await getAuthorizedCase(user, caseId);
-    if (!authorized) {
-      throw new Error("Forbidden");
-    }
-
-    detail = await getCaseDetail(user, caseId);
-    if (!detail) {
-      throw new Error("Case not found");
-    }
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
   }
 
-  return { authorized, detail };
+  const detail = await getCaseDetail(user, caseId);
+  if (!detail) {
+    throw new Error("Case not found");
+  }
+
+  return { authorized, detail, impersonation: authorized.impersonation };
 }
 
 export async function listCaseAudits(user: AppUser, caseId: string) {
@@ -186,26 +154,26 @@ export async function listCaseAudits(user: AppUser, caseId: string) {
 }
 
 export async function deleteAudit(user: AppUser, caseId: string, auditId: string) {
-  const { authorized } = await getAiContext(user, caseId);
+  const { authorized, impersonation } = await getAiContext(user, caseId);
   assertModerator(authorized.role);
-  
+
   const db = getDb();
   const deleted = await db
     .delete(caseAudits)
     .where(and(eq(caseAudits.id, auditId), eq(caseAudits.caseId, caseId)))
     .returning();
-    
+
   if (deleted.length === 0) {
     throw new Error("Audit not found");
   }
-  
-  await createCaseActivity(caseId, "note", "Audit deleted", `Audit "${deleted[0].title || 'Untitled'}" was deleted`, user?.fullName || user?.email || "Unknown user");
+
+  await createCaseActivity(caseId, "note", "Audit deleted", `Audit "${deleted[0].title || 'Untitled'}" was deleted`, { user, impersonation });
   return deleted[0];
 }
 
 export async function requestAudit(user: AppUser, caseId: string, payload: unknown) {
   ensureAiReady();
-  const { authorized, detail } = await getAiContext(user, caseId);
+  const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const parsed = auditRequestSchema.parse(payload);
   const db = getDb();
   const actorName = user?.fullName || user?.email || "Unknown user";
@@ -247,7 +215,7 @@ export async function requestAudit(user: AppUser, caseId: string, payload: unkno
     "note",
     "AI audit generated",
     `Generated ${requestedSide} audit.`,
-    actorName,
+    { user, impersonation },
   );
 
   return inserted[0];
@@ -255,9 +223,8 @@ export async function requestAudit(user: AppUser, caseId: string, payload: unkno
 
 export async function generateArbitrationProposal(user: AppUser, caseId: string) {
   ensureAiReady();
-  const { detail } = await getAiContext(user, caseId);
+  const { detail, impersonation } = await getAiContext(user, caseId);
   const db = getDb();
-  const actorName = user?.fullName || user?.email || "Unknown user";
 
   const prompt = [
     "You are a neutral arbitration settlement analyst.",
@@ -289,32 +256,21 @@ export async function generateArbitrationProposal(user: AppUser, caseId: string)
     "decision",
     "Arbitration proposal generated",
     proposal.settlement_proposal,
-    actorName,
+    { user, impersonation },
   );
 
   return updated[0];
 }
 
 export async function acceptArbitrationProposal(user: AppUser, caseId: string, claimantResponse?: "accepted" | "rejected", respondentResponse?: "accepted" | "rejected") {
-  const { authorized, detail } = await getAiContext(user, caseId);
+  const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const proposal = detail.case.arbitrationProposalJson;
 
   if (!proposal || typeof proposal !== "object") {
     throw new Error("No arbitration proposal is available yet.");
   }
 
-  // Determine the user's role for this case
-  let userRole = authorized.role;
-  
-  // If user is admin/moderator, check if they're also associated as claimant/respondent
-  if (userRole === "admin" || userRole === "moderator") {
-    // Check case association to determine actual role for arbitration response
-    if (detail.case.claimantEmail === user?.email) {
-      userRole = "claimant";
-    } else if (detail.case.respondentEmail === user?.email) {
-      userRole = "respondent";
-    }
-  }
+  const userRole = authorized.role;
 
   const summary =
     typeof proposal.settlement_proposal === "string"
@@ -326,14 +282,13 @@ export async function acceptArbitrationProposal(user: AppUser, caseId: string, c
       : null;
 
   const db = getDb();
-  
-  // Only claimants and respondents can accept/reject arbitration proposals
-  let updateData: any = {
+
+  const updateData: any = {
     status: "resolved",
     finalDecision: summary,
     settlementAmount: amount,
   };
-  
+
   if (userRole === "claimant") {
     updateData.arbitrationClaimantResponse = claimantResponse || "accepted";
   } else if (userRole === "respondent") {
@@ -341,7 +296,8 @@ export async function acceptArbitrationProposal(user: AppUser, caseId: string, c
   } else {
     throw new Error(`Only claimants and respondents can accept or reject arbitration proposals. Your current role is: ${userRole || 'unknown'}`);
   }
-  
+
+
   const updated = await db
     .update(cases)
     .set(updateData)
@@ -353,34 +309,21 @@ export async function acceptArbitrationProposal(user: AppUser, caseId: string, c
     "decision",
     "Arbitration proposal accepted",
     summary,
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation },
   );
 
   return updated[0];
 }
 
 export async function rejectArbitrationProposal(user: AppUser, caseId: string, note?: string, claimantResponse?: "accepted" | "rejected", respondentResponse?: "accepted" | "rejected") {
-  const { authorized, detail } = await getAiContext(user, caseId);
+  const { authorized, impersonation } = await getAiContext(user, caseId);
   const db = getDb();
-  
-  // Only claimants and respondents can accept/reject arbitration proposals
-  let updateData: any = {
+
+  const userRole = authorized.role;
+  const updateData: any = {
     status: "awaiting_decision",
   };
-  
-  // Determine the user's role for this case
-  let userRole = authorized.role;
-  
-  // If user is admin/moderator, check if they're also associated as claimant/respondent
-  if (userRole === "admin" || userRole === "moderator") {
-    // Check case association to determine actual role for arbitration response
-    if (detail.case.claimantEmail === user?.email) {
-      userRole = "claimant";
-    } else if (detail.case.respondentEmail === user?.email) {
-      userRole = "respondent";
-    }
-  }
-  
+
   if (userRole === "claimant") {
     updateData.arbitrationClaimantResponse = claimantResponse || "rejected";
   } else if (userRole === "respondent") {
@@ -388,7 +331,8 @@ export async function rejectArbitrationProposal(user: AppUser, caseId: string, n
   } else {
     throw new Error(`Only claimants and respondents can accept or reject arbitration proposals. Your current role is: ${userRole || 'unknown'}`);
   }
-  
+
+
   const updated = await db
     .update(cases)
     .set(updateData)
@@ -400,24 +344,23 @@ export async function rejectArbitrationProposal(user: AppUser, caseId: string, n
     "status_change",
     "Arbitration proposal rejected",
     note || `${userRole} rejected the arbitration proposal.`,
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation },
   );
 
   return updated[0];
 }
 
 function assertModerator(role: string) {
-  if (role !== "moderator" && role !== "admin") {
+  if (role !== "moderator") {
     throw new Error("Moderator access required");
   }
 }
 
 export async function generateJudgement(user: AppUser, caseId: string, clearSimulationData: boolean = false, clearDataImmediately: boolean = false) {
   ensureAiReady();
-  const { authorized, detail } = await getAiContext(user, caseId);
+  const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   assertModerator(authorized.role);
   const db = getDb();
-  const actorName = user?.fullName || user?.email || "Unknown user";
 
   // Clear data immediately if requested to prevent flicker during refresh
   if (clearDataImmediately) {
@@ -478,16 +421,16 @@ export async function generateJudgement(user: AppUser, caseId: string, clearSimu
     "decision",
     clearSimulationData ? "Single AI judgement generated" : "Judgement generated",
     judgement.summary,
-    actorName,
+    { user, impersonation },
   );
 
   return updated[0];
 }
 
-export async function acceptJudgement(user: AppUser, caseId: string) {  
+export async function acceptJudgement(user: AppUser, caseId: string) {
 
-  const { authorized, detail } = await getAiContext(user, caseId);
-  
+  const { authorized, detail, impersonation } = await getAiContext(user, caseId);
+
   assertModerator(authorized.role);
   const judgement = detail.case.judgementJson;
 
@@ -548,30 +491,20 @@ export async function acceptJudgement(user: AppUser, caseId: string) {
     "decision",
     "Judgement accepted",
     summary,
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation },
   );
 
   return updated[0];
 }
 
 export async function getLawyerConversation(user: AppUser, caseId: string) {
-  const { authorized, detail } = await getAiContext(user, caseId);
-  
-  // Determine the user's role for lawyer chat access
-  let userRole = authorized.role;
-  
-  // If user is admin/moderator, check if they're also associated as claimant/respondent
-  if (userRole === "admin" || userRole === "moderator") {
-    if (detail.case.claimantEmail === user?.email) {
-      userRole = "claimant";
-    } else if (detail.case.respondentEmail === user?.email) {
-      userRole = "respondent";
-    }
-  }
-  
-  if (userRole !== "claimant" && userRole !== "respondent") {
+  const { authorized, impersonation } = await getAiContext(user, caseId);
+
+  if (authorized.role !== "claimant" && authorized.role !== "respondent") {
     throw new Error("Forbidden");
   }
+
+  const lawyerEmail = impersonation?.targetEmail || user?.email || "";
 
   const db = getDb();
   const rows = await db
@@ -580,7 +513,7 @@ export async function getLawyerConversation(user: AppUser, caseId: string) {
     .where(
       and(
         eq(lawyerConversations.caseId, caseId),
-        eq(lawyerConversations.userEmail, user?.email || ""),
+        eq(lawyerConversations.userEmail, lawyerEmail),
       ),
     )
     .orderBy(desc(lawyerConversations.updatedAt))
@@ -591,24 +524,14 @@ export async function getLawyerConversation(user: AppUser, caseId: string) {
 
 export async function continueLawyerChat(user: AppUser, caseId: string, payload: unknown) {
   ensureAiReady();
-  const { authorized, detail } = await getAiContext(user, caseId);
-  
-  // Determine the user's role for lawyer chat access
-  let userRole = authorized.role;
-  
-  // If user is admin/moderator, check if they're also associated as claimant/respondent
-  if (userRole === "admin" || userRole === "moderator") {
-    if (detail.case.claimantEmail === user?.email) {
-      userRole = "claimant";
-    } else if (detail.case.respondentEmail === user?.email) {
-      userRole = "respondent";
-    }
-  }
-  
+  const { authorized, detail, impersonation } = await getAiContext(user, caseId);
+
+  const userRole = authorized.role;
   if (userRole !== "claimant" && userRole !== "respondent") {
     throw new Error("Forbidden");
   }
 
+  const lawyerEmail = impersonation?.targetEmail || user?.email || "";
   const parsed = lawyerChatMessageSchema.parse(payload);
   const db = getDb();
   const existing = await getLawyerConversation(user, caseId);
@@ -663,7 +586,7 @@ export async function continueLawyerChat(user: AppUser, caseId: string, payload:
     .values({
       caseId,
       userId: user?.id ?? null,
-      userEmail: user?.email || "",
+      userEmail: lawyerEmail,
       lawyerPersonality: parsed.personality,
       partyRole: userRole,
       messagesJson: nextMessages,
@@ -677,7 +600,7 @@ export async function continueLawyerChat(user: AppUser, caseId: string, payload:
     "note",
     "Lawyer chat started",
     `${userRole} started an AI counsel thread.`,
-    user?.fullName || user?.email || "Unknown user",
+    { user, impersonation },
   );
 
   return inserted[0];
