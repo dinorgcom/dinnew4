@@ -63,6 +63,8 @@ export const activityTypeEnum = pgEnum("activity_type", [
   "decision",
   "note",
   "document_request",
+  "identity_verified",
+  "respondent_linked",
   "other",
 ]);
 export const arbitrationResponseEnum = pgEnum("arbitration_response", [
@@ -70,3 +72,10 @@ export const arbitrationResponseEnum = pgEnum("arbitration_response", [
   "rejected",
 ]);
 export const tokenLedgerStatusEnum = pgEnum("token_ledger_status", ["pending", "committed", "reversed"]);
+export const kycStatusEnum = pgEnum("kyc_status", [
+  "not_started",
+  "pending",
+  "verified",
+  "requires_input",
+  "canceled",
+]);

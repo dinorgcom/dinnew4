@@ -1,6 +1,8 @@
-import { index, jsonb, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, jsonb, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { arbitrationResponseEnum, caseStatusEnum, priorityEnum } from "./enums";
 import { createdAt, id, updatedAt } from "./common";
+import { users } from "./users";
+import { kycVerifications } from "./kyc";
 
 export const cases = pgTable(
   "cases",
@@ -19,9 +21,18 @@ export const cases = pgTable(
     claimantName: text("claimant_name"),
     claimantEmail: text("claimant_email"),
     claimantPhone: text("claimant_phone"),
+    claimantUserId: uuid("claimant_user_id").references(() => users.id, { onDelete: "set null" }),
+    claimantKycVerificationId: uuid("claimant_kyc_verification_id").references(() => kycVerifications.id, { onDelete: "set null" }),
+    claimantNameVerified: text("claimant_name_verified"),
     respondentName: text("respondent_name"),
     respondentEmail: text("respondent_email"),
     respondentPhone: text("respondent_phone"),
+    respondentNameAlleged: text("respondent_name_alleged"),
+    respondentEmailAlleged: text("respondent_email_alleged"),
+    respondentUserId: uuid("respondent_user_id").references(() => users.id, { onDelete: "set null" }),
+    respondentKycVerificationId: uuid("respondent_kyc_verification_id").references(() => kycVerifications.id, { onDelete: "set null" }),
+    respondentNameVerified: text("respondent_name_verified"),
+    respondentLinkedAt: timestamp("respondent_linked_at", { withTimezone: true }),
     claimantClaims: jsonb("claimant_claims").$type<Record<string, unknown>[]>(),
     respondentClaims: jsonb("respondent_claims").$type<Record<string, unknown>[]>(),
     arbitratorAssignedName: text("arbitrator_assigned_name"),

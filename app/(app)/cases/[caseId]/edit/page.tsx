@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
-import { ensureAppUser } from "../../../../../src/server/auth/provision";
-import { getCaseDetail } from "../../../../../src/server/cases/queries";
-import { CaseEditor } from "../../../../../src/components/case-editor";
+import { ensureAppUser } from "@/server/auth/provision";
+import { getCaseDetail } from "@/server/cases/queries";
+import { CaseEditor } from "@/components/case-editor";
+import { getVerificationStatus } from "@/server/identity/service";
 
 type EditCasePageProps = {
   params: Promise<{ caseId: string }>;
@@ -17,5 +18,23 @@ export default async function EditCasePage({ params }: EditCasePageProps) {
     notFound();
   }
 
-  return <CaseEditor mode="edit" initialCase={detail.case} />;
+  let claimantPrefill: { name: string; locked: boolean } | null = null;
+  if (appUser?.id && appUser.kycVerified) {
+    const status = await getVerificationStatus(appUser.id);
+    if ("verifiedFirstName" in status) {
+      const name = `${status.verifiedFirstName ?? ""} ${status.verifiedLastName ?? ""}`.trim();
+      if (name) {
+        claimantPrefill = { name, locked: true };
+      }
+    }
+  }
+
+  return (
+    <CaseEditor
+      mode="edit"
+      initialCase={detail.case}
+      kycVerified={appUser?.kycVerified ?? false}
+      claimantPrefill={claimantPrefill}
+    />
+  );
 }

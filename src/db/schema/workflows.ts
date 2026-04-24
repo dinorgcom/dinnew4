@@ -73,7 +73,7 @@ export const processedStripeEvents = pgTable(
     id,
     eventId: text("event_id").notNull(),
     sessionId: text("session_id").notNull(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     packageId: text("package_id").notNull(),
     creditedTokens: integer("credited_tokens").notNull(),
     processedAt: timestamp("processed_at", { withTimezone: true }).notNull(),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import { LawyerSelectScreen } from "@/components/lawyer-select-screen";
 import { PreFilingLawyerChat } from "@/components/pre-filing-lawyer-chat";
@@ -14,6 +14,8 @@ type Claim = {
 
 type CaseEditorProps = {
   mode: "create" | "edit";
+  kycVerified?: boolean;
+  claimantPrefill?: { name: string; locked: boolean } | null;
   initialCase?: {
     id: string;
     description: string | null;
@@ -58,16 +60,23 @@ function asClaims(input: Record<string, unknown>[] | null | undefined): Claim[] 
   }));
 }
 
-export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
+export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPrefill = null }: CaseEditorProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const justVerified = searchParams?.get("kycVerified") === "1";
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [selectedLawyer, setSelectedLawyer] = useState<LawyerProfile | null>(null);
+  const claimantNameLocked = !!claimantPrefill?.locked;
+  const initialClaimantName =
+    claimantPrefill?.locked && claimantPrefill.name
+      ? claimantPrefill.name
+      : initialCase?.claimantName ?? claimantPrefill?.name ?? "";
   const [form, setForm] = useState({
     description: initialCase?.description ?? "",
     category: initialCase?.category ?? "commercial",
     priority: initialCase?.priority ?? "medium",
-    claimantName: initialCase?.claimantName ?? "",
+    claimantName: initialClaimantName,
     claimantEmail: initialCase?.claimantEmail ?? "",
     claimantPhone: initialCase?.claimantPhone ?? "",
     respondentName: initialCase?.respondentName ?? "",
@@ -136,6 +145,18 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
 
       const result = await response.json();
       if (!response.ok) {
+        if (result.error?.code === "KYC_REQUIRED") {
+          const draftCaseId: string | undefined =
+            result.error?.details?.draftCaseId ||
+            (mode === "edit" ? initialCase?.id : undefined);
+          const returnTo = draftCaseId
+            ? `/cases/${draftCaseId}/edit?kycVerified=1`
+            : mode === "create"
+              ? "/cases/new"
+              : `/cases/${initialCase?.id}/edit`;
+          router.push(`/verify/start?returnTo=${encodeURIComponent(returnTo)}` as Route);
+          return;
+        }
         setError(result.error?.message || "Failed to save case.");
         return;
       }
@@ -185,6 +206,21 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
 
       {mode === "create" && selectedLawyer ? (
         <PreFilingLawyerChat lawyerKey={selectedLawyer.id} draftCaseData={form} />
+      ) : null}
+
+      {justVerified && kycVerified ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <svg className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+          </svg>
+          <div>
+            <p className="font-medium">Identity verified</p>
+            <p className="mt-0.5 text-emerald-700">
+              Your case was saved as a draft while you verified. Review the details below and
+              click <strong>Save and file</strong> to submit it.
+            </p>
+          </div>
+        </div>
       ) : null}
 
       {error ? (
@@ -261,15 +297,42 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
       <section className="grid gap-6 rounded-[28px] border border-slate-200 bg-white p-6 md:grid-cols-2">
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-ink">Claimant</h2>
+          <label className="space-y-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              Name
+              {claimantNameLocked ? (
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                  Verified via Stripe Identity
+                </span>
+              ) : null}
+            </span>
+            <input
+              value={form.claimantName}
+              readOnly={claimantNameLocked}
+              disabled={claimantNameLocked}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, claimantName: event.target.value }))
+              }
+              className={
+                claimantNameLocked
+                  ? "w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 shadow-sm"
+                  : "w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+              }
+            />
+            {claimantNameLocked ? (
+              <span className="block text-xs text-slate-500">
+                This can&rsquo;t be edited because it&rsquo;s the name on your verified ID.
+              </span>
+            ) : null}
+          </label>
           {[
-            ["Name", "claimantName"],
             ["Email", "claimantEmail"],
             ["Phone", "claimantPhone"],
           ].map(([label, key]) => (
             <label key={key} className="space-y-2">
               <span className="text-sm font-medium text-slate-700">{label}</span>
               <input
-                value={form[key as "claimantName" | "claimantEmail" | "claimantPhone"]}
+                value={form[key as "claimantEmail" | "claimantPhone"]}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -361,14 +424,25 @@ export function CaseEditor({ mode, initialCase }: CaseEditorProps) {
         >
           Save draft
         </button>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => submit("file")}
-          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
-        >
-          {mode === "create" ? "Create and file case" : "Save and file"}
-        </button>
+        {kycVerified ? (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => submit("file")}
+            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
+          >
+            {mode === "create" ? "Create and file case" : "Save and file"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => submit("file")}
+            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
+          >
+            {isPending ? "Saving draft..." : "Verify identity to file"}
+          </button>
+        )}
       </div>
     </div>
   );

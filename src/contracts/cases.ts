@@ -109,7 +109,7 @@ export const evidenceCreateSchema = z.object({
 
 export const witnessCreateSchema = z.object({
   fullName: z.string().min(1),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.string().email(),
   phone: z.string().optional(),
   relationship: z.string().optional(),
   statement: z.string().optional(),
@@ -127,7 +127,7 @@ export const witnessCreateSchema = z.object({
 
 export const consultantCreateSchema = z.object({
   fullName: z.string().min(1),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.string().email(),
   phone: z.string().optional(),
   company: z.string().optional(),
   expertise: z.string().optional(),

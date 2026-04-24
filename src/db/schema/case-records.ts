@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uuid, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import {
   activityTypeEnum,
   evidenceTypeEnum,
@@ -9,6 +9,7 @@ import {
 } from "./enums";
 import { createdAt, id, updatedAt } from "./common";
 import { cases } from "./cases";
+import { kycVerifications } from "./kyc";
 
 export const evidence = pgTable(
   "evidence",
@@ -46,7 +47,7 @@ export const witnesses = pgTable(
     id,
     caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
     fullName: text("full_name").notNull(),
-    email: text("email"),
+    email: text("email").notNull(),
     phone: text("phone"),
     address: text("address"),
     country: text("country"),
@@ -63,11 +64,17 @@ export const witnesses = pgTable(
     discussionDeadline: timestamp("discussion_deadline", { withTimezone: true }),
     rejectedBy: text("rejected_by"),
     notes: text("notes"),
+    invitationToken: text("invitation_token"),
+    invitationTokenExpiresAt: timestamp("invitation_token_expires_at", { withTimezone: true }),
+    kycVerificationId: uuid("kyc_verification_id").references(() => kycVerifications.id, { onDelete: "set null" }),
+    originalFullName: text("original_full_name"),
+    nameUpdatedAt: timestamp("name_updated_at", { withTimezone: true }),
     createdAt,
     updatedAt,
   },
   (table) => ({
     caseIdx: index("witnesses_case_idx").on(table.caseId),
+    tokenIdx: uniqueIndex("witnesses_invitation_token_idx").on(table.invitationToken),
   }),
 );
 
@@ -77,7 +84,7 @@ export const consultants = pgTable(
     id,
     caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
     fullName: text("full_name").notNull(),
-    email: text("email"),
+    email: text("email").notNull(),
     phone: text("phone"),
     company: text("company"),
     expertise: text("expertise"),
@@ -91,11 +98,17 @@ export const consultants = pgTable(
     discussionDeadline: timestamp("discussion_deadline", { withTimezone: true }),
     rejectedBy: text("rejected_by"),
     notes: text("notes"),
+    invitationToken: text("invitation_token"),
+    invitationTokenExpiresAt: timestamp("invitation_token_expires_at", { withTimezone: true }),
+    kycVerificationId: uuid("kyc_verification_id").references(() => kycVerifications.id, { onDelete: "set null" }),
+    originalFullName: text("original_full_name"),
+    nameUpdatedAt: timestamp("name_updated_at", { withTimezone: true }),
     createdAt,
     updatedAt,
   },
   (table) => ({
     caseIdx: index("consultants_case_idx").on(table.caseId),
+    tokenIdx: uniqueIndex("consultants_invitation_token_idx").on(table.invitationToken),
   }),
 );
 

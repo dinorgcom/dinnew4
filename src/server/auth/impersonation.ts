@@ -138,6 +138,12 @@ export function formatPerformedBy(
   context: ImpersonationContext | null,
   fallback = "Unknown user",
 ) {
+  // No user and no impersonation context = the system itself recorded the
+  // event (e.g. KYC verification confirmations). Surface that distinctly so
+  // the activity log doesn't read as "Unknown user".
+  if (!user && !context) {
+    return "system";
+  }
   const base = user?.fullName || user?.email || fallback;
   if (context) {
     return `[Admin:${user?.email ?? "unknown"} as ${context.role}] ${base}`;

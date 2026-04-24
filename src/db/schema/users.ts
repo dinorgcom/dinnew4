@@ -1,6 +1,7 @@
-import { pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { accountStatusEnum, appRoleEnum } from "./enums";
 import { createdAt, id, updatedAt } from "./common";
+import { kycVerifications } from "./kyc";
 
 export const users = pgTable(
   "users",
@@ -14,6 +15,7 @@ export const users = pgTable(
     suspensionReason: text("suspension_reason"),
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     suspendedByUserId: text("suspended_by_user_id"),
+    kycVerificationId: uuid("kyc_verification_id").references(() => kycVerifications.id, { onDelete: "set null" }),
     metadataJson: text("metadata_json"),
     createdAt,
     updatedAt,

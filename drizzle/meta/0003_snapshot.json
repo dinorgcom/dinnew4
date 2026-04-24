@@ -1,9 +1,175 @@
 {
-  "id": "244b87bb-a856-42a3-8719-57daf649e379",
+  "id": "7c34a84f-c7a8-46da-b4a6-2897ccdea6d6",
   "prevId": "2301ceb0-24f3-4022-ac0a-b07c45cdc1ad",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.kyc_verifications": {
+      "name": "kyc_verifications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "stripe_session_id": {
+          "name": "stripe_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "kyc_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "verified_first_name": {
+          "name": "verified_first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_last_name": {
+          "name": "verified_last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_dob_day": {
+          "name": "verified_dob_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_dob_month": {
+          "name": "verified_dob_month",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_dob_year": {
+          "name": "verified_dob_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_address_line1": {
+          "name": "verified_address_line1",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_address_line2": {
+          "name": "verified_address_line2",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_address_city": {
+          "name": "verified_address_city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_address_state": {
+          "name": "verified_address_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_address_postal_code": {
+          "name": "verified_address_postal_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_address_country": {
+          "name": "verified_address_country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_id_number": {
+          "name": "verified_id_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_id_number_type": {
+          "name": "verified_id_number_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_outputs_json": {
+          "name": "verified_outputs_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_error_code": {
+          "name": "last_error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_error_reason": {
+          "name": "last_error_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "kyc_verifications_stripe_session_idx": {
+          "name": "kyc_verifications_stripe_session_idx",
+          "columns": [
+            {
+              "expression": "stripe_session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.users": {
       "name": "users",
       "schema": "",
@@ -67,6 +233,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "kyc_verification_id": {
+          "name": "kyc_verification_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "metadata_json": {
           "name": "metadata_json",
           "type": "text",
@@ -120,7 +292,21 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "users_kyc_verification_id_kyc_verifications_id_fk": {
+          "name": "users_kyc_verification_id_kyc_verifications_id_fk",
+          "tableFrom": "users",
+          "tableTo": "kyc_verifications",
+          "columnsFrom": [
+            "kyc_verification_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -1314,7 +1500,7 @@
           "name": "email",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "phone": {
           "name": "phone",
@@ -1397,6 +1583,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "invitation_token": {
+          "name": "invitation_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invitation_token_expires_at": {
+          "name": "invitation_token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kyc_verification_id": {
+          "name": "kyc_verification_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1427,6 +1631,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "consultants_invitation_token_idx": {
+          "name": "consultants_invitation_token_idx",
+          "columns": [
+            {
+              "expression": "invitation_token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1441,6 +1660,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "consultants_kyc_verification_id_kyc_verifications_id_fk": {
+          "name": "consultants_kyc_verification_id_kyc_verifications_id_fk",
+          "tableFrom": "consultants",
+          "tableTo": "kyc_verifications",
+          "columnsFrom": [
+            "kyc_verification_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1793,7 +2025,7 @@
           "name": "email",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "phone": {
           "name": "phone",
@@ -1894,6 +2126,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "invitation_token": {
+          "name": "invitation_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invitation_token_expires_at": {
+          "name": "invitation_token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kyc_verification_id": {
+          "name": "kyc_verification_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1924,6 +2174,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "witnesses_invitation_token_idx": {
+          "name": "witnesses_invitation_token_idx",
+          "columns": [
+            {
+              "expression": "invitation_token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1938,6 +2203,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "witnesses_kyc_verification_id_kyc_verifications_id_fk": {
+          "name": "witnesses_kyc_verification_id_kyc_verifications_id_fk",
+          "tableFrom": "witnesses",
+          "tableTo": "kyc_verifications",
+          "columnsFrom": [
+            "kyc_verification_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2350,7 +2628,7 @@
           "name": "user_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "package_id": {
           "name": "package_id",
@@ -2676,6 +2954,17 @@
         "in_dispute",
         "ai_approved",
         "ai_rejected"
+      ]
+    },
+    "public.kyc_status": {
+      "name": "kyc_status",
+      "schema": "public",
+      "values": [
+        "not_started",
+        "pending",
+        "verified",
+        "requires_input",
+        "canceled"
       ]
     },
     "public.message_sender_role": {

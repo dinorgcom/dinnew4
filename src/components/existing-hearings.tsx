@@ -25,9 +25,12 @@ interface Hearing {
 interface ExistingHearingsProps {
   caseId: string;
   caseTitle: string;
+  viewerRole?: string;
+  viewerKycVerified?: boolean;
 }
 
-export function ExistingHearings({ caseId, caseTitle }: ExistingHearingsProps) {
+export function ExistingHearings({ caseId, caseTitle, viewerRole, viewerKycVerified }: ExistingHearingsProps) {
+  const meetingUrlGated = viewerRole === "respondent" && !viewerKycVerified;
   const [hearings, setHearings] = useState<Hearing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -226,14 +229,26 @@ export function ExistingHearings({ caseId, caseTitle }: ExistingHearingsProps) {
                   {hearing.meetingUrl && (
                     <div className="md:col-span-2">
                       <div className="font-medium text-gray-700">Meeting Link:</div>
-                      <a 
-                        href={hearing.meetingUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline"
-                      >
-                        {hearing.meetingUrl}
-                      </a>
+                      {meetingUrlGated ? (
+                        <a
+                          href={`/verify/start?returnTo=/cases/${caseId}`}
+                          className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                          </svg>
+                          Verify identity to join
+                        </a>
+                      ) : (
+                        <a
+                          href={hearing.meetingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          {hearing.meetingUrl}
+                        </a>
+                      )}
                     </div>
                   )}
                   

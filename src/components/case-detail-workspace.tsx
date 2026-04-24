@@ -15,6 +15,7 @@ import { LivekitAnamPanel } from "@/components/livekit-anam-panel";
 import { AdminImpersonationBanner } from "@/components/admin-impersonation-banner";
 import { getLawyerById } from "@/lib/lawyers";
 import { formatCurrency, formatDateTime } from "@/server/format";
+import { resolveCaseClaimant, resolveCaseRespondent, type KycStatus } from "@/server/identity/resolve";
 
 type Claim = {
   claim: string;
@@ -53,9 +54,14 @@ type CaseDetailWorkspaceProps = {
       claimantName: string | null;
       claimantEmail: string | null;
       claimantPhone: string | null;
+      claimantNameVerified?: string | null;
+      claimantKycVerificationId?: string | null;
       respondentName: string | null;
       respondentEmail: string | null;
       respondentPhone: string | null;
+      respondentNameAlleged?: string | null;
+      respondentNameVerified?: string | null;
+      respondentKycVerificationId?: string | null;
       claimantClaims: Record<string, unknown>[] | null;
       respondentClaims: Record<string, unknown>[] | null;
       claimantLawyerKey: string | null;
@@ -85,6 +91,18 @@ type CaseDetailWorkspaceProps = {
       role: "claimant" | "respondent";
       targetEmail: string;
       targetName: string | null;
+    } | null;
+    claimantKyc?: {
+      status: KycStatus | null;
+      verifiedAt: Date | string | null;
+      verifiedFirstName?: string | null;
+      verifiedLastName?: string | null;
+    } | null;
+    respondentKyc?: {
+      status: KycStatus | null;
+      verifiedAt: Date | string | null;
+      verifiedFirstName?: string | null;
+      verifiedLastName?: string | null;
     } | null;
   };
   userRole?: string;
@@ -184,7 +202,6 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     expertise: detail.expertiseRequests.length
   };
 
-    
   // Store original values to track changes
   const originalContacts = {
     claimantName: detail.case.claimantName || "",
@@ -408,6 +425,57 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       </div>
 
       <div className="space-y-4">
+        {detail.role === "respondent" && !user?.kycVerified ? (
+          <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <svg className="h-5 w-5 shrink-0 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+            </svg>
+            <div className="flex-1 min-w-[16rem]">
+              <p className="font-medium">Identity verification is required before you can join your hearing.</p>
+              <p className="mt-0.5 text-blue-800">You can continue working on the case now and verify any time.</p>
+            </div>
+            <Link
+              href={`/verify/start?returnTo=/cases/${detail.case.id}` as Route}
+              className="whitespace-nowrap rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+            >
+              Verify now
+            </Link>
+          </div>
+        ) : null}
+        {(() => {
+          const normalizeKyc = (k: CaseDetailWorkspaceProps["detail"]["claimantKyc"]) =>
+            k ? { ...k, verifiedAt: k.verifiedAt ? new Date(k.verifiedAt) : null } : null;
+          const claimantIdentity = resolveCaseClaimant(detail.case, normalizeKyc(detail.claimantKyc));
+          const respondentIdentity = resolveCaseRespondent(detail.case, normalizeKyc(detail.respondentKyc));
+          const banners: { who: "claimant" | "respondent"; alleged: string; verified: string }[] = [];
+          if (claimantIdentity.diverges && claimantIdentity.verified && claimantIdentity.alleged) {
+            banners.push({ who: "claimant", alleged: claimantIdentity.alleged, verified: claimantIdentity.verified });
+          }
+          if (respondentIdentity.diverges && respondentIdentity.verified && respondentIdentity.alleged) {
+            banners.push({ who: "respondent", alleged: respondentIdentity.alleged, verified: respondentIdentity.verified });
+          }
+          if (banners.length === 0) return null;
+          return (
+            <div className="space-y-2">
+              {banners.map((b) => (
+                <div
+                  key={b.who}
+                  className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                >
+                  <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3h.008v.008H12v-.008Zm9.75-2.25c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z" />
+                  </svg>
+                  <div>
+                    <p className="font-medium capitalize">Identity drift: {b.who}</p>
+                    <p className="mt-0.5">
+                      Filed as <strong>{b.alleged}</strong>, verified as <strong>{b.verified}</strong>.
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">{detail.roleLabel}</div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">{detail.case.title}</h1>
@@ -799,7 +867,12 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
           {/* Existing Hearings */}
           <div className="rounded-[28px] border border-slate-200 bg-white p-6">
-            <ExistingHearings caseId={detail.case.id} caseTitle={detail.case.title} />
+            <ExistingHearings
+              caseId={detail.case.id}
+              caseTitle={detail.case.title}
+              viewerRole={detail.role}
+              viewerKycVerified={Boolean(user?.kycVerified)}
+            />
           </div>
 
           {/* Hearing Scheduler */}
