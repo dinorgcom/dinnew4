@@ -13,7 +13,6 @@ import { HearingProposalPanel } from "@/components/hearing-proposal-panel";
 import { ExistingHearings } from "./existing-hearings";
 import { JudgementPanel } from "@/components/judgement-panel";
 import { LivekitAnamPanel } from "@/components/livekit-anam-panel";
-import { AdminImpersonationBanner } from "@/components/admin-impersonation-banner";
 import { getLawyerById } from "@/lib/lawyers";
 import { formatCurrency, formatDateTime } from "@/server/format";
 import { resolveCaseClaimant, resolveCaseRespondent, type KycStatus } from "@/server/identity/resolve";
@@ -406,15 +405,6 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
   return (
     <div className="space-y-8">
-      <AdminImpersonationBanner
-        caseId={detail.case.id}
-        userRole={userRole}
-        impersonation={detail.impersonation ?? null}
-        claimantName={detail.case.claimantName}
-        claimantEmail={detail.case.claimantEmail}
-        respondentName={detail.case.respondentName}
-        respondentEmail={detail.case.respondentEmail}
-      />
       <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
         <Link href="/cases" className="font-medium text-signal hover:text-teal-800">
           Cases
