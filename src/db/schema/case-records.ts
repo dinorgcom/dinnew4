@@ -57,6 +57,8 @@ export const witnesses = pgTable(
     statement: text("statement"),
     statementFileUrl: text("statement_file_url"),
     statementFilePathname: text("statement_file_pathname"),
+    photoUrl: text("photo_url"),
+    photoPathname: text("photo_pathname"),
     availability: text("availability"),
     testimonyDate: timestamp("testimony_date", { withTimezone: true }),
     status: recordStatusEnum("status").default("pending").notNull(),

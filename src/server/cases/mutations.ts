@@ -403,6 +403,8 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
       statement: parsed.statement || null,
       statementFileUrl: parsed.attachment?.url ?? null,
       statementFilePathname: parsed.attachment?.pathname ?? null,
+      photoUrl: parsed.photo?.url ?? null,
+      photoPathname: parsed.photo?.pathname ?? null,
       calledBy: authorized.role,
       notes: parsed.notes || null,
       status: "pending",

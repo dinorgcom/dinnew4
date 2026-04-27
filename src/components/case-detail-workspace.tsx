@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import { CaseWorkspace } from "@/components/case-workspace";
 import { LawyerChatPanel } from "@/components/lawyer-chat-panel";
@@ -104,6 +104,12 @@ type CaseDetailWorkspaceProps = {
       verifiedFirstName?: string | null;
       verifiedLastName?: string | null;
     } | null;
+    tokenCosts?: {
+      claimant: number;
+      respondent: number;
+      other: number;
+      total: number;
+    };
   };
   userRole?: string;
   user?: any;
@@ -147,7 +153,21 @@ function asClaims(input: Record<string, unknown>[] | null | undefined): Claim[] 
 
 export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorkspaceProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>("overview");
+  const searchParams = useSearchParams();
+  const initialTab = (() => {
+    const requested = searchParams?.get("tab");
+    return requested && tabs.some((t) => t.key === requested)
+      ? (requested as (typeof tabs)[number]["key"])
+      : "overview";
+  })();
+  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>(initialTab);
+
+  useEffect(() => {
+    const requested = searchParams?.get("tab");
+    if (requested && tabs.some((t) => t.key === requested)) {
+      setActiveTab(requested as (typeof tabs)[number]["key"]);
+    }
+  }, [searchParams]);
   const [claimantClaims, setClaimantClaims] = useState(asClaims(detail.case.claimantClaims));
   const [respondentClaims, setRespondentClaims] = useState(asClaims(detail.case.respondentClaims));
   const [arbitrator, setArbitrator] = useState(detail.case.arbitratorAssignedName || "");
@@ -863,6 +883,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             claimantEmail={detail.case.claimantEmail}
             respondentEmail={detail.case.respondentEmail}
             user={user}
+            tokenCosts={detail.tokenCosts}
           />
         </div>
       ) : null}

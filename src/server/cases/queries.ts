@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, witnesses, hearings, caseAudits } from "@/db/schema";
+import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, tokenLedger, users, witnesses, hearings, caseAudits } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { getImpersonationContext, type ImpersonationContext } from "@/server/auth/impersonation";
 import { isDatabaseConfigured } from "@/server/runtime";
@@ -397,6 +397,37 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
   const flatWitnesses = witnessRows.map((row) => ({ ...row.witness, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
   const flatConsultants = consultantRows.map((row) => ({ ...row.consultant, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
 
+  // Aggregate token spend for this case grouped by user, then map to claimant/respondent.
+  const ledgerRows = await db
+    .select({
+      userId: tokenLedger.userId,
+      email: users.email,
+      delta: tokenLedger.delta,
+    })
+    .from(tokenLedger)
+    .leftJoin(users, eq(users.id, tokenLedger.userId))
+    .where(and(eq(tokenLedger.caseId, caseId), eq(tokenLedger.status, "committed")));
+
+  const claimantEmail = (caseItem.claimantEmail || "").trim().toLowerCase();
+  const respondentEmail = (caseItem.respondentEmail || "").trim().toLowerCase();
+  let claimantTokensSpent = 0;
+  let respondentTokensSpent = 0;
+  let otherTokensSpent = 0;
+  for (const row of ledgerRows) {
+    if (row.delta >= 0) continue;
+    const email = (row.email || "").trim().toLowerCase();
+    const spent = -row.delta;
+    if (email && email === claimantEmail) claimantTokensSpent += spent;
+    else if (email && email === respondentEmail) respondentTokensSpent += spent;
+    else otherTokensSpent += spent;
+  }
+  const tokenCosts = {
+    claimant: claimantTokensSpent,
+    respondent: respondentTokensSpent,
+    other: otherTokensSpent,
+    total: claimantTokensSpent + respondentTokensSpent + otherTokensSpent,
+  };
+
   return {
     case: caseItem,
     role,
@@ -428,5 +459,6 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
       { label: "Consultants", value: flatConsultants.length },
       { label: "Expertise", value: expertiseRows.length },
     ],
+    tokenCosts,
   };
 }

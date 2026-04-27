@@ -123,6 +123,15 @@ export const witnessCreateSchema = z.object({
       size: z.number().optional().nullable(),
     })
     .optional(),
+  photo: z
+    .object({
+      url: z.string().url(),
+      pathname: z.string(),
+      fileName: z.string(),
+      contentType: z.string().optional().nullable(),
+      size: z.number().optional().nullable(),
+    })
+    .optional(),
 });
 
 export const consultantCreateSchema = z.object({

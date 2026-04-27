@@ -59,14 +59,19 @@ export async function GET(request: Request, { params }: RouteProps) {
   if (entity === "witnesses") {
     const rows = await db.select().from(witnesses).where(eq(witnesses.id, recordId)).limit(1);
     const record = rows[0];
-    if (!record?.statementFileUrl) {
+    if (!record) {
+      return new Response("Not found", { status: 404 });
+    }
+    const asset = requestUrl.searchParams.get("asset");
+    const sourceUrl = asset === "photo" ? record.photoUrl : record.statementFileUrl;
+    if (!sourceUrl) {
       return new Response("Not found", { status: 404 });
     }
     const authorized = await getAuthorizedCase(user, record.caseId);
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return serveBlob(record.statementFileUrl);
+    return serveBlob(sourceUrl);
   }
 
   if (entity === "consultants") {

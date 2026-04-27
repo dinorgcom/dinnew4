@@ -3,8 +3,18 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { Coins, FolderOpen, LayoutDashboard, PencilRuler, Shield } from "lucide-react";
+import { Coins, FolderOpen, Gavel, LayoutDashboard, PencilRuler, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const CASE_DETAIL_RE = /^\/cases\/([^\/]+)(?:\/.*)?$/;
+function getActiveCaseId(pathname: string | null): string | null {
+  if (!pathname) return null;
+  const match = pathname.match(CASE_DETAIL_RE);
+  if (!match) return null;
+  const id = match[1];
+  if (id === "new") return null;
+  return id;
+}
 
 type NavItem = {
   href: Route;
@@ -60,6 +70,10 @@ function buildItems(role: string, summary?: CaseSummary): NavItem[] {
 export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
   const pathname = usePathname();
   const items = buildItems(role, caseSummary);
+  const activeCaseId = getActiveCaseId(pathname);
+  const arbitrationHref = activeCaseId
+    ? (`/cases/${activeCaseId}?tab=arbitration` as Route)
+    : null;
 
   return (
     <nav className="mt-8 space-y-2">
@@ -84,6 +98,16 @@ export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
           </Link>
         );
       })}
+
+      {arbitrationHref ? (
+        <Link
+          href={arbitrationHref}
+          className="mt-1 flex items-center gap-3 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/20"
+        >
+          <Gavel className="h-4 w-4" />
+          <span>Arbitration offer</span>
+        </Link>
+      ) : null}
 
       <div className="pt-4 text-xs uppercase tracking-[0.18em] text-slate-500">Current role</div>
       <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">

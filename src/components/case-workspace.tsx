@@ -25,8 +25,10 @@ type RecordSummary = {
   content?: string | null;
   senderName?: string | null;
   fileName?: string | null;
+  contentType?: string | null;
   statementFilePathname?: string | null;
   reportFilePathname?: string | null;
+  photoPathname?: string | null;
   attachmentName?: string | null;
   filePathname?: string | null;
   attachmentPathname?: string | null;
@@ -48,6 +50,98 @@ type RecordSummary = {
   kycVerificationId?: string | null;
   kycStatus?: string | null;
 };
+
+function getInitials(name?: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() || "").join("") || "?";
+}
+
+function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLink: string | null }) {
+  const ct = (record.contentType || "").toLowerCase();
+  const hasFile = !!record.filePathname;
+  const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200";
+
+  if (!hasFile || !fileLink) {
+    return (
+      <div className={`${baseClasses} flex items-center justify-center bg-slate-50 text-slate-400`}>
+        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-6 4h6M7 21h10a2 2 0 0 0 2-2V7l-5-5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2Z" />
+        </svg>
+      </div>
+    );
+  }
+
+  if (ct.startsWith("image/") || record.type === "photo") {
+    return (
+      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} block bg-slate-50`}>
+        <img src={fileLink} alt={record.title || "Evidence"} className="h-full w-full object-cover" loading="lazy" />
+      </a>
+    );
+  }
+
+  if (ct.startsWith("video/") || record.type === "video") {
+    return (
+      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} relative block bg-black`}>
+        <video src={fileLink} preload="metadata" muted className="h-full w-full object-cover" />
+        <span className="absolute inset-0 flex items-center justify-center text-white/80">
+          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8 5v14l11-7-11-7Z" />
+          </svg>
+        </span>
+      </a>
+    );
+  }
+
+  if (ct === "application/pdf" || record.fileName?.toLowerCase().endsWith(".pdf")) {
+    return (
+      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} flex flex-col items-center justify-center bg-rose-50 text-rose-600`}>
+        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-6 4h6M7 21h10a2 2 0 0 0 2-2V7l-5-5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2Z" />
+        </svg>
+        <span className="mt-0.5 text-[10px] font-semibold tracking-wide">PDF</span>
+      </a>
+    );
+  }
+
+  if (ct.startsWith("audio/") || record.type === "audio") {
+    return (
+      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} flex items-center justify-center bg-indigo-50 text-indigo-500`}>
+        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm12-3a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
+      </a>
+    );
+  }
+
+  return (
+    <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} flex items-center justify-center bg-slate-50 text-slate-500`}>
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6" />
+      </svg>
+    </a>
+  );
+}
+
+function WitnessAvatar({ record, photoUrl }: { record: RecordSummary; photoUrl: string | null }) {
+  const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-full border border-slate-200";
+  if (photoUrl) {
+    return (
+      <div className={baseClasses}>
+        <img src={photoUrl} alt={record.fullName || "Witness"} className="h-full w-full object-cover" loading="lazy" />
+      </div>
+    );
+  }
+  const initials = getInitials(record.fullName || record.senderName);
+  return (
+    <div
+      className={`${baseClasses} flex items-center justify-center bg-gradient-to-br from-signal/20 to-teal-100 text-base font-semibold text-signal`}
+    >
+      {initials}
+    </div>
+  );
+}
 
 type CaseWorkspaceProps = {
   caseId: string;
@@ -113,6 +207,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const [isPending, startTransition] = useTransition();
   const evidenceFileRef = useRef<HTMLInputElement | null>(null);
   const witnessFileRef = useRef<HTMLInputElement | null>(null);
+  const witnessPhotoRef = useRef<HTMLInputElement | null>(null);
   const consultantFileRef = useRef<HTMLInputElement | null>(null);
   const expertiseFileRef = useRef<HTMLInputElement | null>(null);
   const messageFileRef = useRef<HTMLInputElement | null>(null);
@@ -126,6 +221,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       statement: "",
       notes: "",
       attachment: null as FileReference | null,
+      photo: null as FileReference | null,
     },
     consultant: {
       fullName: "",
@@ -281,9 +377,22 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
             (kind === "consultants" && expandedConsultant === record.id);
           const isDeleting = deletingId === record.id;
           
+          const witnessPhotoUrl = kind === "witnesses" && record.photoPathname
+            ? `/api/files/witnesses/${record.id}?asset=photo`
+            : null;
+          const evidenceFileUrl = kind === "evidence" && record.filePathname
+            ? `/api/files/evidence/${record.id}`
+            : null;
+
           return (
             <div key={record.id} className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-4">
+                {kind === "evidence" ? (
+                  <EvidenceThumbnail record={record} fileLink={evidenceFileUrl} />
+                ) : null}
+                {kind === "witnesses" ? (
+                  <WitnessAvatar record={record} photoUrl={witnessPhotoUrl} />
+                ) : null}
                 <div className="space-y-1 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900">
@@ -607,7 +716,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   if (success) {
                     setForms((current) => ({
                       ...current,
-                      witness: { fullName: "", email: "", phone: "", relationship: "", statement: "", notes: "", attachment: null },
+                      witness: { fullName: "", email: "", phone: "", relationship: "", statement: "", notes: "", attachment: null, photo: null },
                     }));
                     setEmailError(null);
                     setFullNameError(null);
@@ -694,9 +803,63 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   {uploadingKey === "witnesses" ? "Uploading..." : "Attach statement file"}
                 </button>
               </div>
-              <button 
-                type="submit" 
-                disabled={isPending || uploadingKey === "witnesses" || !!emailError || !!fullNameError} 
+              <div className="md:col-span-2 flex items-center gap-3">
+                {forms.witness.photo ? (
+                  <img
+                    src={forms.witness.photo.url}
+                    alt="Witness preview"
+                    className="h-12 w-12 rounded-full border border-slate-200 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-400">
+                    {getInitials(forms.witness.fullName)}
+                  </div>
+                )}
+                <input
+                  ref={witnessPhotoRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    void handleUpload("witness-photo", file, (photo) =>
+                      setForms((current) => ({
+                        ...current,
+                        witness: { ...current.witness, photo },
+                      })),
+                    );
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => witnessPhotoRef.current?.click()}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                >
+                  {uploadingKey === "witness-photo"
+                    ? "Uploading..."
+                    : forms.witness.photo
+                      ? "Replace photo"
+                      : "Upload photo"}
+                </button>
+                {forms.witness.photo ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForms((current) => ({
+                        ...current,
+                        witness: { ...current.witness, photo: null },
+                      }))
+                    }
+                    className="text-sm font-medium text-rose-600 hover:text-rose-700"
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+              <button
+                type="submit"
+                disabled={isPending || uploadingKey === "witnesses" || uploadingKey === "witness-photo" || !!emailError || !!fullNameError}
                 className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
               >
                 Add witness
