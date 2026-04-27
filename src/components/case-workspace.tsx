@@ -49,6 +49,14 @@ type RecordSummary = {
   invitationTokenExpiresAt?: string | Date | null;
   kycVerificationId?: string | null;
   kycStatus?: string | null;
+  // Evidence review fields
+  reviewState?: string | null;
+  reviewExtensions?: number | null;
+  reviewDismissalReason?: string | null;
+  reviewDismissalFileName?: string | null;
+  reviewExpertiseRequestId?: string | null;
+  discussionDeadline?: string | Date | null;
+  rejectedBy?: string | null;
 };
 
 function getInitials(name?: string | null): string {
@@ -124,6 +132,244 @@ function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLi
   );
 }
 
+function formatDeadline(deadline: string | Date | null | undefined) {
+  if (!deadline) return null;
+  const d = typeof deadline === "string" ? new Date(deadline) : deadline;
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function getEffectiveReviewState(record: RecordSummary) {
+  const stored = (record.reviewState || "pending").toLowerCase();
+  if (stored !== "pending") return stored;
+  if (record.discussionDeadline) {
+    const deadline = typeof record.discussionDeadline === "string"
+      ? new Date(record.discussionDeadline)
+      : record.discussionDeadline;
+    if (deadline && !Number.isNaN(deadline.getTime()) && new Date() > deadline) {
+      return "auto_accepted";
+    }
+  }
+  return "pending";
+}
+
+type EvidenceReviewSectionProps = {
+  record: RecordSummary;
+  caseId: string;
+  caseRole: string | null;
+  onUpload: (file: File, onDone: (file: FileReference) => void) => void;
+  uploadingKey: string | null;
+  refresh: () => void;
+};
+
+function EvidenceReviewSection({ record, caseId, caseRole, onUpload, uploadingKey, refresh }: EvidenceReviewSectionProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showDismissForm, setShowDismissForm] = useState(false);
+  const [dismissReason, setDismissReason] = useState("");
+  const [dismissAttachment, setDismissAttachment] = useState<FileReference | null>(null);
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const submittedBy = (record.submittedBy || "").toLowerCase();
+  const isOpposing =
+    (caseRole === "claimant" && submittedBy === "respondent") ||
+    (caseRole === "respondent" && submittedBy === "claimant");
+  const effectiveState = getEffectiveReviewState(record);
+  const extensions = record.reviewExtensions ?? 0;
+  const deadlineText = formatDeadline(record.discussionDeadline);
+  const nextExtensionCost = EVIDENCE_REVIEW_EXTENSION_COSTS[extensions] ?? null;
+
+  async function call(action: string, body: Record<string, unknown> = {}) {
+    setError(null);
+    setSubmitting(action);
+    try {
+      const response = await fetch(`/api/cases/${caseId}/evidence/${record.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...body }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error?.message || "Action failed.");
+        return;
+      }
+      refresh();
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  const stateBadge = (() => {
+    if (effectiveState === "accepted") {
+      return <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Accepted</span>;
+    }
+    if (effectiveState === "dismissed") {
+      return <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700">Dismissed</span>;
+    }
+    if (effectiveState === "auto_accepted") {
+      return <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Auto-accepted (no response)</span>;
+    }
+    if (effectiveState === "expertise_requested") {
+      return <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">AI expertise requested</span>;
+    }
+    return <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">Awaiting review</span>;
+  })();
+
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Opposing-party review</div>
+        <div className="flex items-center gap-2 text-xs">
+          {stateBadge}
+          {deadlineText && effectiveState === "pending" ? (
+            <span className="text-slate-500">Deadline: {deadlineText}</span>
+          ) : null}
+          {extensions > 0 ? (
+            <span className="text-slate-500">Extensions used: {extensions}/{EVIDENCE_REVIEW_EXTENSION_COSTS.length}</span>
+          ) : null}
+        </div>
+      </div>
+
+      {effectiveState === "dismissed" && record.reviewDismissalReason ? (
+        <div className="mt-3 rounded-2xl bg-white p-3 text-sm text-slate-700">
+          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Dismissal reason</div>
+          <div className="mt-1 whitespace-pre-wrap">{record.reviewDismissalReason}</div>
+          {record.reviewDismissalFileName ? (
+            <div className="mt-2 text-xs text-slate-500">Attached: {record.reviewDismissalFileName}</div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
+      ) : null}
+
+      {isOpposing && effectiveState === "pending" ? (
+        <div className="mt-3 space-y-3">
+          {!showDismissForm ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={submitting !== null}
+                onClick={() => void call("accept")}
+                className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {submitting === "accept" ? "Accepting..." : "Accept evidence"}
+              </button>
+              <button
+                type="button"
+                disabled={submitting !== null}
+                onClick={() => setShowDismissForm(true)}
+                className="rounded-full border border-rose-300 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 disabled:opacity-60"
+              >
+                Dismiss
+              </button>
+              <button
+                type="button"
+                disabled={submitting !== null}
+                onClick={() => void call("request_expertise")}
+                className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
+              >
+                {submitting === "request_expertise" ? "Requesting..." : "Request AI expertise"}
+              </button>
+              {nextExtensionCost !== null ? (
+                <button
+                  type="button"
+                  disabled={submitting !== null}
+                  onClick={() => void call("extend")}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
+                >
+                  {submitting === "extend"
+                    ? "Extending..."
+                    : `Extend +14d (${nextExtensionCost} tokens)`}
+                </button>
+              ) : (
+                <span className="text-xs text-slate-500 self-center">Extensions exhausted; deadline final.</span>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2 rounded-2xl border border-rose-200 bg-white p-3">
+              <div className="text-xs font-medium text-rose-700">Reason for dismissal (required)</div>
+              <textarea
+                value={dismissReason}
+                onChange={(event) => setDismissReason(event.target.value)}
+                rows={3}
+                className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Explain why this evidence should be dismissed."
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    onUpload(file, setDismissAttachment);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                >
+                  {uploadingKey === "evidence-dismissal"
+                    ? "Uploading..."
+                    : dismissAttachment
+                      ? `Replace (${dismissAttachment.fileName})`
+                      : "Optional supporting file"}
+                </button>
+                {dismissAttachment ? (
+                  <button
+                    type="button"
+                    onClick={() => setDismissAttachment(null)}
+                    className="text-xs text-rose-600 hover:text-rose-700"
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={submitting !== null || dismissReason.trim().length === 0}
+                  onClick={() =>
+                    void call("dismiss", {
+                      reason: dismissReason.trim(),
+                      attachment: dismissAttachment ?? undefined,
+                    })
+                  }
+                  className="rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                >
+                  {submitting === "dismiss" ? "Submitting..." : "Submit dismissal"}
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting !== null}
+                  onClick={() => {
+                    setShowDismissForm(false);
+                    setDismissReason("");
+                    setDismissAttachment(null);
+                  }}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {!isOpposing && effectiveState === "pending" ? (
+        <div className="mt-2 text-xs text-slate-500">
+          The opposing party has until {deadlineText || "the deadline"} to respond. After that the evidence is auto-accepted.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function WitnessAvatar({ record, photoUrl }: { record: RecordSummary; photoUrl: string | null }) {
   const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-full border border-slate-200";
   if (photoUrl) {
@@ -145,6 +391,7 @@ function WitnessAvatar({ record, photoUrl }: { record: RecordSummary; photoUrl: 
 
 type CaseWorkspaceProps = {
   caseId: string;
+  caseRole?: string | null;
   roleLabel: string;
   canContribute: boolean;
   evidence: RecordSummary[];
@@ -156,6 +403,8 @@ type CaseWorkspaceProps = {
   userRole?: string;
   hideSectionNav?: boolean;
 };
+
+const EVIDENCE_REVIEW_EXTENSION_COSTS = [50, 100, 200] as const;
 
 const sections = [
   { key: "evidence", label: "Evidence" },
@@ -555,6 +804,16 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   </button>
                 ) : null}
               </div>
+              {kind === "evidence" ? (
+                <EvidenceReviewSection
+                  record={record}
+                  caseId={props.caseId}
+                  caseRole={props.caseRole ?? null}
+                  onUpload={(file, onDone) => handleUpload("evidence-dismissal", file, onDone)}
+                  uploadingKey={uploadingKey}
+                  refresh={() => router.refresh()}
+                />
+              ) : null}
             </div>
           );
         })}

@@ -797,6 +797,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         <div id="panel-evidence" role="tabpanel" aria-labelledby="tab-evidence">
           <CaseWorkspace
             caseId={detail.case.id}
+            caseRole={detail.role}
             roleLabel={detail.roleLabel}
             canContribute={detail.role !== "moderator" && detail.role !== "admin"}
             evidence={detail.evidence}
@@ -815,6 +816,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         <div id="panel-witnesses" role="tabpanel" aria-labelledby="tab-witnesses">
           <CaseWorkspace
             caseId={detail.case.id}
+            caseRole={detail.role}
             roleLabel={detail.roleLabel}
             canContribute={detail.role !== "moderator" && detail.role !== "admin"}
             evidence={detail.evidence}
@@ -833,6 +835,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         <div id="panel-consultants" role="tabpanel" aria-labelledby="tab-consultants">
           <CaseWorkspace
             caseId={detail.case.id}
+            caseRole={detail.role}
             roleLabel={detail.roleLabel}
             canContribute={detail.role !== "moderator" && detail.role !== "admin"}
             evidence={detail.evidence}
@@ -851,6 +854,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         <div id="panel-expertise" role="tabpanel" aria-labelledby="tab-expertise">
           <CaseWorkspace
             caseId={detail.case.id}
+            caseRole={detail.role}
             roleLabel={detail.roleLabel}
             canContribute={detail.role !== "moderator" && detail.role !== "admin"}
             evidence={detail.evidence}

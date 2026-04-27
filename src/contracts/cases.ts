@@ -107,6 +107,29 @@ export const evidenceCreateSchema = z.object({
     .optional(),
 });
 
+export const evidenceReviewActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("accept") }),
+  z.object({
+    action: z.literal("dismiss"),
+    reason: z.string().min(1),
+    attachment: z
+      .object({
+        url: z.string().url(),
+        pathname: z.string(),
+        fileName: z.string(),
+        contentType: z.string().optional().nullable(),
+        size: z.number().optional().nullable(),
+      })
+      .optional(),
+  }),
+  z.object({ action: z.literal("extend") }),
+  z.object({
+    action: z.literal("request_expertise"),
+    title: z.string().min(1).optional(),
+    description: z.string().optional(),
+  }),
+]);
+
 export const witnessCreateSchema = z.object({
   fullName: z.string().min(1),
   email: z.string().email(),

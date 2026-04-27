@@ -29,6 +29,9 @@ export const ACTION_COSTS = {
   consultant_create: 95,
   expertise_create: 120,
   appeal_request: 450,
+  evidence_review_extend_1: 50,
+  evidence_review_extend_2: 100,
+  evidence_review_extend_3: 200,
 } as const;
 
 export const ACTION_LABELS: Record<keyof typeof ACTION_COSTS, string> = {
@@ -38,7 +41,15 @@ export const ACTION_LABELS: Record<keyof typeof ACTION_COSTS, string> = {
   consultant_create: "Consultant",
   expertise_create: "Expertise",
   appeal_request: "Appeal",
+  evidence_review_extend_1: "Evidence review +14d (1st)",
+  evidence_review_extend_2: "Evidence review +14d (2nd)",
+  evidence_review_extend_3: "Evidence review +14d (3rd)",
 };
+
+export const EVIDENCE_REVIEW_EXTENSION_COSTS = [50, 100, 200] as const;
+export const EVIDENCE_REVIEW_MAX_EXTENSIONS = EVIDENCE_REVIEW_EXTENSION_COSTS.length;
+export const EVIDENCE_REVIEW_INITIAL_DAYS = 14;
+export const EVIDENCE_REVIEW_EXTENSION_DAYS = 14;
 
 export type ActionCode = keyof typeof ACTION_COSTS;
 
