@@ -422,23 +422,6 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       </div>
 
       <div className="space-y-4">
-        {detail.role === "respondent" && !user?.kycVerified ? (
-          <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            <svg className="h-5 w-5 shrink-0 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-            </svg>
-            <div className="flex-1 min-w-[16rem]">
-              <p className="font-medium">Identity verification is required before you can join your hearing.</p>
-              <p className="mt-0.5 text-blue-800">You can continue working on the case now and verify any time.</p>
-            </div>
-            <Link
-              href={`/verify/start?returnTo=/cases/${detail.case.id}` as Route}
-              className="whitespace-nowrap rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-            >
-              Verify now
-            </Link>
-          </div>
-        ) : null}
         {(() => {
           const normalizeKyc = (k: CaseDetailWorkspaceProps["detail"]["claimantKyc"]) =>
             k ? { ...k, verifiedAt: k.verifiedAt ? new Date(k.verifiedAt) : null } : null;

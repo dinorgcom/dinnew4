@@ -115,29 +115,13 @@ export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
       </div>
 
       {role === "admin" ? (
-        <>
-          <Link
-            href={"/admin/users" as Route}
-            className="mt-3 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
-          >
-            <Shield className="h-4 w-4" />
-            <span>Admin users</span>
-          </Link>
-          <Link
-            href={"/admin/tokens" as Route}
-            className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
-          >
-            <Shield className="h-4 w-4" />
-            <span>Admin tokens</span>
-          </Link>
-          <Link
-            href={"/admin/logs" as Route}
-            className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
-          >
-            <Shield className="h-4 w-4" />
-            <span>Admin logs</span>
-          </Link>
-        </>
+        <Link
+          href={"/admin" as Route}
+          className="mt-3 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+        >
+          <Shield className="h-4 w-4" />
+          <span>Admin</span>
+        </Link>
       ) : null}
     </nav>
   );

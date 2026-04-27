@@ -6,6 +6,9 @@ import { getTokenBalance } from "@/server/billing/service";
 import { getCaseList } from "@/server/cases/queries";
 import { isDatabaseConfigured } from "@/server/runtime";
 import { AppShellNav } from "@/components/app-shell-nav";
+import { IdentityWarningSidebar } from "@/components/identity-warning-sidebar";
+import { AdminViewToggle } from "@/components/admin-view-toggle";
+import { readImpersonationCookie } from "@/server/auth/impersonation";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +36,13 @@ export default async function AppLayout({
         : null,
   };
 
+  const isAdmin = appUser?.role === "admin";
+  const impersonationCookie = isAdmin ? await readImpersonationCookie() : null;
+
   return (
     <div className="min-h-screen bg-[color:var(--bg-canvas)]">
       <div className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="rounded-[28px] bg-ink p-5 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
+        <aside className="flex flex-col rounded-[28px] bg-ink p-5 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <Link href="/dashboard" className="text-xl font-semibold tracking-tight text-white">
@@ -46,6 +52,8 @@ export default async function AppLayout({
             </div>
             <UserButton afterSignOutUrl="/" />
           </div>
+
+          <AdminViewToggle isAdmin={isAdmin} impersonation={impersonationCookie} />
 
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Account</div>
@@ -59,6 +67,8 @@ export default async function AppLayout({
           </div>
 
           <AppShellNav role={appUser?.role ?? "user"} caseSummary={caseSummary} />
+
+          <IdentityWarningSidebar kycVerified={Boolean(appUser?.kycVerified)} />
         </aside>
 
         <div className="min-w-0 rounded-[28px] border border-black/5 bg-white/88 p-6 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">

@@ -5,3 +5,6 @@ coverage
 tsconfig.tsbuildinfo
 .tokens
 .idea/
+.vercel
+.env*.local
+.claude/
