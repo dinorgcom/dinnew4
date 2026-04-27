@@ -103,11 +103,11 @@ export async function generateHearingProposal(user: AppUser, caseId: string) {
     `Output JSON: { "slots": ["ISO-8601 string", ...5 items] }.`,
   ].join("\n");
 
-  const ai = await generateStructuredObject(prompt, aiSchema);
+  const ai = (await generateStructuredObject(prompt, aiSchema)) as z.infer<typeof aiSchema>;
   const validSlots = ai.slots
-    .map((s) => new Date(s))
+    .map((s: string) => new Date(s))
     .filter(isFutureWeekdayBusinessHourUTC)
-    .map((d) => d.toISOString());
+    .map((d: Date) => d.toISOString());
 
   if (validSlots.length < SLOT_COUNT) {
     throw new Error("AI returned invalid slots. Please retry.");
