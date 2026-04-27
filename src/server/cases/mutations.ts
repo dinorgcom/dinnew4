@@ -805,24 +805,60 @@ export async function notifyRespondent(user: AppUser, caseId: string) {
 
 export async function updateCaseContacts(user: AppUser, caseId: string, payload: unknown) {
   const authorized = await getAuthorizedCase(user, caseId);
-  if (!authorized || authorized.role !== "claimant") {
+  if (!authorized || (authorized.role !== "claimant" && authorized.role !== "respondent")) {
     throw new Error("Forbidden");
   }
 
   const parsed = caseContactsUpdateSchema.parse(payload);
   const db = getDb();
+  const respondentLinked = Boolean(authorized.case.respondentLinkedAt || authorized.case.respondentUserId);
+  const role = authorized.role;
+
+  const update: Partial<typeof cases.$inferInsert> = {};
+  const claimantTouched =
+    parsed.claimantName !== undefined ||
+    parsed.claimantEmail !== undefined ||
+    parsed.claimantPhone !== undefined;
+  const respondentTouched =
+    parsed.respondentName !== undefined ||
+    parsed.respondentEmail !== undefined ||
+    parsed.respondentPhone !== undefined;
+
+  if (claimantTouched) {
+    if (role !== "claimant") {
+      throw new Error("Only the claimant can edit their contact details.");
+    }
+    if (parsed.claimantName !== undefined) update.claimantName = parsed.claimantName;
+    if (parsed.claimantEmail !== undefined) update.claimantEmail = parsed.claimantEmail;
+    if (parsed.claimantPhone !== undefined) update.claimantPhone = parsed.claimantPhone || null;
+  }
+
+  if (respondentTouched) {
+    if (role === "claimant") {
+      if (respondentLinked) {
+        throw new Error("Respondent has joined the case and now manages their own details.");
+      }
+    } else if (role !== "respondent") {
+      throw new Error("Only the respondent can edit their contact details.");
+    }
+    if (parsed.respondentName !== undefined) update.respondentName = parsed.respondentName;
+    if (parsed.respondentEmail !== undefined) update.respondentEmail = parsed.respondentEmail;
+    if (parsed.respondentPhone !== undefined) update.respondentPhone = parsed.respondentPhone || null;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return authorized.case;
+  }
+
+  const nextClaimantName = (update.claimantName as string | undefined) ?? authorized.case.claimantName;
+  const nextRespondentName = (update.respondentName as string | undefined) ?? authorized.case.respondentName;
+  if (nextClaimantName && nextRespondentName) {
+    update.title = buildCaseTitle(nextClaimantName, nextRespondentName);
+  }
 
   const updated = await db
     .update(cases)
-    .set({
-      claimantName: parsed.claimantName,
-      claimantEmail: parsed.claimantEmail,
-      claimantPhone: parsed.claimantPhone || null,
-      respondentName: parsed.respondentName,
-      respondentEmail: parsed.respondentEmail,
-      respondentPhone: parsed.respondentPhone || null,
-      title: buildCaseTitle(parsed.claimantName, parsed.respondentName),
-    })
+    .set(update)
     .where(eq(cases.id, caseId))
     .returning();
 
@@ -830,7 +866,7 @@ export async function updateCaseContacts(user: AppUser, caseId: string, payload:
     caseId,
     "status_change",
     "Contacts updated",
-    "Claimant updated party contact information.",
+    `${role === "claimant" ? "Claimant" : "Respondent"} updated contact information.`,
     { user, impersonation: authorized.impersonation },
   );
 

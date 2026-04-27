@@ -73,11 +73,11 @@ export const hearingScheduleSchema = z.object({
 });
 
 export const caseContactsUpdateSchema = z.object({
-  claimantName: z.string().trim().min(1),
-  claimantEmail: z.string().trim().email(),
+  claimantName: z.string().trim().min(1).optional(),
+  claimantEmail: z.string().trim().email().optional(),
   claimantPhone: z.string().trim().optional().nullable(),
-  respondentName: z.string().trim().min(1),
-  respondentEmail: z.string().trim().email(),
+  respondentName: z.string().trim().min(1).optional(),
+  respondentEmail: z.string().trim().email().optional(),
   respondentPhone: z.string().trim().optional().nullable(),
 });
 
