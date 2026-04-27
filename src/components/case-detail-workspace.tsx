@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
@@ -117,6 +117,7 @@ type CaseDetailWorkspaceProps = {
 
 const tabs = [
   { key: "overview", label: <span className="font-bold">Overview</span> },
+  { key: "progress", label: "Progress" },
   { key: "claims", label: "Claims" },
   { key: "evidence", label: "Evidence" },
   { key: "witnesses", label: "Witnesses" },
@@ -464,71 +465,12 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           </p>
         </div>
 
-        <nav
-          aria-label="Case progress"
-          className="rounded-2xl border border-slate-200 bg-white p-3"
-        >
-          <ol className="flex items-center gap-1 overflow-x-auto">
-            {progressStages.map((stage, index) => {
-              const isActive = index === activeStageIndex && !stage.completed;
-              const isLast = index === progressStages.length - 1;
-              const stateClasses = stage.completed
-                ? "bg-signal/15 text-signal border-signal/30"
-                : isActive
-                  ? "bg-ink text-white border-ink"
-                  : "bg-slate-50 text-slate-500 border-slate-200";
-              return (
-                <li key={stage.key} className="flex shrink-0 items-center">
-                  <div
-                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${stateClasses}`}
-                  >
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
-                        stage.completed
-                          ? "bg-signal text-white"
-                          : isActive
-                            ? "bg-white text-ink"
-                            : "bg-slate-200 text-slate-600"
-                      }`}
-                      aria-hidden="true"
-                    >
-                      {stage.completed ? (
-                        <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2 6.5 5 9.5 10 3.5" />
-                        </svg>
-                      ) : (
-                        index + 1
-                      )}
-                    </span>
-                    <span className="whitespace-nowrap">{stage.label}</span>
-                  </div>
-                  {!isLast ? (
-                    <svg
-                      viewBox="0 0 12 12"
-                      className={`mx-0.5 h-3 w-3 shrink-0 ${
-                        progressStages[index + 1].completed || index < activeStageIndex
-                          ? "text-signal"
-                          : "text-slate-300"
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      aria-hidden="true"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 2 8 6 4 10" />
-                    </svg>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ol>
-        </nav>
+      </div>
 
-        <div className="flex items-start justify-between gap-4">
-          <div role="tablist" aria-label="Case workspace sections" className="flex flex-wrap gap-2">
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="lg:sticky lg:top-4 lg:self-start">
+          <div role="tablist" aria-label="Case workspace sections" className="flex flex-col gap-1">
             {tabs.map((tab) => (
-            <React.Fragment key={tab.key}>
-              {tab.key === "audit" && <div className="w-full"></div>}
               <button
                 key={tab.key}
                 type="button"
@@ -537,39 +479,39 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 id={`tab-${tab.key}`}
                 aria-selected={activeTab === tab.key}
                 aria-controls={`panel-${tab.key}`}
-                className={`relative rounded-full px-4 py-2 text-sm font-medium transition ${
-                  activeTab === tab.key 
-                    ? "bg-ink text-white border-2 border-ink" 
-                    : "border border-slate-300 text-slate-700 hover:border-slate-400"
-                } ${tab.key === "overview" ? "font-bold border-2 border-ink" : ""}`}
+                className={`flex items-center justify-between rounded-2xl px-4 py-2.5 text-sm font-medium transition ${
+                  activeTab === tab.key
+                    ? "bg-ink text-white shadow"
+                    : "border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                }`}
               >
-                {tab.label}
+                <span className="truncate">{tab.label}</span>
                 {tabCounts[tab.key as keyof typeof tabCounts] > 0 && (
-                  <span className="ml-2 text-xs text-slate-400">
+                  <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    activeTab === tab.key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                  }`}>
                     {tabCounts[tab.key as keyof typeof tabCounts]}
                   </span>
                 )}
               </button>
-            </React.Fragment>
-          ))}
+            ))}
+            {detail.role === "moderator" ? (
+              <Link
+                href={`/cases/${detail.case.id}/edit` as Route}
+                className="mt-3 block rounded-2xl border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-400"
+              >
+                Edit case
+              </Link>
+            ) : null}
           </div>
-          
-          {detail.role === "moderator" ? (
-            <Link
-              href={`/cases/${detail.case.id}/edit` as Route}
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 whitespace-nowrap"
-            >
-              Edit case
-            </Link>
-          ) : null}
-        </div>
-      </div>
+        </aside>
 
-      {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
+        <div className="min-w-0 space-y-6">
+          {error ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
+          ) : null}
 
       {activeTab === "overview" ? (
         <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -745,6 +687,72 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               </div>
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {activeTab === "progress" ? (
+        <div id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" className="rounded-[28px] border border-slate-200 bg-white p-6">
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Case progress</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Workflow stages</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Steps of the arbitration process. Completed stages are marked; the next pending stage is highlighted.
+          </p>
+          <ol className="mt-6 space-y-4">
+            {progressStages.map((stage, index) => {
+              const isActive = index === activeStageIndex && !stage.completed;
+              const isLast = index === progressStages.length - 1;
+              return (
+                <li key={stage.key} className="relative flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <span
+                      className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold ${
+                        stage.completed
+                          ? "bg-signal text-white"
+                          : isActive
+                            ? "bg-ink text-white"
+                            : "bg-slate-100 text-slate-500"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {stage.completed ? (
+                        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8 7 12 13 4" />
+                        </svg>
+                      ) : (
+                        index + 1
+                      )}
+                    </span>
+                    {!isLast ? (
+                      <span
+                        className={`mt-1 h-full min-h-[1.25rem] w-px flex-1 ${
+                          progressStages[index + 1].completed || index < activeStageIndex
+                            ? "bg-signal"
+                            : "bg-slate-200"
+                        }`}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="pb-3">
+                    <div
+                      className={`text-sm font-semibold ${
+                        stage.completed
+                          ? "text-slate-900"
+                          : isActive
+                            ? "text-ink"
+                            : "text-slate-500"
+                      }`}
+                    >
+                      {stage.label}
+                    </div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                      {stage.completed ? "Completed" : isActive ? "Current step" : "Pending"}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
         </div>
       ) : null}
 
@@ -929,6 +937,8 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           )}
         </div>
       ) : null}
+        </div>
+      </div>
     </div>
   );
 }
