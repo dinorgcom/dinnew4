@@ -26,8 +26,16 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [costMin, setCostMin] = useState(0);
-  const [costMax, setCostMax] = useState(2000);
+  const initialOffer = (() => {
+    const raw = (proposal as { settlement_amount?: unknown })?.settlement_amount;
+    if (typeof raw === "number") return String(raw);
+    if (typeof raw === "string") {
+      const cleaned = raw.replace(/[^0-9.]/g, "");
+      return cleaned;
+    }
+    return "";
+  })();
+  const [settlementOfferUsd, setSettlementOfferUsd] = useState<string>(initialOffer);
   const parsed = (proposal || {}) as {
     claimant_perspective?: string;
     respondent_perspective?: string;
@@ -83,10 +91,12 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
     setError(null);
     setIsGenerating(true);
     try {
+      const numericOffer = Number(settlementOfferUsd.replace(/[^0-9.]/g, ""));
+      const offer = Number.isFinite(numericOffer) && numericOffer > 0 ? numericOffer : null;
       const response = await fetch(`/api/cases/${caseId}/arbitration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, acceptableCostRange: { min: costMin, max: costMax } }),
+        body: JSON.stringify({ ...body, settlementOfferUsd: offer }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -265,52 +275,31 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
       ) : null}
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-6">
-        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Acceptable arbitration costs</div>
+        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Your settlement offer</div>
         <p className="mt-2 text-sm text-slate-600">
-          Define the cost range you are willing to accept. The values are sent with your offer or response.
+          Either party may set any USD amount as their settlement offer. The number you enter here is sent
+          with your next action (generate, accept, or reject) so the other side sees what you would settle for.
         </p>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="block text-sm">
-            <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Minimum (tokens)</span>
-            <div className="mt-2 flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={5000}
-                step={50}
-                value={costMin}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  setCostMin(next);
-                  if (next > costMax) setCostMax(next);
-                }}
-                className="w-full accent-ink"
-              />
-              <span className="w-16 text-right text-sm font-semibold text-ink">{costMin}</span>
-            </div>
-          </label>
-          <label className="block text-sm">
-            <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Maximum (tokens)</span>
-            <div className="mt-2 flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={5000}
-                step={50}
-                value={costMax}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  setCostMax(next);
-                  if (next < costMin) setCostMin(next);
-                }}
-                className="w-full accent-ink"
-              />
-              <span className="w-16 text-right text-sm font-semibold text-ink">{costMax}</span>
-            </div>
-          </label>
-        </div>
-        <div className="mt-3 text-xs text-slate-500">
-          Range: {costMin} – {costMax} tokens. Adjust before generating, accepting or rejecting.
+        <label className="mt-5 block text-sm">
+          <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Settlement amount (USD)</span>
+          <div className="mt-2 flex items-center gap-3">
+            <span className="text-lg font-semibold text-slate-500">$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={settlementOfferUsd}
+              onChange={(event) => {
+                const cleaned = event.target.value.replace(/[^0-9.]/g, "");
+                setSettlementOfferUsd(cleaned);
+              }}
+              placeholder="0"
+              className="w-full max-w-xs rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-slate-400 focus:outline-none"
+            />
+            <span className="text-sm text-slate-500">USD</span>
+          </div>
+        </label>
+        <div className="mt-2 text-xs text-slate-500">
+          Leave at 0 to send no specific counter-offer.
         </div>
       </section>
     </div>

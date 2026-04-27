@@ -7,6 +7,7 @@ import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { generateStructuredObject, isAiConfigured } from "@/server/ai/service";
 import { getAuthorizedCase, createCaseActivity } from "@/server/cases/mutations";
 import { getCaseDetail } from "@/server/cases/queries";
+import { spendForAction } from "@/server/billing/service";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -175,6 +176,15 @@ export async function requestAudit(user: AppUser, caseId: string, payload: unkno
   ensureAiReady();
   const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const parsed = auditRequestSchema.parse(payload);
+  const spend = await spendForAction(user, {
+    actionCode: "audit_request",
+    caseId,
+    idempotencyKey: `audit:${caseId}:${user?.id ?? "anon"}:${Date.now()}`,
+    metadata: { side: parsed.side ?? authorized.role },
+  });
+  if (!spend.success) {
+    throw new Error(spend.error || "Insufficient tokens");
+  }
   const db = getDb();
   const actorName = user?.fullName || user?.email || "Unknown user";
   const requestedSide =
@@ -221,7 +231,11 @@ export async function requestAudit(user: AppUser, caseId: string, payload: unkno
   return inserted[0];
 }
 
-export async function generateArbitrationProposal(user: AppUser, caseId: string) {
+export async function generateArbitrationProposal(
+  user: AppUser,
+  caseId: string,
+  settlementOfferUsd?: number | null,
+) {
   ensureAiReady();
   const { detail, impersonation } = await getAiContext(user, caseId);
   const db = getDb();
@@ -237,13 +251,18 @@ export async function generateArbitrationProposal(user: AppUser, caseId: string)
   ].join("\n");
 
   const proposal = await generateStructuredObject(prompt, arbitrationOutputSchema);
+  const finalProposal =
+    typeof settlementOfferUsd === "number" && settlementOfferUsd > 0
+      ? { ...proposal, settlement_amount: settlementOfferUsd }
+      : proposal;
+  const finalAmount = finalProposal.settlement_amount;
 
   const updated = await db
     .update(cases)
     .set({
       status: "in_arbitration",
-      arbitrationProposalJson: proposal,
-      settlementAmount: proposal.settlement_amount.toString(),
+      arbitrationProposalJson: finalProposal,
+      settlementAmount: finalAmount.toString(),
       finalDecision: null,
       arbitrationClaimantResponse: null,
       arbitrationRespondentResponse: null,
@@ -262,7 +281,13 @@ export async function generateArbitrationProposal(user: AppUser, caseId: string)
   return updated[0];
 }
 
-export async function acceptArbitrationProposal(user: AppUser, caseId: string, claimantResponse?: "accepted" | "rejected", respondentResponse?: "accepted" | "rejected") {
+export async function acceptArbitrationProposal(
+  user: AppUser,
+  caseId: string,
+  claimantResponse?: "accepted" | "rejected",
+  respondentResponse?: "accepted" | "rejected",
+  settlementOfferUsd?: number | null,
+) {
   const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const proposal = detail.case.arbitrationProposalJson;
 
@@ -272,13 +297,23 @@ export async function acceptArbitrationProposal(user: AppUser, caseId: string, c
 
   const userRole = authorized.role;
 
+  const overrideAmount =
+    typeof settlementOfferUsd === "number" && settlementOfferUsd > 0
+      ? settlementOfferUsd
+      : null;
+  const effectiveProposal =
+    overrideAmount !== null
+      ? { ...(proposal as Record<string, unknown>), settlement_amount: overrideAmount }
+      : proposal;
+
   const summary =
-    typeof proposal.settlement_proposal === "string"
-      ? proposal.settlement_proposal
+    typeof (effectiveProposal as Record<string, unknown>).settlement_proposal === "string"
+      ? ((effectiveProposal as Record<string, unknown>).settlement_proposal as string)
       : "AI arbitration proposal accepted.";
+  const amountValue = (effectiveProposal as Record<string, unknown>).settlement_amount;
   const amount =
-    typeof proposal.settlement_amount === "number" || typeof proposal.settlement_amount === "string"
-      ? proposal.settlement_amount.toString()
+    typeof amountValue === "number" || typeof amountValue === "string"
+      ? String(amountValue)
       : null;
 
   const db = getDb();
@@ -288,6 +323,9 @@ export async function acceptArbitrationProposal(user: AppUser, caseId: string, c
     finalDecision: summary,
     settlementAmount: amount,
   };
+  if (overrideAmount !== null) {
+    updateData.arbitrationProposalJson = effectiveProposal;
+  }
 
   if (userRole === "claimant") {
     updateData.arbitrationClaimantResponse = claimantResponse || "accepted";
@@ -315,8 +353,15 @@ export async function acceptArbitrationProposal(user: AppUser, caseId: string, c
   return updated[0];
 }
 
-export async function rejectArbitrationProposal(user: AppUser, caseId: string, note?: string, claimantResponse?: "accepted" | "rejected", respondentResponse?: "accepted" | "rejected") {
-  const { authorized, impersonation } = await getAiContext(user, caseId);
+export async function rejectArbitrationProposal(
+  user: AppUser,
+  caseId: string,
+  note?: string,
+  claimantResponse?: "accepted" | "rejected",
+  respondentResponse?: "accepted" | "rejected",
+  settlementOfferUsd?: number | null,
+) {
+  const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const db = getDb();
 
   const userRole = authorized.role;
@@ -332,6 +377,16 @@ export async function rejectArbitrationProposal(user: AppUser, caseId: string, n
     throw new Error(`Only claimants and respondents can accept or reject arbitration proposals. Your current role is: ${userRole || 'unknown'}`);
   }
 
+  if (typeof settlementOfferUsd === "number" && settlementOfferUsd > 0) {
+    const proposal = detail.case.arbitrationProposalJson;
+    if (proposal && typeof proposal === "object") {
+      updateData.arbitrationProposalJson = {
+        ...(proposal as Record<string, unknown>),
+        settlement_amount: settlementOfferUsd,
+      };
+      updateData.settlementAmount = String(settlementOfferUsd);
+    }
+  }
 
   const updated = await db
     .update(cases)

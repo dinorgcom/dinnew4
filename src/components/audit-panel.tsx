@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ACTION_COSTS } from "@/server/billing/config";
 
 type AuditRecord = {
   id: string;
@@ -100,7 +101,9 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
             onClick={() => void generateAudit()}
             className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
           >
-            {isGenerating ? "Generating..." : "Generate audit"}
+            {isGenerating
+              ? "Generating..."
+              : `Generate audit (${ACTION_COSTS.audit_request} tokens)`}
           </button>
         </div>
 

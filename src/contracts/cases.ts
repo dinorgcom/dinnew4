@@ -104,7 +104,8 @@ export const evidenceCreateSchema = z.object({
       contentType: z.string().optional().nullable(),
       size: z.number().optional().nullable(),
     })
-    .optional(),
+    .optional()
+    .nullable(),
 });
 
 export const evidenceReviewActionSchema = z.discriminatedUnion("action", [
@@ -145,7 +146,8 @@ export const witnessCreateSchema = z.object({
       contentType: z.string().optional().nullable(),
       size: z.number().optional().nullable(),
     })
-    .optional(),
+    .optional()
+    .nullable(),
   photo: z
     .object({
       url: z.string().url(),
@@ -154,7 +156,8 @@ export const witnessCreateSchema = z.object({
       contentType: z.string().optional().nullable(),
       size: z.number().optional().nullable(),
     })
-    .optional(),
+    .optional()
+    .nullable(),
 });
 
 export const consultantCreateSchema = z.object({
@@ -174,7 +177,8 @@ export const consultantCreateSchema = z.object({
       contentType: z.string().optional().nullable(),
       size: z.number().optional().nullable(),
     })
-    .optional(),
+    .optional()
+    .nullable(),
 });
 
 export const expertiseCreateSchema = z.object({
@@ -203,5 +207,6 @@ export const messageCreateSchema = z.object({
       contentType: z.string().optional().nullable(),
       size: z.number().optional().nullable(),
     })
-    .optional(),
+    .optional()
+    .nullable(),
 });
