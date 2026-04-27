@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createdAt, id, updatedAt } from "./common";
 
 export const hearings = pgTable(
@@ -132,3 +132,24 @@ export const hearingParticipants = pgTable(
 
 // Import the cases table for the foreign key reference
 import { cases } from "./cases";
+
+export const hearingProposals = pgTable(
+  "hearing_proposals",
+  {
+    id,
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    status: text("status").default("open").notNull(),
+    slots: jsonb("slots").$type<string[]>().notNull(),
+    availability: jsonb("availability").$type<{
+      claimant?: (boolean | null)[];
+      respondent?: (boolean | null)[];
+    }>().default({}).notNull(),
+    selectedSlotIndex: integer("selected_slot_index"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    caseIdx: index("hearing_proposals_case_idx").on(table.caseId),
+    statusIdx: index("hearing_proposals_status_idx").on(table.status),
+  }),
+);

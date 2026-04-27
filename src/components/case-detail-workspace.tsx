@@ -9,6 +9,7 @@ import { LawyerChatPanel } from "@/components/lawyer-chat-panel";
 import { AuditPanel } from "@/components/audit-panel";
 import { ArbitrationPanel } from "@/components/arbitration-panel";
 import { HearingScheduler } from "@/components/hearing-scheduler";
+import { HearingProposalPanel } from "@/components/hearing-proposal-panel";
 import { ExistingHearings } from "./existing-hearings";
 import { JudgementPanel } from "@/components/judgement-panel";
 import { LivekitAnamPanel } from "@/components/livekit-anam-panel";
@@ -885,28 +886,40 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "hearing" ? (
         <div id="panel-hearing" role="tabpanel" aria-labelledby="tab-hearing" className="space-y-6">
-          {/* 1:1 AI Judge Session */}
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6">
-            <LivekitAnamPanel caseId={detail.case.id} caseTitle={detail.case.title} />
-          </div>
+          {/* Discovery-gated AI 5-slot proposal + voting */}
+          <HearingProposalPanel caseId={detail.case.id} caseRole={detail.role} />
 
-          {/* Existing Hearings */}
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6">
-            <ExistingHearings
-              caseId={detail.case.id}
-              caseTitle={detail.case.title}
-              viewerRole={detail.role}
-              viewerKycVerified={Boolean(user?.kycVerified)}
-            />
-          </div>
+          {/* Existing Hearings (only renders if hearings exist) */}
+          {detail.hearings.length > 0 ? (
+            <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+              <ExistingHearings
+                caseId={detail.case.id}
+                caseTitle={detail.case.title}
+                viewerRole={detail.role}
+                viewerKycVerified={Boolean(user?.kycVerified)}
+              />
+            </div>
+          ) : null}
 
-          {/* Hearing Scheduler */}
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6">
-            <HearingScheduler caseId={detail.case.id} caseTitle={detail.case.title} />
-          </div>
+          {/* AI Judge video session — only when an actual hearing exists */}
+          {detail.hearings.length > 0 ? (
+            <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+              <LivekitAnamPanel caseId={detail.case.id} caseTitle={detail.case.title} />
+            </div>
+          ) : null}
 
-          
-                  </div>
+          {/* Manual hearing scheduler — moderator-only escape hatch */}
+          {detail.role === "moderator" ? (
+            <details className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
+              <summary className="cursor-pointer text-xs uppercase tracking-[0.18em] text-slate-500">
+                Manual hearing scheduler (moderator)
+              </summary>
+              <div className="mt-4">
+                <HearingScheduler caseId={detail.case.id} caseTitle={detail.case.title} />
+              </div>
+            </details>
+          ) : null}
+        </div>
       ) : null}
 
       {activeTab === "judgement" ? (
