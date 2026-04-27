@@ -6,20 +6,60 @@ import { usePathname } from "next/navigation";
 import { Coins, FolderOpen, LayoutDashboard, PencilRuler, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const items = [
-  { href: "/claimant" as Route, label: "Claimant", icon: LayoutDashboard },
-  { href: "/respondent" as Route, label: "Respondent", icon: LayoutDashboard },
-  { href: "/cases" as Route, label: "Cases", icon: FolderOpen },
-  { href: "/cases/new" as Route, label: "New case", icon: PencilRuler },
-  { href: "/billing" as Route, label: "Buy tokens", icon: Coins },
-];
+type NavItem = {
+  href: Route;
+  label: string;
+  icon: typeof LayoutDashboard;
+};
+
+const claimantItem: NavItem = { href: "/claimant" as Route, label: "Claimant", icon: LayoutDashboard };
+const respondentItem: NavItem = { href: "/respondent" as Route, label: "Respondent", icon: LayoutDashboard };
+const casesItem: NavItem = { href: "/cases" as Route, label: "Cases", icon: FolderOpen };
+const newCaseItem: NavItem = { href: "/cases/new" as Route, label: "New case", icon: PencilRuler };
+const billingItem: NavItem = { href: "/billing" as Route, label: "Buy tokens", icon: Coins };
+
+type CaseSummary = {
+  total: number;
+  claimantCount: number;
+  respondentCount: number;
+  singleCase: { id: string; title: string } | null;
+};
 
 type AppShellNavProps = {
   role: string;
+  caseSummary?: CaseSummary;
 };
 
-export function AppShellNav({ role }: AppShellNavProps) {
+function buildItems(role: string, summary?: CaseSummary): NavItem[] {
+  const isPrivilegedRole = role === "admin" || role === "moderator";
+  if (isPrivilegedRole || !summary) {
+    return [claimantItem, respondentItem, casesItem, newCaseItem, billingItem];
+  }
+
+  if (summary.singleCase) {
+    return [
+      {
+        href: `/cases/${summary.singleCase.id}` as Route,
+        label: summary.singleCase.title || "My case",
+        icon: FolderOpen,
+      },
+      newCaseItem,
+      billingItem,
+    ];
+  }
+
+  const items: NavItem[] = [];
+  const showClaimant = summary.claimantCount > 0 || summary.total === 0;
+  const showRespondent = summary.respondentCount > 0 || summary.total === 0;
+  if (showClaimant) items.push(claimantItem);
+  if (showRespondent) items.push(respondentItem);
+  items.push(casesItem, newCaseItem, billingItem);
+  return items;
+}
+
+export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
   const pathname = usePathname();
+  const items = buildItems(role, caseSummary);
 
   return (
     <nav className="mt-8 space-y-2">
@@ -27,7 +67,8 @@ export function AppShellNav({ role }: AppShellNavProps) {
         const Icon = item.icon;
         const active =
           pathname === item.href
-          || (item.href === "/cases" && pathname.startsWith("/cases/") && pathname !== "/cases/new");
+          || (item.href === "/cases" && pathname.startsWith("/cases/") && pathname !== "/cases/new")
+          || (item.href.startsWith("/cases/") && pathname === item.href);
 
         return (
           <Link
@@ -39,7 +80,7 @@ export function AppShellNav({ role }: AppShellNavProps) {
             )}
           >
             <Icon className="h-4 w-4" />
-            <span>{item.label}</span>
+            <span className="truncate">{item.label}</span>
           </Link>
         );
       })}

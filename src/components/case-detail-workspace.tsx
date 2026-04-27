@@ -170,28 +170,37 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ? getLawyerById(detail.case.respondentLawyerKey || detail.conversation?.lawyerPersonality, "respondent")
       : getLawyerById(detail.case.claimantLawyerKey || detail.conversation?.lawyerPersonality, "claimant");
 
-  // Calculate todo items dynamically from database data
-  const [todoItems, setTodoItems] = useState([
-    { key: "lawyer", label: "Lawyer selection", completed: selectedLawyer !== null },
-    { key: "claims", label: "Submit claim(s)", completed: (detail.case.claimantClaims?.length || 0) + (detail.case.respondentClaims?.length || 0) > 0 },
-    { key: "evidence", label: "Submit evidence", completed: detail.evidence.length > 0 },
-    { key: "audit", label: "Request audit", completed: detail.audits.length > 0 },
-    { key: "notify", label: "Notify respondent", completed: detail.respondentNotified },
-    { key: "witnesses", label: "Add witnesses", completed: detail.witnesses.length > 0 },
-    { key: "consultants", label: "Add consultants", completed: detail.consultants.length > 0 },
-    { key: "expertise", label: "Add expertise request", completed: detail.expertiseRequests.length > 0 },
-    { key: "hearing", label: "Schedule hearing", completed: detail.hearings.length > 0 },
-    { key: "hearing-complete", label: "Hearing", completed: detail.hearings.some(h => h.status === "completed") },
-    { key: "arbitration", label: "Request arbitration", completed: !!(detail.case as any).arbitrationProposalJson },
-    { key: "judgement", label: "Request judgement", completed: !!(detail.case as any).judgementJson },
-  ]);
+  const claimsSubmitted =
+    (detail.case.claimantClaims?.length || 0) + (detail.case.respondentClaims?.length || 0) > 0;
+  const respondentDefenceSubmitted = (detail.case.respondentClaims?.length || 0) > 0;
+  const discoveryStarted =
+    detail.evidence.length > 0
+    || detail.witnesses.length > 0
+    || detail.consultants.length > 0
+    || detail.expertiseRequests.length > 0;
+  const hearingCompleted = detail.hearings.some((h) => h.status === "completed");
+  const auditRequested = detail.audits.length > 0;
+  const arbitrationRequested = !!(detail.case as any).arbitrationProposalJson;
+  const rulingIssued = !!(detail.case as any).judgementJson;
+  const finalRulingIssued =
+    detail.case.status === "resolved" || !!detail.case.finalDecision;
 
-  // Type for interactive todo items
-  type InteractiveTodoItem = {
-    key: string;
-    label: string;
-    completed: boolean;
-  };
+  const progressStages: Array<{ key: string; label: string; completed: boolean }> = [
+    { key: "lawyer", label: "Lawyer selection", completed: selectedLawyer !== null },
+    { key: "claims", label: "Submit claims", completed: claimsSubmitted },
+    { key: "notify", label: "Notify the opponent", completed: detail.respondentNotified },
+    { key: "defence", label: "Opponents defence", completed: respondentDefenceSubmitted },
+    { key: "discovery", label: "Discovery phase", completed: discoveryStarted },
+    { key: "hearing", label: "Hearing", completed: hearingCompleted },
+    { key: "audit", label: "Audit", completed: auditRequested },
+    { key: "arbitration", label: "Arbitration", completed: arbitrationRequested },
+    { key: "ruling", label: "Ruling", completed: rulingIssued },
+    { key: "appeal", label: "Appeal", completed: false },
+    { key: "final", label: "Final Ruling", completed: finalRulingIssued },
+  ];
+
+  const firstPendingIndex = progressStages.findIndex((stage) => !stage.completed);
+  const activeStageIndex = firstPendingIndex === -1 ? progressStages.length - 1 : firstPendingIndex;
 
   // Calculate tab counts
   const tabCounts = {
@@ -221,38 +230,6 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     respondentEmail !== originalContacts.respondentEmail ||
     respondentPhone !== originalContacts.respondentPhone;
 
-  // Update todo items when database data changes
-  React.useEffect(() => {
-    // Check hearing status from hearings data
-    const hearingScheduled = detail.hearings.length > 0;
-    const hearingCompleted = detail.hearings.some(h => h.status === "completed");
-    
-    const freshTodoItems: InteractiveTodoItem[] = [
-      { key: "lawyer", label: "Lawyer selection", completed: selectedLawyer !== null },
-      { key: "claims", label: "Submit claim(s)", completed: (detail.case.claimantClaims?.length || 0) + (detail.case.respondentClaims?.length || 0) > 0 },
-      { key: "evidence", label: "Submit evidence", completed: detail.evidence.length > 0 },
-      { key: "audit", label: "Request audit", completed: detail.audits.length > 0 },
-      { key: "notify", label: "Notify respondent", completed: detail.respondentNotified },
-      { key: "witnesses", label: "Add witnesses", completed: detail.witnesses.length > 0 },
-      { key: "consultants", label: "Add consultants", completed: detail.consultants.length > 0 },
-      { key: "expertise", label: "Add expertise request", completed: detail.expertiseRequests.length > 0 },
-      { key: "hearing", label: "Schedule hearing", completed: hearingScheduled },
-      { key: "hearing-complete", label: "Hearing", completed: hearingCompleted },
-      { key: "arbitration", label: "Request arbitration", completed: !!(detail.case as any).arbitrationProposalJson },
-      { key: "judgement", label: "Request judgement", completed: !!(detail.case as any).judgementJson },
-      { key: "appeal", label: "Request appeal", completed: false }, // TODO: Parked for future implementation
-      { key: "verdict", label: "Request final verdict", completed: false }, // TODO: Parked for future implementation
-    ];
-    
-    setTodoItems(currentItems => 
-      currentItems.map(item => {
-        const freshItem = freshTodoItems.find(f => f.key === item.key);
-        return freshItem ? { ...item, completed: !!freshItem.completed } : item;
-      })
-    );
-  }, [detail, selectedLawyer]);
-
-  
   async function post(path: string, body?: unknown) {
     setError(null);
     const response = await fetch(path, {
@@ -483,6 +460,67 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             {detail.case.description || "No case description has been added yet."}
           </p>
         </div>
+
+        <nav
+          aria-label="Case progress"
+          className="rounded-2xl border border-slate-200 bg-white p-3"
+        >
+          <ol className="flex items-center gap-1 overflow-x-auto">
+            {progressStages.map((stage, index) => {
+              const isActive = index === activeStageIndex && !stage.completed;
+              const isLast = index === progressStages.length - 1;
+              const stateClasses = stage.completed
+                ? "bg-signal/15 text-signal border-signal/30"
+                : isActive
+                  ? "bg-ink text-white border-ink"
+                  : "bg-slate-50 text-slate-500 border-slate-200";
+              return (
+                <li key={stage.key} className="flex shrink-0 items-center">
+                  <div
+                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${stateClasses}`}
+                  >
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
+                        stage.completed
+                          ? "bg-signal text-white"
+                          : isActive
+                            ? "bg-white text-ink"
+                            : "bg-slate-200 text-slate-600"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {stage.completed ? (
+                        <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2 6.5 5 9.5 10 3.5" />
+                        </svg>
+                      ) : (
+                        index + 1
+                      )}
+                    </span>
+                    <span className="whitespace-nowrap">{stage.label}</span>
+                  </div>
+                  {!isLast ? (
+                    <svg
+                      viewBox="0 0 12 12"
+                      className={`mx-0.5 h-3 w-3 shrink-0 ${
+                        progressStages[index + 1].completed || index < activeStageIndex
+                          ? "text-signal"
+                          : "text-slate-300"
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 2 8 6 4 10" />
+                    </svg>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+
         <div className="flex items-start justify-between gap-4">
           <div role="tablist" aria-label="Case workspace sections" className="flex flex-wrap gap-2">
             {tabs.map((tab) => (
@@ -683,35 +721,6 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                       </section>
 
           <section className="space-y-6">
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6">
-              <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Case Progress</div>
-              <div className="mt-4 space-y-3">
-                {todoItems.map((item) => (
-                  <div 
-                    key={item.key} 
-                    className={`rounded-2xl p-4 text-sm transition-all duration-300 ${
-                      item.completed 
-                        ? 'bg-gradient-to-r from-signal/10 to-teal-50 border border-signal/30 text-slate-800 shadow-sm' 
-                        : 'bg-slate-50 text-slate-600 border border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className={`font-medium ${item.completed ? 'text-slate-900' : 'text-slate-600'}`}>
-                        {item.label}
-                      </div>
-                      {item.completed && (
-                        <div className="flex-shrink-0">
-                          <span className="inline-flex items-center rounded-full bg-signal/20 px-2.5 py-0.5 text-xs font-medium text-signal">
-                            Completed
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             <div className="rounded-[28px] border border-slate-200 bg-white p-6">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Activity timeline</div>
               <div className="mt-4 space-y-3 max-h-96 overflow-y-auto">

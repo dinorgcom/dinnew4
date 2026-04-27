@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getTokenBalance } from "@/server/billing/service";
+import { getCaseList } from "@/server/cases/queries";
 import { isDatabaseConfigured } from "@/server/runtime";
 import { AppShellNav } from "@/components/app-shell-nav";
 
@@ -15,6 +16,22 @@ export default async function AppLayout({
 }>) {
   const appUser = await ensureAppUser();
   const balance = appUser?.id && isDatabaseConfigured() ? await getTokenBalance(appUser.id) : 0;
+
+  const caseList = appUser?.id && isDatabaseConfigured() ? await getCaseList(appUser) : null;
+  const userCases = (caseList?.cases ?? []).filter(
+    (c) => c.role === "claimant" || c.role === "respondent",
+  );
+  const claimantCount = userCases.filter((c) => c.role === "claimant").length;
+  const respondentCount = userCases.filter((c) => c.role === "respondent").length;
+  const caseSummary = {
+    total: userCases.length,
+    claimantCount,
+    respondentCount,
+    singleCase:
+      userCases.length === 1
+        ? { id: userCases[0].id, title: userCases[0].title }
+        : null,
+  };
 
   return (
     <div className="min-h-screen bg-[color:var(--bg-canvas)]">
@@ -41,7 +58,7 @@ export default async function AppLayout({
             </div>
           </div>
 
-          <AppShellNav role={appUser?.role ?? "user"} />
+          <AppShellNav role={appUser?.role ?? "user"} caseSummary={caseSummary} />
         </aside>
 
         <div className="min-w-0 rounded-[28px] border border-black/5 bg-white/88 p-6 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
