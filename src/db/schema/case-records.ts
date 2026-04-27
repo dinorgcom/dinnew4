@@ -145,6 +145,25 @@ export const expertiseRequests = pgTable(
   }),
 );
 
+export const witnessQuestions = pgTable(
+  "witness_questions",
+  {
+    id,
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    witnessId: uuid("witness_id").notNull().references(() => witnesses.id, { onDelete: "cascade" }),
+    askingPartyRole: text("asking_party_role").notNull(),
+    questionText: text("question_text").notNull(),
+    source: text("source").default("manual").notNull(),
+    createdByUserId: uuid("created_by_user_id"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    caseIdx: index("witness_questions_case_idx").on(table.caseId),
+    witnessIdx: index("witness_questions_witness_idx").on(table.witnessId),
+  }),
+);
+
 export const caseMessages = pgTable(
   "case_messages",
   {

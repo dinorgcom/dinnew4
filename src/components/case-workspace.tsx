@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
+import { WitnessQuestionsSection } from "@/components/witness-questions-section";
 
 type FileReference = {
   url: string;
@@ -812,6 +813,13 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   onUpload={(file, onDone) => handleUpload("evidence-dismissal", file, onDone)}
                   uploadingKey={uploadingKey}
                   refresh={() => router.refresh()}
+                />
+              ) : null}
+              {kind === "witnesses" && (props.caseRole === "claimant" || props.caseRole === "respondent") ? (
+                <WitnessQuestionsSection
+                  caseId={props.caseId}
+                  witnessId={record.id}
+                  caseRole={props.caseRole}
                 />
               ) : null}
             </div>
