@@ -452,11 +452,11 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       <div
         className={`grid gap-6 ${
           showLawyerChat
-            ? "lg:grid-cols-[200px_minmax(0,1fr)_320px]"
+            ? "lg:grid-cols-[200px_minmax(0,1fr)_360px]"
             : "lg:grid-cols-[200px_minmax(0,1fr)]"
         }`}
       >
-        <aside className="lg:sticky lg:top-4 lg:self-start">
+        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto lg:py-4">
           <div role="tablist" aria-label="Case workspace sections" className="flex flex-col gap-1">
             {tabs.map((tab) => (
               <button
@@ -961,16 +961,17 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         </div>
 
         {showLawyerChat ? (
-          <aside className="lg:sticky lg:top-4 lg:self-start">
+          <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:py-4">
             {selectedLawyer ? (
               <LawyerChatPanel
                 caseId={detail.case.id}
                 canUseChat
                 lawyerName={selectedLawyer.name}
                 initialConversation={detail.conversation}
+                compact
               />
             ) : (
-              <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+              <div className="flex h-full flex-col rounded-[28px] border border-slate-200 bg-white p-6">
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Lawyer chat</div>
                 <p className="mt-3 text-sm text-slate-600">
                   Select a lawyer to start chatting from this case.

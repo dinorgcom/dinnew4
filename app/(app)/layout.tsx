@@ -41,8 +41,8 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-[color:var(--bg-canvas)]">
-      <div className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="flex flex-col rounded-[28px] bg-ink p-5 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
+      <div className="grid min-h-screen lg:grid-cols-[260px_minmax(0,1fr)]">
+        <aside className="sticky top-0 z-10 flex h-screen flex-col overflow-y-auto bg-ink p-5 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <Link href="/dashboard" className="text-xl font-semibold tracking-tight text-white">
@@ -71,7 +71,7 @@ export default async function AppLayout({
           <IdentityWarningSidebar kycVerified={Boolean(appUser?.kycVerified)} />
         </aside>
 
-        <div className="min-w-0 rounded-[28px] border border-black/5 bg-white/88 p-6 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
+        <div className="min-w-0 p-6">
           {children}
         </div>
       </div>
