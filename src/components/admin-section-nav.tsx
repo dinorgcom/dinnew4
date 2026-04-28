@@ -24,8 +24,8 @@ export function AdminSectionNav() {
             className={cn(
               "block rounded-md px-4 py-2.5 text-sm font-medium transition",
               active
-                ? "bg-ink text-white shadow"
-                : "border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+                ? "bg-white text-ink shadow"
+                : "text-slate-300 hover:bg-white/10 hover:text-white",
             )}
           >
             {item.label}

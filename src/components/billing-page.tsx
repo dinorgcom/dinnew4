@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 type PricingData = {
   balance: number;
@@ -24,8 +25,21 @@ type BillingPageProps = {
 };
 
 export function BillingPage({ pricing }: BillingPageProps) {
+  const searchParams = useSearchParams();
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState(searchParams?.get("success") === "true");
+  const [canceledBanner, setCanceledBanner] = useState(searchParams?.get("canceled") === "true");
+
+  useEffect(() => {
+    if (successBanner || canceledBanner) {
+      // Clear the query string so the banner doesn't persist on refresh.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("success");
+      url.searchParams.delete("canceled");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [successBanner, canceledBanner]);
 
   async function startCheckout(packageId: string) {
     try {
@@ -55,6 +69,19 @@ export function BillingPage({ pricing }: BillingPageProps) {
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">Token balance and packages</h1>
         <p className="mt-2 text-sm text-slate-600">Phase 4 introduces the token ledger and Stripe checkout flow.</p>
       </div>
+
+      {successBanner ? (
+        <div className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          Purchase confirmed. If your balance hasn’t updated yet it will refresh
+          shortly — Stripe’s webhook credits the tokens once the payment settles.
+        </div>
+      ) : null}
+
+      {canceledBanner ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Checkout was canceled — no tokens were purchased.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

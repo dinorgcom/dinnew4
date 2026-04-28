@@ -25,6 +25,7 @@ const respondentItem: NavItem = { href: "/respondent" as Route, label: "Responde
 const casesItem: NavItem = { href: "/cases" as Route, label: "Cases" };
 const newCaseItem: NavItem = { href: "/cases/new" as Route, label: "New case" };
 const billingItem: NavItem = { href: "/billing" as Route, label: "Buy tokens" };
+const settingsItem: NavItem = { href: "/settings" as Route, label: "Settings" };
 
 type CaseSummary = {
   total: number;
@@ -41,7 +42,7 @@ type AppShellNavProps = {
 function buildItems(role: string, summary?: CaseSummary): NavItem[] {
   const isPrivilegedRole = role === "admin" || role === "moderator";
   if (isPrivilegedRole || !summary) {
-    return [claimantItem, respondentItem, casesItem, newCaseItem, billingItem];
+    return [claimantItem, respondentItem, casesItem, newCaseItem, billingItem, settingsItem];
   }
 
   if (summary.singleCase) {
@@ -52,6 +53,7 @@ function buildItems(role: string, summary?: CaseSummary): NavItem[] {
       },
       newCaseItem,
       billingItem,
+      settingsItem,
     ];
   }
 
@@ -60,7 +62,7 @@ function buildItems(role: string, summary?: CaseSummary): NavItem[] {
   const showRespondent = summary.respondentCount > 0 || summary.total === 0;
   if (showClaimant) items.push(claimantItem);
   if (showRespondent) items.push(respondentItem);
-  items.push(casesItem, newCaseItem, billingItem);
+  items.push(casesItem, newCaseItem, billingItem, settingsItem);
   return items;
 }
 

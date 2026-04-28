@@ -40,9 +40,9 @@ export default async function AppLayout({
   const impersonationCookie = isAdmin ? await readImpersonationCookie() : null;
 
   return (
-    <div className="min-h-screen bg-[color:var(--bg-canvas)]">
-      <div className="grid min-h-screen lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="sticky top-0 z-10 flex h-screen flex-col overflow-y-auto bg-ink p-5 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
+    <div className="min-h-screen bg-white">
+      <div className="grid min-h-screen lg:grid-cols-[200px_minmax(0,1fr)]">
+        <aside className="sticky top-0 z-10 flex h-screen flex-col overflow-y-auto bg-ink p-4 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <Link href="/dashboard" className="text-xl font-semibold tracking-tight text-white">

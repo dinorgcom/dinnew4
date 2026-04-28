@@ -40,6 +40,10 @@ type RecordSummary = {
   // Witness-specific fields
   email?: string | null;
   phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
   relationship?: string | null;
   statement?: string | null;
   notes?: string | null;
@@ -887,6 +891,16 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                           <span className="font-medium text-slate-700">Relationship:</span> {record.relationship}
                         </div>
                       )}
+                      {(record.address || record.city || record.postalCode || record.country) && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Address:</span>{" "}
+                          <span className="text-slate-600">
+                            {[record.address, record.postalCode, record.city, record.country]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
+                        </div>
+                      )}
                       {record.statement && (
                         <div className="text-sm">
                           <span className="font-medium text-slate-700">Witness for:</span>
@@ -928,6 +942,16 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                       {record.consultantRole && (
                         <div className="text-sm">
                           <span className="font-medium text-slate-700">Role:</span> {record.consultantRole}
+                        </div>
+                      )}
+                      {(record.address || record.city || record.postalCode || record.country) && (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-700">Address:</span>{" "}
+                          <span className="text-slate-600">
+                            {[record.address, record.postalCode, record.city, record.country]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
                         </div>
                       )}
                       {record.report && (

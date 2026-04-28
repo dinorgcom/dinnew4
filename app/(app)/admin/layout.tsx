@@ -27,8 +27,8 @@ export default async function AdminLayout({
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-4 lg:self-start">
+      <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <aside className="lg:sticky lg:top-4 lg:self-start rounded-md bg-ink p-4">
           <AdminSectionNav />
         </aside>
         <div className="min-w-0">{children}</div>

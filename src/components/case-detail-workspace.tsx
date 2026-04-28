@@ -502,7 +502,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             : "lg:grid-cols-[200px_minmax(0,1fr)]"
         }`}
       >
-        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto lg:px-2 lg:py-5">
+        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto bg-ink p-4 text-white">
           <div role="tablist" aria-label="Case workspace sections" className="flex flex-col gap-1">
             {tabs.map((tab) => (
               <button
@@ -516,11 +516,11 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 className={`flex items-start justify-between rounded-md px-4 py-2.5 text-sm font-medium transition ${
                   tab.key === "overview"
                     ? activeTab === tab.key
-                      ? "bg-rose-700 text-white shadow ring-2 ring-rose-300"
+                      ? "bg-rose-700 text-white shadow"
                       : "bg-rose-600 text-white hover:bg-rose-700"
                     : activeTab === tab.key
-                      ? "bg-ink text-white shadow"
-                      : "border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                      ? "bg-white text-ink shadow"
+                      : "text-slate-300 hover:bg-white/10 hover:text-white"
                 } ${tab.key === "overview" ? "font-semibold" : ""}`}
               >
                 <span className={tab.key === "overview" ? "line-clamp-2 text-left leading-snug" : "truncate"}>
@@ -528,7 +528,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 </span>
                 {tabCounts[tab.key as keyof typeof tabCounts] > 0 && (
                   <span className={`ml-2 rounded-md px-2 py-0.5 text-xs font-semibold ${
-                    activeTab === tab.key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                    activeTab === tab.key ? "bg-ink/10 text-ink" : "bg-white/10 text-slate-200"
                   }`}>
                     {tabCounts[tab.key as keyof typeof tabCounts]}
                   </span>
@@ -538,7 +538,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             {detail.role === "moderator" ? (
               <Link
                 href={`/cases/${detail.case.id}/edit` as Route}
-                className="mt-3 block rounded-md border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-400"
+                className="mt-3 block rounded-md border border-white/30 px-4 py-2.5 text-center text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white"
               >
                 Edit case
               </Link>
