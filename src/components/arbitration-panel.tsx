@@ -235,6 +235,43 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
             </div>
           </div>
 
+          {(() => {
+            const p = proposal as {
+              RATIONALE?: unknown;
+              settlement_proposal?: unknown;
+              rationale?: unknown;
+              LIABILITY?: unknown;
+            };
+            const text =
+              typeof p.RATIONALE === "string"
+                ? p.RATIONALE
+                : typeof p.settlement_proposal === "string"
+                  ? p.settlement_proposal
+                  : typeof p.rationale === "string"
+                    ? p.rationale
+                    : null;
+            const liability = typeof p.LIABILITY === "string" ? p.LIABILITY : null;
+            if (!text && !liability) return null;
+            return (
+              <div className="rounded-md border border-slate-200 p-5">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  AI rationale
+                </div>
+                {liability ? (
+                  <div className="mt-2 text-sm font-semibold text-slate-700">
+                    Net payer:{" "}
+                    <span className="capitalize text-ink">{liability}</span>
+                  </div>
+                ) : null}
+                {text ? (
+                  <div className="mt-3 max-h-[420px] overflow-y-auto whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {text}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()}
+
           {isGenerated && (
             <div className="rounded-md border border-slate-200 p-4">
               <textarea

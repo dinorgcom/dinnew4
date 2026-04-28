@@ -70,14 +70,31 @@ export async function spendForAction(user: AppUser, input: {
   }
 
   if (user.role === "admin" || user.role === "moderator") {
-    return {
-      success: true,
-      replayed: false,
-      previousBalance: await getTokenBalance(user.id),
-      amountDeducted: 0,
-      newBalance: await getTokenBalance(user.id),
-      bypassed: true,
-    };
+    // Skip the bypass when an admin is currently impersonating a party so
+    // testing flows actually deduct tokens like a real user. Moderators in
+    // their normal role still bypass.
+    let impersonating = false;
+    if (user.role === "admin") {
+      try {
+        const { readImpersonationCookie } = await import(
+          "@/server/auth/impersonation"
+        );
+        const cookie = await readImpersonationCookie();
+        impersonating = !!cookie;
+      } catch {
+        impersonating = false;
+      }
+    }
+    if (!impersonating) {
+      return {
+        success: true,
+        replayed: false,
+        previousBalance: await getTokenBalance(user.id),
+        amountDeducted: 0,
+        newBalance: await getTokenBalance(user.id),
+        bypassed: true,
+      };
+    }
   }
 
   const required = getActionCost(input.actionCode);

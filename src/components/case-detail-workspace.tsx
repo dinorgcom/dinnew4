@@ -1399,11 +1399,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "judgement" ? (
         <div id="panel-judgement" role="tabpanel" aria-labelledby="tab-judgement" className="rounded-md border border-slate-200 bg-white p-6">
-          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Judgement</div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Decision</h2>
-          <div className="mt-4 rounded-md bg-slate-50 p-4 text-sm text-slate-600">
-            No decision finalized yet.
-          </div>
+          <JudgementPanel
+            caseId={detail.case.id}
+            canModerate={detail.role === "moderator"}
+            judgement={(detail.case as any).judgementJson}
+            finalDecision={detail.case.finalDecision}
+            caseStatus={detail.case.status}
+          />
         </div>
       ) : null}
 
