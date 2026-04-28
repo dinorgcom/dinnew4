@@ -632,7 +632,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             : "lg:grid-cols-[200px_minmax(0,1fr)]"
         }`}
       >
-        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto bg-ink p-4 text-white">
+        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto bg-ink p-4 lg:pt-[68px] text-white">
           <div role="tablist" aria-label="Case workspace sections" className="flex flex-col gap-1">
             {tabs.map((tab) => {
               const needsAttention = !!tabAttention[tab.key];
@@ -653,14 +653,8 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                     }`}
                   >
                     <div className="text-[10px] uppercase tracking-[0.2em] text-rose-100">Case</div>
-                    <div className="mt-1 truncate text-sm font-semibold text-white">
+                    <div className="mt-1 text-sm font-semibold leading-snug text-white line-clamp-2">
                       {detail.case.title}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-rose-100">
-                      <span>{detail.case.caseNumber}</span>
-                      <span className="text-base font-bold text-white capitalize">
-                        {detail.case.status.replaceAll("_", " ")}
-                      </span>
                     </div>
                   </button>
                 );

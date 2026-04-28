@@ -30,13 +30,14 @@ export async function POST(request: Request, { params }: RouteProps) {
         const category = String(clientPayload.category || "misc").replace(/[^a-zA-Z0-9_-]/g, "");
         const safeName = sanitizeFileName(pathname.split("/").pop() || "upload.bin");
         const targetPathname = `cases/${caseId}/${category}/${Date.now()}-${safeName}`;
+        // Omit allowedContentTypes entirely — Vercel Blob treats it as a
+        // strict whitelist (no wildcard matching) so passing it would block
+        // valid types like video/mp4. We trust the case-mutation step to
+        // enforce business rules; here we just allow any MIME the user picks.
         return {
-          allowedContentTypes: ["*/*"] as unknown as string[],
           addRandomSuffix: true,
           maximumSizeInBytes: MAX_BYTES,
           tokenPayload: JSON.stringify({ caseId, category }),
-          // Override pathname so the file lands in our cases/{caseId}/{category}
-          // namespace regardless of what the client passes.
           pathname: targetPathname,
         } as any;
       },

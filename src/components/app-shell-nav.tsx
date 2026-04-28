@@ -27,18 +27,10 @@ type AppShellNavProps = {
   caseSummary?: CaseSummary;
 };
 
-function buildItems(_role: string, summary?: CaseSummary): NavItem[] {
-  if (summary?.singleCase) {
-    return [
-      {
-        href: `/cases/${summary.singleCase.id}` as Route,
-        label: summary.singleCase.title || "My case",
-      },
-      newCaseItem,
-      billingItem,
-      settingsItem,
-    ];
-  }
+function buildItems(_role: string, _summary?: CaseSummary): NavItem[] {
+  // The case workspace itself surfaces the active case in NAV2, so the
+  // global nav stays compact: just the case list, "new case", billing and
+  // settings entries. Single-case shortcut removed.
   return [casesItem, newCaseItem, billingItem, settingsItem];
 }
 
