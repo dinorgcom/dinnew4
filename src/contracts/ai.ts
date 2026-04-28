@@ -9,12 +9,14 @@ export const arbitrationActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("generate"),
     settlementOfferUsd: z.number().nullable().optional(),
+    settlementProposalText: z.string().trim().max(4000).nullable().optional(),
   }),
   z.object({
     action: z.literal("accept"),
     arbitrationClaimantResponse: z.enum(["accepted", "rejected"]).optional(),
     arbitrationRespondentResponse: z.enum(["accepted", "rejected"]).optional(),
     settlementOfferUsd: z.number().nullable().optional(),
+    settlementProposalText: z.string().trim().max(4000).nullable().optional(),
   }),
   z.object({
     action: z.literal("reject"),
@@ -22,6 +24,7 @@ export const arbitrationActionSchema = z.discriminatedUnion("action", [
     arbitrationClaimantResponse: z.enum(["accepted", "rejected"]).optional(),
     arbitrationRespondentResponse: z.enum(["accepted", "rejected"]).optional(),
     settlementOfferUsd: z.number().nullable().optional(),
+    settlementProposalText: z.string().trim().max(4000).nullable().optional(),
   }),
 ]);
 

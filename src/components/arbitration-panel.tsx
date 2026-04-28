@@ -36,6 +36,11 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
     return "";
   })();
   const [settlementOfferUsd, setSettlementOfferUsd] = useState<string>(initialOffer);
+  const initialProposalText =
+    typeof (proposal as { settlement_proposal?: unknown })?.settlement_proposal === "string"
+      ? ((proposal as { settlement_proposal?: string }).settlement_proposal as string)
+      : "";
+  const [proposalText, setProposalText] = useState<string>(initialProposalText);
   const parsed = (proposal || {}) as {
     claimant_perspective?: string;
     respondent_perspective?: string;
@@ -93,10 +98,13 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
     try {
       const numericOffer = Number(settlementOfferUsd.replace(/[^0-9.]/g, ""));
       const offer = Number.isFinite(numericOffer) && numericOffer > 0 ? numericOffer : null;
+      const proposalEdit = proposalText.trim() && proposalText.trim() !== initialProposalText.trim()
+        ? proposalText.trim()
+        : null;
       const response = await fetch(`/api/cases/${caseId}/arbitration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, settlementOfferUsd: offer }),
+        body: JSON.stringify({ ...body, settlementOfferUsd: offer, settlementProposalText: proposalEdit }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -177,41 +185,27 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
         </section>
       ) : (
         <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Claimant perspective</div>
-              <p className="mt-3 text-sm leading-7 text-slate-700">{parsed.claimant_perspective}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Respondent perspective</div>
-              <p className="mt-3 text-sm leading-7 text-slate-700">{parsed.respondent_perspective}</p>
-            </div>
-          </div>
-
           <div className="rounded-2xl bg-emerald-50 p-5">
             <div className="text-xs uppercase tracking-[0.16em] text-emerald-700">Settlement proposal</div>
-            <p className="mt-3 text-lg font-semibold text-emerald-950">{parsed.settlement_proposal}</p>
-            <div className="mt-2 text-sm text-emerald-800">Amount: {String(parsed.settlement_amount ?? "Not set")}</div>
-            <p className="mt-4 text-sm leading-7 text-emerald-950">{parsed.rationale}</p>
+            <textarea
+              value={proposalText}
+              onChange={(event) => setProposalText(event.target.value)}
+              rows={6}
+              className="mt-3 w-full rounded-2xl border border-emerald-200 bg-white p-3 text-sm leading-7 text-emerald-950 focus:border-emerald-300 focus:outline-none"
+              placeholder="Settlement proposal text"
+            />
+            <div className="mt-2 text-sm text-emerald-800">
+              Amount: ${String(parsed.settlement_amount ?? "Not set")}
+            </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Common ground</div>
-              <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                {(parsed.common_ground || []).map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Next steps</div>
-              <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                {(parsed.next_steps || []).map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Next steps</div>
+            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+              {(parsed.next_steps || []).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
 
           {isGenerated && (

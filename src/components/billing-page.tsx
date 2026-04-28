@@ -98,8 +98,17 @@ export function BillingPage({ pricing }: BillingPageProps) {
               <div className="font-semibold text-slate-900">{action.label}</div>
               <div className="mt-1 text-sm text-slate-600">{action.actionCode}</div>
               <div className="mt-3 text-sm font-medium text-slate-800">
-                {action.isFree ? "Free" : `${action.tokens} tokens`}
+                {action.isFree
+                  ? "Free"
+                  : action.actionCode === "appeal_request"
+                    ? `${action.tokens} tokens / juror`
+                    : `${action.tokens} tokens`}
               </div>
+              {action.actionCode === "appeal_request" ? (
+                <div className="mt-1 text-xs text-slate-500">
+                  Choose 1, 3, 5, or 7 jurors (max 7).
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

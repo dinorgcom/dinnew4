@@ -10,6 +10,8 @@ import { AuditPanel } from "@/components/audit-panel";
 import { ArbitrationPanel } from "@/components/arbitration-panel";
 import { HearingScheduler } from "@/components/hearing-scheduler";
 import { HearingProposalPanel } from "@/components/hearing-proposal-panel";
+import { AppealPanel } from "@/components/appeal-panel";
+import { ACTION_COSTS } from "@/server/billing/config";
 import { ExistingHearings } from "./existing-hearings";
 import { JudgementPanel } from "@/components/judgement-panel";
 import { LivekitAnamPanel } from "@/components/livekit-anam-panel";
@@ -123,15 +125,18 @@ const tabs = [
   { key: "claimant", label: "Claimant" },
   { key: "respondent", label: "Respondent" },
   { key: "activity", label: "Activity" },
+  { key: "todo", label: "To do" },
   { key: "claims", label: "Claims" },
   { key: "evidence", label: "Evidence" },
   { key: "witnesses", label: "Witnesses" },
   { key: "consultants", label: "Consultants" },
   { key: "expertise", label: "Expertise" },
+  { key: "hearing", label: "Hearing" },
   { key: "audit", label: "Audit" },
   { key: "arbitration", label: "Arbitration" },
-  { key: "hearing", label: "Hearing" },
   { key: "judgement", label: "Judgement" },
+  { key: "appeal", label: "Appeal" },
+  { key: "final-judgement", label: "Final judgement" },
 ] as const;
 
 function asClaims(input: Record<string, unknown>[] | null | undefined): Claim[] {
@@ -413,42 +418,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   );
 
   return (
-    <div className="space-y-5">
-      {(() => {
-        const normalizeKyc = (k: CaseDetailWorkspaceProps["detail"]["claimantKyc"]) =>
-          k ? { ...k, verifiedAt: k.verifiedAt ? new Date(k.verifiedAt) : null } : null;
-        const claimantIdentity = resolveCaseClaimant(detail.case, normalizeKyc(detail.claimantKyc));
-        const respondentIdentity = resolveCaseRespondent(detail.case, normalizeKyc(detail.respondentKyc));
-        const banners: { who: "claimant" | "respondent"; alleged: string; verified: string }[] = [];
-        if (claimantIdentity.diverges && claimantIdentity.verified && claimantIdentity.alleged) {
-          banners.push({ who: "claimant", alleged: claimantIdentity.alleged, verified: claimantIdentity.verified });
-        }
-        if (respondentIdentity.diverges && respondentIdentity.verified && respondentIdentity.alleged) {
-          banners.push({ who: "respondent", alleged: respondentIdentity.alleged, verified: respondentIdentity.verified });
-        }
-        if (banners.length === 0) return null;
-        return (
-          <div className="space-y-2">
-            {banners.map((b) => (
-              <div
-                key={b.who}
-                className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-              >
-                <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3h.008v.008H12v-.008Zm9.75-2.25c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z" />
-                </svg>
-                <div>
-                  <p className="font-medium capitalize">Identity drift: {b.who}</p>
-                  <p className="mt-0.5">
-                    Filed as <strong>{b.alleged}</strong>, verified as <strong>{b.verified}</strong>.
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
+    <div className="lg:-m-6">
       <div
         className={`grid gap-6 ${
           showLawyerChat
@@ -456,7 +426,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             : "lg:grid-cols-[200px_minmax(0,1fr)]"
         }`}
       >
-        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto lg:py-4">
+        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto lg:px-2 lg:py-5">
           <div role="tablist" aria-label="Case workspace sections" className="flex flex-col gap-1">
             {tabs.map((tab) => (
               <button
@@ -496,7 +466,41 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           </div>
         </aside>
 
-        <div className="min-w-0 space-y-6">
+        <div className="min-w-0 space-y-6 lg:py-6">
+          {(() => {
+            const normalizeKyc = (k: CaseDetailWorkspaceProps["detail"]["claimantKyc"]) =>
+              k ? { ...k, verifiedAt: k.verifiedAt ? new Date(k.verifiedAt) : null } : null;
+            const claimantIdentity = resolveCaseClaimant(detail.case, normalizeKyc(detail.claimantKyc));
+            const respondentIdentity = resolveCaseRespondent(detail.case, normalizeKyc(detail.respondentKyc));
+            const banners: { who: "claimant" | "respondent"; alleged: string; verified: string }[] = [];
+            if (claimantIdentity.diverges && claimantIdentity.verified && claimantIdentity.alleged) {
+              banners.push({ who: "claimant", alleged: claimantIdentity.alleged, verified: claimantIdentity.verified });
+            }
+            if (respondentIdentity.diverges && respondentIdentity.verified && respondentIdentity.alleged) {
+              banners.push({ who: "respondent", alleged: respondentIdentity.alleged, verified: respondentIdentity.verified });
+            }
+            if (banners.length === 0) return null;
+            return (
+              <div className="space-y-2">
+                {banners.map((b) => (
+                  <div
+                    key={b.who}
+                    className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                  >
+                    <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3h.008v.008H12v-.008Zm9.75-2.25c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z" />
+                    </svg>
+                    <div>
+                      <p className="font-medium capitalize">Identity drift: {b.who}</p>
+                      <p className="mt-0.5">
+                        Filed as <strong>{b.alleged}</strong>, verified as <strong>{b.verified}</strong>.
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           {error ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {error}
@@ -712,6 +716,140 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               ))
             )}
           </div>
+        </div>
+      ) : null}
+
+      {activeTab === "todo" ? (
+        <div id="panel-todo" role="tabpanel" aria-labelledby="tab-todo" className="rounded-[28px] border border-slate-200 bg-white p-6">
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">My to do</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Open points</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Items waiting for your decision or input on this case.
+          </p>
+          {(() => {
+            const items: Array<{ key: string; label: string; href?: string; tab?: string }> = [];
+            const role = detail.role;
+            const isParty = role === "claimant" || role === "respondent";
+
+            if (isParty && !selectedLawyer) {
+              items.push({
+                key: "choose-lawyer",
+                label: "Choose your lawyer",
+                href: `/cases/${detail.case.id}/select-lawyer`,
+              });
+            }
+            if (isParty && !user?.kycVerified) {
+              items.push({
+                key: "verify-id",
+                label: "Verify your identity (KYC)",
+                href: `/verify/start?returnTo=/cases/${detail.case.id}`,
+              });
+            }
+            if (role === "claimant" && (!detail.case.claimantClaims || detail.case.claimantClaims.length === 0)) {
+              items.push({ key: "submit-claims", label: "Submit your claims", tab: "claims" });
+            }
+            if (role === "respondent" && (!detail.case.respondentClaims || detail.case.respondentClaims.length === 0)) {
+              items.push({ key: "submit-defence", label: "Submit your defence claims", tab: "claims" });
+            }
+            if (role === "claimant" && !detail.respondentNotified) {
+              items.push({ key: "notify-respondent", label: "Notify the respondent", tab: "respondent" });
+            }
+            // Evidence review items: where the opposing party hasn't reviewed yet and the user is the opposing party
+            const opposing = role === "claimant" ? "respondent" : role === "respondent" ? "claimant" : null;
+            if (opposing) {
+              for (const e of detail.evidence) {
+                const submittedBy = String((e as any).submittedBy || "").toLowerCase();
+                const state = String((e as any).reviewState || "pending").toLowerCase();
+                const isOpposing =
+                  (role === "claimant" && submittedBy === "respondent") ||
+                  (role === "respondent" && submittedBy === "claimant");
+                if (isOpposing && state === "pending") {
+                  items.push({
+                    key: `review-evidence-${e.id}`,
+                    label: `Review evidence: ${String((e as any).title || "Untitled")}`,
+                    tab: "evidence",
+                  });
+                }
+              }
+            }
+            // Arbitration response pending
+            const claimantArb = (detail.case as any).arbitrationClaimantResponse;
+            const respondentArb = (detail.case as any).arbitrationRespondentResponse;
+            const proposal = (detail.case as any).arbitrationProposalJson;
+            if (proposal) {
+              if (role === "claimant" && !claimantArb) {
+                items.push({ key: "respond-arb-c", label: "Respond to the arbitration proposal", tab: "arbitration" });
+              }
+              if (role === "respondent" && !respondentArb) {
+                items.push({ key: "respond-arb-r", label: "Respond to the arbitration proposal", tab: "arbitration" });
+              }
+            }
+
+            if (items.length === 0) {
+              return (
+                <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                  Nothing waiting on you right now.
+                </div>
+              );
+            }
+
+            return (
+              <ul className="mt-4 space-y-2">
+                {items.map((item) => (
+                  <li key={item.key} className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="text-sm font-medium text-amber-900">{item.label}</div>
+                    {item.tab ? (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab(item.tab as (typeof tabs)[number]["key"])}
+                        className="rounded-full bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                      >
+                        Open
+                      </button>
+                    ) : item.href ? (
+                      <Link
+                        href={item.href as Route}
+                        className="rounded-full bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                      >
+                        Open
+                      </Link>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+        </div>
+      ) : null}
+
+      {activeTab === "appeal" ? (
+        <div id="panel-appeal" role="tabpanel" aria-labelledby="tab-appeal" className="rounded-[28px] border border-slate-200 bg-white p-6">
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Appeal</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Request an appeal</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            If you disagree with the judgement, you may request an appeal reviewed by a panel of jurors.
+            Each juror costs <strong>{ACTION_COSTS.appeal_request} tokens</strong>. Choose 1, 3, 5, or 7 jurors (max 7).
+          </p>
+          <AppealPanel caseId={detail.case.id} canRequest={detail.role === "claimant" || detail.role === "respondent"} />
+        </div>
+      ) : null}
+
+      {activeTab === "final-judgement" ? (
+        <div id="panel-final-judgement" role="tabpanel" aria-labelledby="tab-final-judgement" className="rounded-[28px] border border-slate-200 bg-white p-6">
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Final judgement</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">After appeal</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            The final, binding judgement issued after appeal review. This decision closes the case.
+          </p>
+          {(detail.case as any).finalAppealJudgement ? (
+            <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm leading-7 text-emerald-950">
+              {String((detail.case as any).finalAppealJudgement)}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+              No final judgement has been issued yet.
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -961,7 +1099,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         </div>
 
         {showLawyerChat ? (
-          <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:py-4">
+          <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start">
             {selectedLawyer ? (
               <LawyerChatPanel
                 caseId={detail.case.id}
@@ -971,14 +1109,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 compact
               />
             ) : (
-              <div className="flex h-full flex-col rounded-[28px] border border-slate-200 bg-white p-6">
+              <div className="flex h-full flex-col bg-ink p-6 text-white">
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Lawyer chat</div>
-                <p className="mt-3 text-sm text-slate-600">
+                <p className="mt-3 text-sm text-slate-300">
                   Select a lawyer to start chatting from this case.
                 </p>
                 <Link
                   href={`/cases/${detail.case.id}/select-lawyer` as Route}
-                  className="mt-3 inline-flex rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-400"
+                  className="mt-3 inline-flex rounded-full bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-slate-100"
                 >
                   Choose lawyer
                 </Link>

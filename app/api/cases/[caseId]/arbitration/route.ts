@@ -18,19 +18,20 @@ export async function POST(request: Request, { params }: RouteProps) {
     const body = arbitrationActionSchema.parse(await request.json());
 
     const offer = body.settlementOfferUsd ?? null;
+    const proposalEdit = body.settlementProposalText ?? null;
 
     if (body.action === "generate") {
-      const caseItem = await generateArbitrationProposal(user, caseId, offer);
+      const caseItem = await generateArbitrationProposal(user, caseId, offer, proposalEdit);
       return ok(caseItem);
     }
 
     if (body.action === "accept") {
-      const caseItem = await acceptArbitrationProposal(user, caseId, body.arbitrationClaimantResponse, body.arbitrationRespondentResponse, offer);
+      const caseItem = await acceptArbitrationProposal(user, caseId, body.arbitrationClaimantResponse, body.arbitrationRespondentResponse, offer, proposalEdit);
       return ok(caseItem);
     }
 
     if (body.action === "reject") {
-      const caseItem = await rejectArbitrationProposal(user, caseId, body.note, body.arbitrationClaimantResponse, body.arbitrationRespondentResponse, offer);
+      const caseItem = await rejectArbitrationProposal(user, caseId, body.note, body.arbitrationClaimantResponse, body.arbitrationRespondentResponse, offer, proposalEdit);
       return ok(caseItem);
     }
 

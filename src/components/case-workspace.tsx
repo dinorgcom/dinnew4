@@ -459,7 +459,6 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const [expandedConsultant, setExpandedConsultant] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const evidenceFileRef = useRef<HTMLInputElement | null>(null);
-  const witnessFileRef = useRef<HTMLInputElement | null>(null);
   const witnessPhotoRef = useRef<HTMLInputElement | null>(null);
   const consultantFileRef = useRef<HTMLInputElement | null>(null);
   const expertiseFileRef = useRef<HTMLInputElement | null>(null);
@@ -710,7 +709,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                       )}
                       {record.statement && (
                         <div className="text-sm">
-                          <span className="font-medium text-slate-700">Statement:</span>
+                          <span className="font-medium text-slate-700">Witness for:</span>
                           <p className="mt-1 text-slate-600 whitespace-pre-wrap">{record.statement}</p>
                         </div>
                       )}
@@ -1073,30 +1072,10 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                     witness: { ...current.witness, statement: event.target.value },
                   }))
                 }
-                placeholder="Statement"
+                placeholder="Witness for:"
                 rows={3}
                 className="rounded-2xl border border-slate-300 px-4 py-3 text-sm md:col-span-2"
               />
-              {attachmentBadge(forms.witness.attachment)}
-              <div className="md:col-span-2">
-                <input ref={witnessFileRef} type="file" className="hidden" onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) return;
-                  void handleUpload("witnesses", file, (attachment) =>
-                    setForms((current) => ({
-                      ...current,
-                      witness: { ...current.witness, attachment },
-                    })),
-                  );
-                }} />
-                <button
-                  type="button"
-                  onClick={() => witnessFileRef.current?.click()}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
-                >
-                  {uploadingKey === "witnesses" ? "Uploading..." : "Attach statement file"}
-                </button>
-              </div>
               <div className="md:col-span-2 flex items-center gap-3">
                 {forms.witness.photo ? (
                   <img
@@ -1153,7 +1132,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               </div>
               <button
                 type="submit"
-                disabled={isPending || uploadingKey === "witnesses" || uploadingKey === "witness-photo" || !!emailError || !!fullNameError}
+                disabled={isPending || uploadingKey === "witness-photo" || !!emailError || !!fullNameError}
                 className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
               >
                 Add witness ({ACTION_COSTS.witness_create} tokens)
@@ -1380,7 +1359,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 </button>
               </div>
               <button type="submit" disabled={isPending || uploadingKey === "expertise"} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
-                Add expertise request ({ACTION_COSTS.expertise_create} tokens)
+                Generate expertise by AI with human review ({ACTION_COSTS.expertise_create} tokens)
               </button>
             </form>
           ) : null}

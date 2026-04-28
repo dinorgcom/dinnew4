@@ -235,6 +235,7 @@ export async function generateArbitrationProposal(
   user: AppUser,
   caseId: string,
   settlementOfferUsd?: number | null,
+  settlementProposalText?: string | null,
 ) {
   ensureAiReady();
   const { detail, impersonation } = await getAiContext(user, caseId);
@@ -251,11 +252,14 @@ export async function generateArbitrationProposal(
   ].join("\n");
 
   const proposal = await generateStructuredObject(prompt, arbitrationOutputSchema);
-  const finalProposal =
-    typeof settlementOfferUsd === "number" && settlementOfferUsd > 0
-      ? { ...proposal, settlement_amount: settlementOfferUsd }
-      : proposal;
-  const finalAmount = finalProposal.settlement_amount;
+  let finalProposal: Record<string, unknown> = { ...proposal };
+  if (typeof settlementOfferUsd === "number" && settlementOfferUsd > 0) {
+    finalProposal.settlement_amount = settlementOfferUsd;
+  }
+  if (typeof settlementProposalText === "string" && settlementProposalText.length > 0) {
+    finalProposal.settlement_proposal = settlementProposalText;
+  }
+  const finalAmount = (finalProposal as { settlement_amount: number | string }).settlement_amount;
 
   const updated = await db
     .update(cases)
@@ -287,6 +291,7 @@ export async function acceptArbitrationProposal(
   claimantResponse?: "accepted" | "rejected",
   respondentResponse?: "accepted" | "rejected",
   settlementOfferUsd?: number | null,
+  settlementProposalText?: string | null,
 ) {
   const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const proposal = detail.case.arbitrationProposalJson;
@@ -301,10 +306,18 @@ export async function acceptArbitrationProposal(
     typeof settlementOfferUsd === "number" && settlementOfferUsd > 0
       ? settlementOfferUsd
       : null;
-  const effectiveProposal =
-    overrideAmount !== null
-      ? { ...(proposal as Record<string, unknown>), settlement_amount: overrideAmount }
-      : proposal;
+  const overrideText =
+    typeof settlementProposalText === "string" && settlementProposalText.length > 0
+      ? settlementProposalText
+      : null;
+  const effectiveProposal: Record<string, unknown> =
+    overrideAmount !== null || overrideText !== null
+      ? {
+          ...(proposal as Record<string, unknown>),
+          ...(overrideAmount !== null ? { settlement_amount: overrideAmount } : {}),
+          ...(overrideText !== null ? { settlement_proposal: overrideText } : {}),
+        }
+      : (proposal as Record<string, unknown>);
 
   const summary =
     typeof (effectiveProposal as Record<string, unknown>).settlement_proposal === "string"
@@ -323,7 +336,7 @@ export async function acceptArbitrationProposal(
     finalDecision: summary,
     settlementAmount: amount,
   };
-  if (overrideAmount !== null) {
+  if (overrideAmount !== null || overrideText !== null) {
     updateData.arbitrationProposalJson = effectiveProposal;
   }
 
@@ -360,6 +373,7 @@ export async function rejectArbitrationProposal(
   claimantResponse?: "accepted" | "rejected",
   respondentResponse?: "accepted" | "rejected",
   settlementOfferUsd?: number | null,
+  settlementProposalText?: string | null,
 ) {
   const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const db = getDb();
@@ -377,14 +391,23 @@ export async function rejectArbitrationProposal(
     throw new Error(`Only claimants and respondents can accept or reject arbitration proposals. Your current role is: ${userRole || 'unknown'}`);
   }
 
-  if (typeof settlementOfferUsd === "number" && settlementOfferUsd > 0) {
+  const overrideAmount =
+    typeof settlementOfferUsd === "number" && settlementOfferUsd > 0 ? settlementOfferUsd : null;
+  const overrideText =
+    typeof settlementProposalText === "string" && settlementProposalText.length > 0
+      ? settlementProposalText
+      : null;
+  if (overrideAmount !== null || overrideText !== null) {
     const proposal = detail.case.arbitrationProposalJson;
     if (proposal && typeof proposal === "object") {
       updateData.arbitrationProposalJson = {
         ...(proposal as Record<string, unknown>),
-        settlement_amount: settlementOfferUsd,
+        ...(overrideAmount !== null ? { settlement_amount: overrideAmount } : {}),
+        ...(overrideText !== null ? { settlement_proposal: overrideText } : {}),
       };
-      updateData.settlementAmount = String(settlementOfferUsd);
+      if (overrideAmount !== null) {
+        updateData.settlementAmount = String(overrideAmount);
+      }
     }
   }
 
