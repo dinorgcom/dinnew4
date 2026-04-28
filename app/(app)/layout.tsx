@@ -7,6 +7,8 @@ import { getCaseList } from "@/server/cases/queries";
 import { isDatabaseConfigured } from "@/server/runtime";
 import { AppShellNav } from "@/components/app-shell-nav";
 import { IdentityBadge, TermsLinkSidebar } from "@/components/identity-warning-sidebar";
+import { AdminViewToggle } from "@/components/admin-view-toggle";
+import { readImpersonationCookie } from "@/server/auth/impersonation";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,9 @@ export default async function AppLayout({
         : null,
   };
 
+  const isAdmin = appUser?.role === "admin";
+  const impersonationCookie = isAdmin ? await readImpersonationCookie() : null;
+
   return (
     <div className="min-h-screen bg-white">
       <div className="grid min-h-screen lg:grid-cols-[224px_minmax(0,1fr)]">
@@ -55,6 +60,8 @@ export default async function AppLayout({
               <span className="text-base font-bold text-white">{balance}</span>
             </div>
           </div>
+
+          <AdminViewToggle isAdmin={isAdmin} impersonation={impersonationCookie} />
 
           <IdentityBadge kycVerified={Boolean(appUser?.kycVerified)} />
 

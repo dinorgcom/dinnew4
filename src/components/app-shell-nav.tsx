@@ -5,16 +5,6 @@ import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const CASE_DETAIL_RE = /^\/cases\/([^\/]+)(?:\/.*)?$/;
-function getActiveCaseId(pathname: string | null): string | null {
-  if (!pathname) return null;
-  const match = pathname.match(CASE_DETAIL_RE);
-  if (!match) return null;
-  const id = match[1];
-  if (id === "new") return null;
-  return id;
-}
-
 type NavItem = {
   href: Route;
   label: string;
@@ -69,13 +59,9 @@ function buildItems(role: string, summary?: CaseSummary): NavItem[] {
 export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
   const pathname = usePathname();
   const items = buildItems(role, caseSummary);
-  const activeCaseId = getActiveCaseId(pathname);
-  const arbitrationHref = activeCaseId
-    ? (`/cases/${activeCaseId}?tab=arbitration` as Route)
-    : null;
 
   return (
-    <nav className="mt-8 space-y-2">
+    <nav className="mt-6 space-y-2">
       {items.map((item) => {
         const active =
           pathname === item.href
@@ -95,15 +81,6 @@ export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
           </Link>
         );
       })}
-
-      {arbitrationHref ? (
-        <Link
-          href={arbitrationHref}
-          className="mt-1 block rounded-md border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/20"
-        >
-          Arbitration offer
-        </Link>
-      ) : null}
 
       {role === "admin" ? (
         <Link
