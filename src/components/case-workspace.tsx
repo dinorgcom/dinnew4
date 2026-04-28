@@ -28,6 +28,7 @@ type RecordSummary = {
   senderName?: string | null;
   fileName?: string | null;
   contentType?: string | null;
+  calledBy?: string | null;
   statementFilePathname?: string | null;
   reportFilePathname?: string | null;
   photoPathname?: string | null;
@@ -59,6 +60,9 @@ type RecordSummary = {
   reviewExpertiseRequestId?: string | null;
   discussionDeadline?: string | Date | null;
   rejectedBy?: string | null;
+  // Expertise-specific fields
+  aiAnalysis?: string | null;
+  isPublished?: boolean | null;
 };
 
 function getInitials(name?: string | null): string {
@@ -155,16 +159,17 @@ function getEffectiveReviewState(record: RecordSummary) {
   return "pending";
 }
 
-type EvidenceReviewSectionProps = {
+type RecordReviewSectionProps = {
   record: RecordSummary;
   caseId: string;
   caseRole: string | null;
+  kind: "evidence" | "witnesses" | "consultants";
   onUpload: (file: File, onDone: (file: FileReference) => void) => void;
   uploadingKey: string | null;
   refresh: () => void;
 };
 
-function EvidenceReviewSection({ record, caseId, caseRole, onUpload, uploadingKey, refresh }: EvidenceReviewSectionProps) {
+function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadingKey, refresh }: RecordReviewSectionProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showDismissForm, setShowDismissForm] = useState(false);
   const [dismissReason, setDismissReason] = useState("");
@@ -172,7 +177,8 @@ function EvidenceReviewSection({ record, caseId, caseRole, onUpload, uploadingKe
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const submittedBy = (record.submittedBy || "").toLowerCase();
+  const submitterField = kind === "evidence" ? record.submittedBy : record.calledBy;
+  const submittedBy = (submitterField || "").toLowerCase();
   const isOpposing =
     (caseRole === "claimant" && submittedBy === "respondent") ||
     (caseRole === "respondent" && submittedBy === "claimant");
@@ -181,11 +187,13 @@ function EvidenceReviewSection({ record, caseId, caseRole, onUpload, uploadingKe
   const deadlineText = formatDeadline(record.discussionDeadline);
   const nextExtensionCost = EVIDENCE_REVIEW_EXTENSION_COSTS[extensions] ?? null;
 
+  const reviewLabel = kind === "evidence" ? "evidence" : kind === "witnesses" ? "witness" : "consultant";
+
   async function call(action: string, body: Record<string, unknown> = {}) {
     setError(null);
     setSubmitting(action);
     try {
-      const response = await fetch(`/api/cases/${caseId}/evidence/${record.id}/review`, {
+      const response = await fetch(`/api/cases/${caseId}/${kind}/${record.id}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...body }),
@@ -256,7 +264,7 @@ function EvidenceReviewSection({ record, caseId, caseRole, onUpload, uploadingKe
                 onClick={() => void call("accept")}
                 className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
               >
-                {submitting === "accept" ? "Accepting..." : "Accept evidence"}
+                {submitting === "accept" ? "Accepting..." : `Accept ${reviewLabel}`}
               </button>
               <button
                 type="button"
@@ -389,6 +397,142 @@ function WitnessAvatar({ record, photoUrl }: { record: RecordSummary; photoUrl: 
       className={`${baseClasses} flex items-center justify-center bg-gradient-to-br from-signal/20 to-teal-100 text-base font-semibold text-signal`}
     >
       {initials}
+    </div>
+  );
+}
+
+type ExpertiseWorkflowSectionProps = {
+  record: RecordSummary;
+  caseId: string;
+  caseRole: string | null;
+  refresh: () => void;
+};
+
+function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: ExpertiseWorkflowSectionProps) {
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const status = String(record.status || "draft").toLowerCase();
+  const isParty = caseRole === "claimant" || caseRole === "respondent";
+  const isModerator = caseRole === "moderator";
+
+  async function call(action: "generate" | "accept" | "regenerate" | "finalize") {
+    setError(null);
+    setSubmitting(action);
+    try {
+      const response = await fetch(
+        `/api/cases/${caseId}/expertise/${record.id}/workflow`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error?.message || "Action failed.");
+        return;
+      }
+      refresh();
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  const stateBadge = (() => {
+    if (status === "published") {
+      return (
+        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+          Final · DIN.ORG reviewed
+        </span>
+      );
+    }
+    if (status === "accepted") {
+      return (
+        <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+          Awaiting DIN.ORG review
+        </span>
+      );
+    }
+    if (status === "ready") {
+      return (
+        <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+          AI generated · awaiting party review
+        </span>
+      );
+    }
+    return (
+      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+        Draft
+      </span>
+    );
+  })();
+
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Expertise workflow</div>
+        {stateBadge}
+      </div>
+
+      {record.aiAnalysis ? (
+        <div className="mt-3 whitespace-pre-wrap rounded-2xl bg-white p-3 text-sm leading-7 text-slate-700">
+          {record.aiAnalysis}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {status === "draft" && isParty ? (
+          <button
+            type="button"
+            disabled={submitting !== null}
+            onClick={() => void call("generate")}
+            className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+          >
+            {submitting === "generate" ? "Generating..." : "Generate AI expertise"}
+          </button>
+        ) : null}
+        {status === "ready" && isParty ? (
+          <>
+            <button
+              type="button"
+              disabled={submitting !== null}
+              onClick={() => void call("accept")}
+              className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {submitting === "accept" ? "Accepting..." : "Accept"}
+            </button>
+            <button
+              type="button"
+              disabled={submitting !== null}
+              onClick={() => void call("regenerate")}
+              className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-60"
+            >
+              {submitting === "regenerate" ? "Regenerating..." : "Regenerate"}
+            </button>
+          </>
+        ) : null}
+        {status === "accepted" && isModerator ? (
+          <button
+            type="button"
+            disabled={submitting !== null}
+            onClick={() => void call("finalize")}
+            className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+          >
+            {submitting === "finalize" ? "Finalizing..." : "Finalize as DIN.ORG reviewed"}
+          </button>
+        ) : null}
+        {status === "accepted" && isParty ? (
+          <span className="text-xs text-slate-500">
+            DIN.ORG will review and finalize this expertise.
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -846,13 +990,22 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   </button>
                 ) : null}
               </div>
-              {kind === "evidence" ? (
-                <EvidenceReviewSection
+              {kind === "evidence" || kind === "witnesses" || kind === "consultants" ? (
+                <RecordReviewSection
                   record={record}
                   caseId={props.caseId}
                   caseRole={props.caseRole ?? null}
-                  onUpload={(file, onDone) => handleUpload("evidence-dismissal", file, onDone)}
+                  kind={kind}
+                  onUpload={(file, onDone) => handleUpload(`${kind}-dismissal`, file, onDone)}
                   uploadingKey={uploadingKey}
+                  refresh={() => router.refresh()}
+                />
+              ) : null}
+              {kind === "expertise" ? (
+                <ExpertiseWorkflowSection
+                  record={record}
+                  caseId={props.caseId}
+                  caseRole={props.caseRole ?? null}
                   refresh={() => router.refresh()}
                 />
               ) : null}

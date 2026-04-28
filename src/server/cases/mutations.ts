@@ -403,6 +403,8 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
   const token = nanoid(22);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
+  const reviewDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
   const inserted = await db
     .insert(witnesses)
     .values({
@@ -421,6 +423,9 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
       status: "pending",
       invitationToken: token,
       invitationTokenExpiresAt: expiresAt,
+      discussionDeadline: reviewDeadline,
+      reviewState: "pending",
+      reviewExtensions: 0,
     })
     .returning();
 
@@ -482,6 +487,8 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
   const token = nanoid(22);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
+  const reviewDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
   const inserted = await db
     .insert(consultants)
     .values({
@@ -500,6 +507,9 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
       status: "pending",
       invitationToken: token,
       invitationTokenExpiresAt: expiresAt,
+      discussionDeadline: reviewDeadline,
+      reviewState: "pending",
+      reviewExtensions: 0,
     })
     .returning();
 
@@ -1103,6 +1113,303 @@ export async function reviewEvidence(
       "note",
       "AI expertise requested",
       record.title,
+      { user, impersonation: authorized.impersonation },
+    );
+    return updated[0];
+  }
+
+  throw new Error("Unsupported action");
+}
+
+export async function runExpertiseWorkflow(
+  user: AppUser,
+  caseId: string,
+  recordId: string,
+  action: "generate" | "accept" | "regenerate" | "finalize",
+) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(expertiseRequests)
+    .where(and(eq(expertiseRequests.id, recordId), eq(expertiseRequests.caseId, caseId)))
+    .limit(1);
+  const record = rows[0];
+  if (!record) {
+    throw new Error("Expertise request not found");
+  }
+
+  const role = authorized.role;
+  const now = new Date();
+
+  if (action === "generate" || action === "regenerate") {
+    if (role !== "claimant" && role !== "respondent") {
+      throw new Error("Only the requesting party can generate or regenerate expertise");
+    }
+    const { generateStructuredObject, isAiConfigured } = await import("@/server/ai/service");
+    if (!isAiConfigured()) {
+      throw new Error("AI is not configured.");
+    }
+    const expertiseSchema = (await import("zod")).z.object({
+      analysis: (await import("zod")).z.string().min(20),
+      key_points: (await import("zod")).z.array((await import("zod")).z.string()).min(2).max(8),
+    });
+    const prompt = [
+      "You are an expert reviewer producing an objective written expertise on the requested topic.",
+      `Title: ${record.title}`,
+      `Description: ${record.description ?? "(none)"}`,
+      "Output JSON: { analysis: string (one or two paragraphs), key_points: string[] (2-8 items) }.",
+    ].join("\n");
+    const aiResult = (await generateStructuredObject(prompt, expertiseSchema)) as {
+      analysis: string;
+      key_points: string[];
+    };
+    const aiText = `${aiResult.analysis}\n\nKey points:\n${aiResult.key_points
+      .map((point) => `- ${point}`)
+      .join("\n")}`;
+    const updated = await db
+      .update(expertiseRequests)
+      .set({ aiAnalysis: aiText, status: "ready", updatedAt: now })
+      .where(eq(expertiseRequests.id, recordId))
+      .returning();
+    await createCaseActivity(
+      caseId,
+      "note",
+      action === "regenerate" ? "Expertise regenerated" : "Expertise generated",
+      record.title,
+      { user, impersonation: authorized.impersonation },
+    );
+    return updated[0];
+  }
+
+  if (action === "accept") {
+    if (role !== "claimant" && role !== "respondent") {
+      throw new Error("Only the requesting party can accept the AI expertise");
+    }
+    if (record.status !== "ready") {
+      throw new Error("Generate the expertise first");
+    }
+    const updated = await db
+      .update(expertiseRequests)
+      .set({ status: "accepted", updatedAt: now })
+      .where(eq(expertiseRequests.id, recordId))
+      .returning();
+    await createCaseActivity(
+      caseId,
+      "note",
+      "Expertise accepted (awaiting DIN.ORG review)",
+      record.title,
+      { user, impersonation: authorized.impersonation },
+    );
+    return updated[0];
+  }
+
+  if (action === "finalize") {
+    if (role !== "moderator") {
+      throw new Error("Only DIN.ORG moderators can finalize an expertise");
+    }
+    if (record.status !== "accepted") {
+      throw new Error("Expertise must first be accepted by the requesting party");
+    }
+    const updated = await db
+      .update(expertiseRequests)
+      .set({ status: "published", isPublished: true, updatedAt: now })
+      .where(eq(expertiseRequests.id, recordId))
+      .returning();
+    await createCaseActivity(
+      caseId,
+      "note",
+      "Expertise finalized by DIN.ORG",
+      record.title,
+      { user, impersonation: authorized.impersonation },
+    );
+    return updated[0];
+  }
+
+  throw new Error("Unsupported expertise action");
+}
+
+type ReviewableKind = "witnesses" | "consultants";
+
+export async function reviewParticipant(
+  user: AppUser,
+  caseId: string,
+  kind: ReviewableKind,
+  recordId: string,
+  payload: unknown,
+) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+  const reviewerRole = authorized.role;
+  if (reviewerRole !== "claimant" && reviewerRole !== "respondent") {
+    throw new Error("Only the opposing party can review records");
+  }
+
+  const parsed = evidenceReviewActionSchema.parse(payload);
+  const db = getDb();
+
+  const tableMap = { witnesses, consultants } as const;
+  const table = tableMap[kind];
+
+  const rows = await db
+    .select()
+    .from(table)
+    .where(and(eq(table.id, recordId), eq(table.caseId, caseId)))
+    .limit(1);
+  const record = rows[0] as
+    | (typeof witnesses.$inferSelect & { fullName: string; calledBy: string })
+    | (typeof consultants.$inferSelect & { fullName: string; calledBy: string })
+    | undefined;
+  if (!record) {
+    throw new Error(`${kind === "witnesses" ? "Witness" : "Consultant"} not found`);
+  }
+  if (!isOpposingRole(reviewerRole, record.calledBy)) {
+    throw new Error(`Only the opposing party can review this ${kind === "witnesses" ? "witness" : "consultant"}`);
+  }
+
+  const now = new Date();
+  const expired = record.discussionDeadline ? now > record.discussionDeadline : false;
+  const currentState = record.reviewState || "pending";
+  const isOpen = currentState === "pending" && !expired;
+  const label = kind === "witnesses" ? "Witness" : "Consultant";
+
+  if (parsed.action === "accept") {
+    if (!isOpen) throw new Error("Review window is closed");
+    const updated = await db
+      .update(table)
+      .set({
+        reviewState: "accepted",
+        status: "accepted",
+        updatedAt: now,
+      })
+      .where(eq(table.id, recordId))
+      .returning();
+    await createCaseActivity(
+      caseId,
+      "note",
+      `${label} accepted`,
+      record.fullName,
+      { user, impersonation: authorized.impersonation },
+    );
+    return updated[0];
+  }
+
+  if (parsed.action === "dismiss") {
+    if (!isOpen) throw new Error("Review window is closed");
+    const updated = await db
+      .update(table)
+      .set({
+        reviewState: "dismissed",
+        status: "rejected",
+        rejectedBy: reviewerRole,
+        reviewDismissalReason: parsed.reason,
+        reviewDismissalFileUrl: parsed.attachment?.url ?? null,
+        reviewDismissalFilePathname: parsed.attachment?.pathname ?? null,
+        reviewDismissalFileName: parsed.attachment?.fileName ?? null,
+        updatedAt: now,
+      })
+      .where(eq(table.id, recordId))
+      .returning();
+    await createCaseActivity(
+      caseId,
+      "note",
+      `${label} dismissed`,
+      `${record.fullName}: ${parsed.reason}`,
+      { user, impersonation: authorized.impersonation },
+    );
+    return updated[0];
+  }
+
+  if (parsed.action === "extend") {
+    if (currentState !== "pending") throw new Error("Review window is closed");
+    const used = record.reviewExtensions ?? 0;
+    if (used >= EVIDENCE_REVIEW_MAX_EXTENSIONS) {
+      throw new Error("No more extensions available; record will be presented as is.");
+    }
+    const next = used + 1;
+    const actionCode = (`evidence_review_extend_${next}` as
+      | "evidence_review_extend_1"
+      | "evidence_review_extend_2"
+      | "evidence_review_extend_3");
+    const spend = await spendForAction(user, {
+      actionCode,
+      caseId,
+      idempotencyKey: `${kind}_review_extend:${recordId}:${next}`,
+      metadata: { recordId, kind, extension: next },
+    });
+    if (!spend.success) {
+      throw new Error(spend.error || "Insufficient tokens");
+    }
+    const baseDeadline =
+      record.discussionDeadline && record.discussionDeadline > now
+        ? record.discussionDeadline
+        : now;
+    const newDeadline = new Date(
+      baseDeadline.getTime() + EVIDENCE_REVIEW_EXTENSION_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const updated = await db
+      .update(table)
+      .set({
+        reviewExtensions: next,
+        discussionDeadline: newDeadline,
+        updatedAt: now,
+      })
+      .where(eq(table.id, recordId))
+      .returning();
+    await createCaseActivity(
+      caseId,
+      "note",
+      `${label} review extended (#${next})`,
+      `${record.fullName}: cost ${EVIDENCE_REVIEW_EXTENSION_COSTS[next - 1]} tokens`,
+      { user, impersonation: authorized.impersonation },
+    );
+    return updated[0];
+  }
+
+  if (parsed.action === "request_expertise") {
+    if (!isOpen) throw new Error("Review window is closed");
+    const spend = await spendForAction(user, {
+      actionCode: "expertise_create",
+      caseId,
+      idempotencyKey: `${kind}_expertise:${recordId}`,
+      metadata: { recordId, kind },
+    });
+    if (!spend.success) {
+      throw new Error(spend.error || "Insufficient tokens");
+    }
+    const expertise = await db
+      .insert(expertiseRequests)
+      .values({
+        caseId,
+        requestedBy: reviewerRole,
+        title: parsed.title || `AI expertise on ${kind === "witnesses" ? "witness" : "consultant"}: ${record.fullName}`,
+        description:
+          parsed.description ||
+          `Requested by ${reviewerRole} during ${label.toLowerCase()} review window. Record id: ${recordId}.`,
+        fileReferences: null,
+        status: "draft",
+      })
+      .returning();
+    const updated = await db
+      .update(table)
+      .set({
+        reviewState: "expertise_requested",
+        status: "under_review",
+        reviewExpertiseRequestId: expertise[0].id,
+        updatedAt: now,
+      })
+      .where(eq(table.id, recordId))
+      .returning();
+    await createCaseActivity(
+      caseId,
+      "note",
+      "AI expertise requested",
+      record.fullName,
       { user, impersonation: authorized.impersonation },
     );
     return updated[0];
