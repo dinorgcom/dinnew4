@@ -78,8 +78,29 @@ function getInitials(name?: string | null): string {
 
 function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLink: string | null }) {
   const ct = (record.contentType || "").toLowerCase();
+  const name = (record.fileName || "").toLowerCase();
   const hasFile = !!record.filePathname;
   const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-md border border-slate-200";
+
+  const isPdf =
+    ct === "application/pdf" ||
+    ct === "application/x-pdf" ||
+    ct === "application/acrobat" ||
+    name.endsWith(".pdf");
+  const isWord =
+    ct === "application/msword" ||
+    ct === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    name.endsWith(".doc") ||
+    name.endsWith(".docx");
+  const isExcel =
+    ct === "application/vnd.ms-excel" ||
+    ct === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    name.endsWith(".xls") ||
+    name.endsWith(".xlsx") ||
+    name.endsWith(".csv");
+  const isImage = ct.startsWith("image/") || record.type === "photo" || /\.(png|jpe?g|gif|webp|bmp|heic|heif|svg)$/i.test(name);
+  const isVideo = ct.startsWith("video/") || record.type === "video" || /\.(mp4|mov|webm|mkv|m4v)$/i.test(name);
+  const isAudio = ct.startsWith("audio/") || record.type === "audio" || /\.(mp3|wav|m4a|ogg|aac)$/i.test(name);
 
   if (!hasFile || !fileLink) {
     return (
@@ -91,7 +112,7 @@ function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLi
     );
   }
 
-  if (ct.startsWith("image/") || record.type === "photo") {
+  if (isImage) {
     return (
       <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} block bg-slate-50`}>
         <img src={fileLink} alt={record.title || "Evidence"} className="h-full w-full object-cover" loading="lazy" />
@@ -99,7 +120,7 @@ function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLi
     );
   }
 
-  if (ct.startsWith("video/") || record.type === "video") {
+  if (isVideo) {
     return (
       <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} relative block bg-black`}>
         <video src={fileLink} preload="metadata" muted className="h-full w-full object-cover" />
@@ -112,7 +133,7 @@ function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLi
     );
   }
 
-  if (ct === "application/pdf" || record.fileName?.toLowerCase().endsWith(".pdf")) {
+  if (isPdf) {
     return (
       <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} flex flex-col items-center justify-center bg-rose-50 text-rose-600`}>
         <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
@@ -123,7 +144,29 @@ function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLi
     );
   }
 
-  if (ct.startsWith("audio/") || record.type === "audio") {
+  if (isWord) {
+    return (
+      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} flex flex-col items-center justify-center bg-blue-50 text-blue-600`}>
+        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-6 4h6M7 21h10a2 2 0 0 0 2-2V7l-5-5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2Z" />
+        </svg>
+        <span className="mt-0.5 text-[10px] font-semibold tracking-wide">DOC</span>
+      </a>
+    );
+  }
+
+  if (isExcel) {
+    return (
+      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} flex flex-col items-center justify-center bg-emerald-50 text-emerald-700`}>
+        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-6 4h6M7 21h10a2 2 0 0 0 2-2V7l-5-5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2Z" />
+        </svg>
+        <span className="mt-0.5 text-[10px] font-semibold tracking-wide">XLS</span>
+      </a>
+    );
+  }
+
+  if (isAudio) {
     return (
       <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} flex items-center justify-center bg-indigo-50 text-indigo-500`}>
         <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">

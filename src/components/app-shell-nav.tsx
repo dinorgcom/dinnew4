@@ -105,15 +105,10 @@ export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
         </Link>
       ) : null}
 
-      <div className="pt-4 text-xs uppercase tracking-[0.18em] text-slate-500">Current role</div>
-      <div className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
-        {role}
-      </div>
-
       {role === "admin" ? (
         <Link
           href={"/admin" as Route}
-          className="mt-3 block rounded-md px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+          className="mt-1 block rounded-md px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
         >
           Admin
         </Link>

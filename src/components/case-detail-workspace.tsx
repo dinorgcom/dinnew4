@@ -293,6 +293,61 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     expertise: detail.expertiseRequests.length
   };
 
+  // Compute "needs viewer's attention" flags per tab so the sidebar can
+  // highlight tabs in orange when the current party still has something to do.
+  const role = detail.role;
+  const isParty = role === "claimant" || role === "respondent";
+  function hasPendingReview(records: WorkspaceRecord[], submitterField: "submittedBy" | "calledBy") {
+    if (!isParty) return false;
+    const opposing = role === "claimant" ? "respondent" : "claimant";
+    return records.some((r) => {
+      const submittedBy = String((r as any)[submitterField] || "").toLowerCase();
+      const state = String((r as any).reviewState || "pending").toLowerCase();
+      const deadlineRaw = (r as any).discussionDeadline;
+      const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
+      const expired = deadline && !Number.isNaN(deadline.getTime()) && new Date() > deadline;
+      return submittedBy === opposing && state === "pending" && !expired;
+    });
+  }
+  const claimsNeedAttention =
+    isParty &&
+    ((role === "claimant" && (!detail.case.claimantClaims || detail.case.claimantClaims.length === 0)) ||
+      (role === "respondent" && (!detail.case.respondentClaims || detail.case.respondentClaims.length === 0)));
+  const evidenceNeedsAttention = hasPendingReview(detail.evidence, "submittedBy");
+  const witnessesNeedAttention = hasPendingReview(detail.witnesses, "calledBy");
+  const consultantsNeedAttention = hasPendingReview(detail.consultants, "calledBy");
+  const expertiseNeedsAttention =
+    isParty &&
+    detail.expertiseRequests.some((r) => String((r as any).status || "").toLowerCase() === "ready");
+  const respondentTabNeedsAttention =
+    role === "claimant" && !detail.respondentNotified;
+  const arbitrationProposal = (detail.case as any).arbitrationProposalJson;
+  const claimantArbResp = (detail.case as any).arbitrationClaimantResponse;
+  const respondentArbResp = (detail.case as any).arbitrationRespondentResponse;
+  const arbitrationNeedsAttention =
+    !!arbitrationProposal &&
+    ((role === "claimant" && !claimantArbResp) ||
+      (role === "respondent" && !respondentArbResp));
+  const todoNeedsAttention =
+    claimsNeedAttention ||
+    evidenceNeedsAttention ||
+    witnessesNeedAttention ||
+    consultantsNeedAttention ||
+    expertiseNeedsAttention ||
+    respondentTabNeedsAttention ||
+    arbitrationNeedsAttention;
+
+  const tabAttention: Partial<Record<(typeof tabs)[number]["key"], boolean>> = {
+    claims: claimsNeedAttention,
+    evidence: evidenceNeedsAttention,
+    witnesses: witnessesNeedAttention,
+    consultants: consultantsNeedAttention,
+    expertise: expertiseNeedsAttention,
+    respondent: respondentTabNeedsAttention,
+    arbitration: arbitrationNeedsAttention,
+    todo: todoNeedsAttention,
+  };
+
   // Store original values to track changes
   const originalContacts = {
     claimantName: detail.case.claimantName || "",
@@ -504,37 +559,45 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       >
         <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto bg-ink p-4 text-white">
           <div role="tablist" aria-label="Case workspace sections" className="flex flex-col gap-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                role="tab"
-                id={`tab-${tab.key}`}
-                aria-selected={activeTab === tab.key}
-                aria-controls={`panel-${tab.key}`}
-                className={`flex items-start justify-between rounded-md px-4 py-2.5 text-sm font-medium transition ${
-                  tab.key === "overview"
-                    ? activeTab === tab.key
-                      ? "bg-rose-700 text-white shadow"
-                      : "bg-rose-600 text-white hover:bg-rose-700"
-                    : activeTab === tab.key
-                      ? "bg-white text-ink shadow"
-                      : "text-slate-300 hover:bg-white/10 hover:text-white"
-                } ${tab.key === "overview" ? "font-semibold" : ""}`}
-              >
-                <span className={tab.key === "overview" ? "line-clamp-2 text-left leading-snug" : "truncate"}>
-                  {tab.key === "overview" ? detail.case.title : tab.label}
-                </span>
-                {tabCounts[tab.key as keyof typeof tabCounts] > 0 && (
-                  <span className={`ml-2 rounded-md px-2 py-0.5 text-xs font-semibold ${
-                    activeTab === tab.key ? "bg-ink/10 text-ink" : "bg-white/10 text-slate-200"
-                  }`}>
-                    {tabCounts[tab.key as keyof typeof tabCounts]}
+            {tabs.map((tab) => {
+              const needsAttention = !!tabAttention[tab.key];
+              const isOverview = tab.key === "overview";
+              const isActive = activeTab === tab.key;
+              const tabClass = isOverview
+                ? isActive
+                  ? "bg-rose-700 text-white shadow"
+                  : "bg-rose-600 text-white hover:bg-rose-700"
+                : isActive
+                  ? "bg-white text-ink shadow"
+                  : needsAttention
+                    ? "bg-orange-500/90 text-white hover:bg-orange-500"
+                    : "text-slate-300 hover:bg-white/10 hover:text-white";
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  role="tab"
+                  id={`tab-${tab.key}`}
+                  aria-selected={isActive}
+                  aria-controls={`panel-${tab.key}`}
+                  className={`flex items-start justify-between rounded-md px-4 py-2.5 text-sm font-medium transition ${tabClass} ${isOverview ? "font-semibold" : ""}`}
+                >
+                  <span className={isOverview ? "line-clamp-2 text-left leading-snug" : "truncate"}>
+                    {isOverview ? detail.case.title : tab.label}
                   </span>
-                )}
-              </button>
-            ))}
+                  {tabCounts[tab.key as keyof typeof tabCounts] > 0 ? (
+                    <span className={`ml-2 rounded-md px-2 py-0.5 text-xs font-semibold ${
+                      isActive ? "bg-ink/10 text-ink" : needsAttention ? "bg-white/30 text-white" : "bg-white/10 text-slate-200"
+                    }`}>
+                      {tabCounts[tab.key as keyof typeof tabCounts]}
+                    </span>
+                  ) : needsAttention ? (
+                    <span className="ml-2 inline-block h-2 w-2 shrink-0 self-center rounded-full bg-white" aria-hidden="true" />
+                  ) : null}
+                </button>
+              );
+            })}
             {detail.role === "moderator" ? (
               <Link
                 href={`/cases/${detail.case.id}/edit` as Route}
