@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
+import { upload } from "@vercel/blob/client";
 import { WitnessQuestionsSection } from "@/components/witness-questions-section";
 import { ACTION_COSTS } from "@/server/billing/config";
 
@@ -622,33 +623,28 @@ const sections = [
 ] as const;
 
 async function uploadCaseFile(caseId: string, category: string, file: File) {
-  const formData = new FormData();
-  formData.append("category", category);
-  formData.append("file", file);
+  // Hard cap at 100 MB to match the server-side handleUpload limit.
+  const MAX_BYTES = 100 * 1024 * 1024;
+  if (file.size > MAX_BYTES) {
+    throw new Error("File is too large. Maximum upload size is 100 MB.");
+  }
 
-  const response = await fetch(`/api/cases/${caseId}/uploads`, {
-    method: "POST",
-    body: formData,
+  // Upload directly from the browser to Vercel Blob using a signed token
+  // issued by /api/cases/[caseId]/uploads/token. This bypasses the Vercel
+  // function 4.5 MB request size limit so files up to 100 MB go through.
+  const blob = await upload(file.name || "upload.bin", file, {
+    access: "private",
+    handleUploadUrl: `/api/cases/${caseId}/uploads/token`,
+    clientPayload: JSON.stringify({ category }),
   });
 
-  // Some failures (notably 413 Request Entity Too Large from the platform
-  // edge before the route handler runs) return plain text, not JSON. Read
-  // as text first and try to parse so we can surface a useful message.
-  const raw = await response.text();
-  let result: { data?: unknown; error?: { message?: string } } = {};
-  try {
-    result = raw ? JSON.parse(raw) : {};
-  } catch {
-    result = { error: { message: raw || `Upload failed (HTTP ${response.status}).` } };
-  }
-  if (!response.ok) {
-    if (response.status === 413) {
-      throw new Error("File is too large. Please upload a smaller file (under ~4 MB).");
-    }
-    throw new Error(result.error?.message || `Upload failed (HTTP ${response.status}).`);
-  }
-
-  return result.data as FileReference;
+  return {
+    url: blob.url,
+    pathname: blob.pathname,
+    fileName: file.name,
+    contentType: file.type || null,
+    size: file.size || null,
+  } as FileReference;
 }
 
 function fileLink(entity: "evidence" | "witnesses" | "consultants" | "messages", recordId: string) {
