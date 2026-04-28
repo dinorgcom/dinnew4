@@ -6,7 +6,7 @@ import { getTokenBalance } from "@/server/billing/service";
 import { getCaseList } from "@/server/cases/queries";
 import { isDatabaseConfigured } from "@/server/runtime";
 import { AppShellNav } from "@/components/app-shell-nav";
-import { IdentityWarningSidebar } from "@/components/identity-warning-sidebar";
+import { IdentityBadge, TermsLinkSidebar } from "@/components/identity-warning-sidebar";
 
 export const dynamic = "force-dynamic";
 
@@ -56,9 +56,11 @@ export default async function AppLayout({
             </div>
           </div>
 
+          <IdentityBadge kycVerified={Boolean(appUser?.kycVerified)} />
+
           <AppShellNav role={appUser?.role ?? "user"} caseSummary={caseSummary} />
 
-          <IdentityWarningSidebar kycVerified={Boolean(appUser?.kycVerified)} />
+          <TermsLinkSidebar />
         </aside>
 
         <div className="min-w-0 p-6">

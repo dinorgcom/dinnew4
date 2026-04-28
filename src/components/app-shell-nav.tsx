@@ -110,7 +110,7 @@ export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
           href={"/admin" as Route}
           className="mt-1 block rounded-md px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
         >
-          Admin
+          Internal
         </Link>
       ) : null}
     </nav>

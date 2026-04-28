@@ -18,9 +18,9 @@ export default async function AdminLayout({
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Admin</div>
+        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Internal</div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">
-          Workspace administration
+          Internal workspace
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-[color:var(--ink-soft)]">
           Manage users, token grants, and audit logs across the platform.
