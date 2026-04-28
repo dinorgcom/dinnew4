@@ -63,20 +63,20 @@ export function AdminTokenPage({ users }: AdminTokenPageProps) {
       <AdminNav />
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <div className="rounded-md border border-slate-200 bg-white p-6">
           <div className="space-y-3">
             <label className="space-y-2 block">
               <span className="text-sm font-medium text-slate-700">User</span>
               <select
                 value={form.userId}
                 onChange={(event) => onSelectUser(event.target.value)}
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               >
                 {users.map((user) => (
                   <option key={user.id} value={user.id}>
@@ -97,7 +97,7 @@ export function AdminTokenPage({ users }: AdminTokenPageProps) {
                     targetBalance: Number(event.target.value),
                   }))
                 }
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
             </label>
             <label className="space-y-2 block">
@@ -111,14 +111,14 @@ export function AdminTokenPage({ users }: AdminTokenPageProps) {
                   }))
                 }
                 rows={3}
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
             </label>
             <button
               type="button"
               disabled={isPending || !form.userId}
               onClick={submit}
-              className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+              className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
               Apply balance
             </button>
@@ -127,7 +127,7 @@ export function AdminTokenPage({ users }: AdminTokenPageProps) {
 
         <div className="space-y-3">
           {users.map((user) => (
-            <div key={user.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div key={user.id} className="rounded-md border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="font-semibold text-slate-900">{user.fullName || user.email}</div>

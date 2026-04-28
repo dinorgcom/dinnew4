@@ -91,7 +91,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
 
   if (loading) {
     return (
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-500">
+      <section className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
         Loading hearing proposal...
       </section>
     );
@@ -99,7 +99,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
 
   if (discovery && !discovery.complete && (!proposal || proposal.status === "expired")) {
     return (
-      <section className="rounded-[28px] border border-amber-200 bg-amber-50 p-6">
+      <section className="rounded-md border border-amber-200 bg-amber-50 p-6">
         <div className="text-xs uppercase tracking-[0.2em] text-amber-700">
           Discovery in progress
         </div>
@@ -110,15 +110,15 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
           Once discovery is complete the AI can suggest 5 candidate hearing slots.
         </p>
         <ul className="mt-4 grid gap-2 sm:grid-cols-3 text-sm text-amber-900">
-          <li className="rounded-2xl bg-white p-3">
+          <li className="rounded-md bg-white p-3">
             <div className="text-xs uppercase tracking-[0.16em] text-amber-700">Evidence pending</div>
             <div className="mt-1 text-xl font-semibold">{discovery.pendingEvidence}</div>
           </li>
-          <li className="rounded-2xl bg-white p-3">
+          <li className="rounded-md bg-white p-3">
             <div className="text-xs uppercase tracking-[0.16em] text-amber-700">Witnesses pending</div>
             <div className="mt-1 text-xl font-semibold">{discovery.pendingWitnesses}</div>
           </li>
-          <li className="rounded-2xl bg-white p-3">
+          <li className="rounded-md bg-white p-3">
             <div className="text-xs uppercase tracking-[0.16em] text-amber-700">Expertise pending</div>
             <div className="mt-1 text-xl font-semibold">{discovery.pendingExpertise}</div>
           </li>
@@ -129,7 +129,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
 
   if (!proposal || proposal.status === "expired") {
     return (
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+      <section className="rounded-md border border-slate-200 bg-white p-6">
         <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Schedule the hearing</div>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
           Discovery complete
@@ -139,7 +139,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
           slot most parties can attend wins.
         </p>
         {error ? (
-          <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
@@ -147,7 +147,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
           type="button"
           onClick={() => void send({ action: "generate" }, "generate")}
           disabled={busy !== null}
-          className="mt-5 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          className="mt-5 rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
         >
           {busy === "generate" ? "Generating..." : "Get 5 AI-suggested slots"}
         </button>
@@ -171,7 +171,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
   const isModeratorOrParty = isParty || caseRole === "moderator";
 
   return (
-    <section className="rounded-[28px] border border-slate-200 bg-white p-6 space-y-4">
+    <section className="rounded-md border border-slate-200 bg-white p-6 space-y-4">
       <div>
         <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
           {proposal.status === "confirmed" ? "Hearing confirmed" : "Hearing slot voting"}
@@ -189,7 +189,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
@@ -199,7 +199,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
           const t = tallyFor(index);
           const isSelected = proposal.selectedSlotIndex === index;
           const cardClasses = [
-            "rounded-2xl border p-4 space-y-3",
+            "rounded-md border p-4 space-y-3",
             isSelected
               ? "border-emerald-300 bg-emerald-50"
               : t.bothYes
@@ -213,11 +213,11 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
                   Slot {index + 1}
                 </span>
                 {isSelected ? (
-                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
                     Confirmed
                   </span>
                 ) : t.bothYes ? (
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
                     Both yes
                   </span>
                 ) : null}
@@ -225,7 +225,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
               <div className="text-sm font-semibold text-ink">{formatSlot(iso)}</div>
               <div className="flex flex-wrap gap-2 text-xs">
                 <span
-                  className={`rounded-full px-2 py-0.5 ${
+                  className={`rounded-md px-2 py-0.5 ${
                     t.c === true
                       ? "bg-emerald-100 text-emerald-800"
                       : t.c === false
@@ -236,7 +236,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
                   Claimant: {t.c === true ? "Yes" : t.c === false ? "No" : "?"}
                 </span>
                 <span
-                  className={`rounded-full px-2 py-0.5 ${
+                  className={`rounded-md px-2 py-0.5 ${
                     t.r === true
                       ? "bg-emerald-100 text-emerald-800"
                       : t.r === false
@@ -258,7 +258,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
                       )
                     }
                     disabled={busy !== null}
-                    className="flex-1 rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                    className="flex-1 rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
                   >
                     {busy === `vote-yes-${index}` ? "..." : "I can attend"}
                   </button>
@@ -271,7 +271,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
                       )
                     }
                     disabled={busy !== null}
-                    className="flex-1 rounded-full border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                    className="flex-1 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
                   >
                     {busy === `vote-no-${index}` ? "..." : "Can't"}
                   </button>
@@ -284,7 +284,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
                     void send({ action: "confirm", proposalId: proposal.id, slotIndex: index }, `confirm-${index}`)
                   }
                   disabled={busy !== null}
-                  className={`w-full rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`w-full rounded-md px-3 py-1.5 text-xs font-semibold transition ${
                     t.bothYes
                       ? "bg-emerald-600 text-white hover:bg-emerald-700"
                       : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400"
@@ -304,7 +304,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
             type="button"
             onClick={() => void send({ action: "generate" }, "generate")}
             disabled={busy !== null}
-            className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 disabled:opacity-60"
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 disabled:opacity-60"
           >
             {busy === "generate" ? "Regenerating..." : "Get 5 fresh slots"}
           </button>

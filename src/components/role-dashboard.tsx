@@ -53,7 +53,7 @@ export function RoleDashboard({ role, balance, data }: RoleDashboardProps) {
         {role === "claimant" ? (
           <Link
             href="/cases/new"
-            className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
           >
             <Plus className="h-4 w-4" />
             {content.cta}
@@ -61,7 +61,7 @@ export function RoleDashboard({ role, balance, data }: RoleDashboardProps) {
         ) : null}
       </div>
 
-      <section className={`rounded-[32px] p-6 ${role === "claimant" ? "bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(15,118,110,0.82))] text-white" : "bg-[linear-gradient(135deg,rgba(17,24,39,0.96),rgba(120,53,15,0.82))] text-white"}`}>
+      <section className={`rounded-md p-6 ${role === "claimant" ? "bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(15,118,110,0.82))] text-white" : "bg-[linear-gradient(135deg,rgba(17,24,39,0.96),rgba(120,53,15,0.82))] text-white"}`}>
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div>
             <div className="text-xs uppercase tracking-[0.18em] text-white/55">Operational focus</div>
@@ -83,7 +83,7 @@ export function RoleDashboard({ role, balance, data }: RoleDashboardProps) {
             ].map((item) => {
               const StatIcon = item.icon;
               return (
-                <section key={item.label} className="rounded-[24px] border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+                <section key={item.label} className="rounded-md border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-white/70">{item.label}</div>
                     <StatIcon className="h-5 w-5 text-white/65" />
@@ -103,7 +103,7 @@ export function RoleDashboard({ role, balance, data }: RoleDashboardProps) {
         ].map((item) => {
           const StatIcon = item.icon;
           return (
-            <section key={item.label} className="rounded-[24px] border border-slate-200 bg-white p-5">
+            <section key={item.label} className="rounded-md border border-slate-200 bg-white p-5">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-slate-600">{item.label}</div>
                 <StatIcon className="h-5 w-5 text-slate-400" />
@@ -116,13 +116,13 @@ export function RoleDashboard({ role, balance, data }: RoleDashboardProps) {
 
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-slate-100 p-3">
+          <div className="rounded-md bg-slate-100 p-3">
             <Icon className="h-5 w-5 text-slate-700" />
           </div>
           <h2 className="text-xl font-semibold text-ink">{role === "claimant" ? "My claims" : "Claims against me"}</h2>
         </div>
         {data.cases.length === 0 ? (
-          <div className="rounded-[28px] border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600">
+          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600">
             No cases available for this role yet.
           </div>
         ) : (
@@ -131,7 +131,7 @@ export function RoleDashboard({ role, balance, data }: RoleDashboardProps) {
               <Link
                 key={caseItem.id}
                 href={`/cases/${caseItem.id}` as Route}
-                className="block rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300"
+                className="block rounded-md border border-slate-200 bg-white p-5 transition hover:border-slate-300"
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -141,7 +141,7 @@ export function RoleDashboard({ role, balance, data }: RoleDashboardProps) {
                       {caseItem.claimantName || "Unknown claimant"} vs {caseItem.respondentName || "Unknown respondent"}
                     </div>
                   </div>
-                  <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600">
+                  <div className="rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600">
                     {caseItem.status.replaceAll("_", " ")}
                   </div>
                 </div>

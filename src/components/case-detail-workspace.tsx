@@ -56,11 +56,19 @@ type CaseDetailWorkspaceProps = {
       claimantName: string | null;
       claimantEmail: string | null;
       claimantPhone: string | null;
+      claimantAddress?: string | null;
+      claimantCity?: string | null;
+      claimantPostalCode?: string | null;
+      claimantCountry?: string | null;
       claimantNameVerified?: string | null;
       claimantKycVerificationId?: string | null;
       respondentName: string | null;
       respondentEmail: string | null;
       respondentPhone: string | null;
+      respondentAddress?: string | null;
+      respondentCity?: string | null;
+      respondentPostalCode?: string | null;
+      respondentCountry?: string | null;
       respondentNameAlleged?: string | null;
       respondentNameVerified?: string | null;
       respondentKycVerificationId?: string | null;
@@ -189,9 +197,17 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const [claimantName, setClaimantName] = useState(detail.case.claimantName || "");
   const [claimantEmail, setClaimantEmail] = useState(detail.case.claimantEmail || "");
   const [claimantPhone, setClaimantPhone] = useState(detail.case.claimantPhone || "");
+  const [claimantAddress, setClaimantAddress] = useState(detail.case.claimantAddress || "");
+  const [claimantCity, setClaimantCity] = useState(detail.case.claimantCity || "");
+  const [claimantPostalCode, setClaimantPostalCode] = useState(detail.case.claimantPostalCode || "");
+  const [claimantCountry, setClaimantCountry] = useState(detail.case.claimantCountry || "");
   const [respondentName, setRespondentName] = useState(detail.case.respondentName || "");
   const [respondentEmail, setRespondentEmail] = useState(detail.case.respondentEmail || "");
   const [respondentPhone, setRespondentPhone] = useState(detail.case.respondentPhone || "");
+  const [respondentAddress, setRespondentAddress] = useState(detail.case.respondentAddress || "");
+  const [respondentCity, setRespondentCity] = useState(detail.case.respondentCity || "");
+  const [respondentPostalCode, setRespondentPostalCode] = useState(detail.case.respondentPostalCode || "");
+  const [respondentCountry, setRespondentCountry] = useState(detail.case.respondentCountry || "");
 
   
   // Calculate selectedLawyer before todo items to avoid initialization error
@@ -215,29 +231,54 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const finalRulingIssued =
     detail.case.status === "resolved" || !!detail.case.finalDecision;
 
-  const progressStagesRaw: Array<{ key: string; label: string; completed: boolean }> = [
-    { key: "lawyer", label: "Lawyer selection", completed: selectedLawyer !== null },
-    { key: "claims", label: "Submit claims", completed: claimsSubmitted },
-    { key: "notify", label: "Notify the opponent", completed: detail.respondentNotified },
-    { key: "defence", label: "Opponents defence", completed: respondentDefenceSubmitted },
-    { key: "discovery", label: "Discovery phase", completed: discoveryStarted },
-    { key: "hearing", label: "Hearing", completed: hearingCompleted },
-    { key: "audit", label: "Audit", completed: auditRequested },
-    { key: "arbitration", label: "Arbitration", completed: arbitrationRequested },
-    { key: "ruling", label: "Ruling", completed: rulingIssued },
-    { key: "appeal", label: "Appeal", completed: false },
-    { key: "final", label: "Final Ruling", completed: finalRulingIssued },
+  // Best-effort timestamp for each completed stage by walking the activity log
+  // in chronological order and matching activity titles.
+  const sortedActivities = [...detail.activities].sort((a, b) => {
+    const ta = new Date(String(a.createdAt || 0)).getTime();
+    const tb = new Date(String(b.createdAt || 0)).getTime();
+    return ta - tb;
+  });
+  function findActivityTime(matcher: (title: string) => boolean): string | null {
+    for (const a of sortedActivities) {
+      const title = String((a as any).title || "").toLowerCase();
+      if (matcher(title)) return String((a as any).createdAt || "");
+    }
+    return null;
+  }
+  const lawyerTime = findActivityTime((t) => t.includes("lawyer"));
+  const claimsTime = findActivityTime((t) => t.includes("claim"));
+  const notifyTime = findActivityTime((t) => t.includes("notif") || t.includes("defendant"));
+  const defenceTime = findActivityTime((t) => t.includes("defence") || t.includes("respondent claim"));
+  const discoveryTime = findActivityTime(
+    (t) => t.includes("evidence") || t.includes("witness") || t.includes("consultant"),
+  );
+  const hearingTime = findActivityTime((t) => t.includes("hearing"));
+  const auditTime = findActivityTime((t) => t.includes("audit"));
+  const arbitrationTime = findActivityTime((t) => t.includes("arbitration"));
+  const rulingTime = findActivityTime((t) => t.includes("judgement"));
+  const finalTime = String(detail.case.finalDecision ? (detail.case as any).updatedAt || "" : "") || null;
+
+  const progressStagesRaw: Array<{ key: string; label: string; completed: boolean; completedAt?: string | null }> = [
+    { key: "lawyer", label: "Lawyer selection", completed: selectedLawyer !== null, completedAt: lawyerTime },
+    { key: "claims", label: "Submit claims", completed: claimsSubmitted, completedAt: claimsTime },
+    { key: "notify", label: "Notify the opponent", completed: detail.respondentNotified, completedAt: notifyTime },
+    { key: "defence", label: "Opponents defence", completed: respondentDefenceSubmitted, completedAt: defenceTime },
+    { key: "discovery", label: "Discovery phase", completed: discoveryStarted, completedAt: discoveryTime },
+    { key: "hearing", label: "Hearing", completed: hearingCompleted, completedAt: hearingTime },
+    { key: "audit", label: "Audit", completed: auditRequested, completedAt: auditTime },
+    { key: "arbitration", label: "Arbitration", completed: arbitrationRequested, completedAt: arbitrationTime },
+    { key: "ruling", label: "Ruling", completed: rulingIssued, completedAt: rulingTime },
+    { key: "appeal", label: "Appeal", completed: false, completedAt: null },
+    { key: "final", label: "Final Ruling", completed: finalRulingIssued, completedAt: finalTime },
   ];
 
   // Enforce sequential completion: a stage is only "completed" if all prior
-  // stages are also completed. This way an out-of-order data flag (e.g. an
-  // arbitration proposal arriving before discovery is finished) doesn't make
-  // a downstream stage look done while an upstream one is still pending.
+  // stages are also completed.
   let priorAllCompleted = true;
   const progressStages = progressStagesRaw.map((stage) => {
     const completed = priorAllCompleted && stage.completed;
     priorAllCompleted = completed;
-    return { ...stage, completed };
+    return { ...stage, completed, completedAt: completed ? stage.completedAt ?? null : null };
   });
 
   const firstPendingIndex = progressStages.findIndex((stage) => !stage.completed);
@@ -257,19 +298,35 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     claimantName: detail.case.claimantName || "",
     claimantEmail: detail.case.claimantEmail || "",
     claimantPhone: detail.case.claimantPhone || "",
+    claimantAddress: detail.case.claimantAddress || "",
+    claimantCity: detail.case.claimantCity || "",
+    claimantPostalCode: detail.case.claimantPostalCode || "",
+    claimantCountry: detail.case.claimantCountry || "",
     respondentName: detail.case.respondentName || "",
     respondentEmail: detail.case.respondentEmail || "",
     respondentPhone: detail.case.respondentPhone || "",
+    respondentAddress: detail.case.respondentAddress || "",
+    respondentCity: detail.case.respondentCity || "",
+    respondentPostalCode: detail.case.respondentPostalCode || "",
+    respondentCountry: detail.case.respondentCountry || "",
   };
-  
+
   // Check if any contact fields have changed
-  const contactsHaveChanged = 
+  const contactsHaveChanged =
     claimantName !== originalContacts.claimantName ||
     claimantEmail !== originalContacts.claimantEmail ||
     claimantPhone !== originalContacts.claimantPhone ||
+    claimantAddress !== originalContacts.claimantAddress ||
+    claimantCity !== originalContacts.claimantCity ||
+    claimantPostalCode !== originalContacts.claimantPostalCode ||
+    claimantCountry !== originalContacts.claimantCountry ||
     respondentName !== originalContacts.respondentName ||
     respondentEmail !== originalContacts.respondentEmail ||
-    respondentPhone !== originalContacts.respondentPhone;
+    respondentPhone !== originalContacts.respondentPhone ||
+    respondentAddress !== originalContacts.respondentAddress ||
+    respondentCity !== originalContacts.respondentCity ||
+    respondentPostalCode !== originalContacts.respondentPostalCode ||
+    respondentCountry !== originalContacts.respondentCountry;
 
   async function post(path: string, body?: unknown) {
     setError(null);
@@ -298,9 +355,17 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           claimantName,
           claimantEmail,
           claimantPhone: claimantPhone.trim() ? claimantPhone : null,
+          claimantAddress: claimantAddress.trim() ? claimantAddress : null,
+          claimantCity: claimantCity.trim() ? claimantCity : null,
+          claimantPostalCode: claimantPostalCode.trim() ? claimantPostalCode : null,
+          claimantCountry: claimantCountry.trim() ? claimantCountry : null,
           respondentName,
           respondentEmail,
           respondentPhone: respondentPhone.trim() ? respondentPhone : null,
+          respondentAddress: respondentAddress.trim() ? respondentAddress : null,
+          respondentCity: respondentCity.trim() ? respondentCity : null,
+          respondentPostalCode: respondentPostalCode.trim() ? respondentPostalCode : null,
+          respondentCountry: respondentCountry.trim() ? respondentCountry : null,
         }),
       });
       const result = await response.json();
@@ -336,7 +401,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     const canEdit = detail.role === kind;
 
     return (
-      <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6">
+      <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold text-ink">
             {kind === "claimant" ? "Claimant claims" : "Respondent defenses"}
@@ -345,7 +410,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             <button
               type="button"
               onClick={() => setClaims([...claims, { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] }])}
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
             >
               Add entry
             </button>
@@ -353,10 +418,10 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         </div>
         <div className="space-y-4">
           {claims.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">No entries yet.</div>
+            <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">No entries yet.</div>
           ) : (
             claims.map((claim, index) => (
-              <div key={`${kind}-${index}`} className="rounded-2xl bg-slate-50 p-4">
+              <div key={`${kind}-${index}`} className="rounded-md bg-slate-50 p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     {canEdit ? (
@@ -371,7 +436,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                             )
                           }
                           placeholder="Claim or defense title"
-                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                          className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
                         />
                         <textarea
                           value={claim.details || ""}
@@ -383,7 +448,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                             )
                           }
                           rows={3}
-                          className="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                          className="mt-3 w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
                         />
                       </>
                     ) : (
@@ -397,7 +462,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                     <button
                       type="button"
                       onClick={() => setClaims(claims.filter((_, claimIndex) => claimIndex !== index))}
-                      className="ml-3 rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100"
+                      className="ml-3 rounded-md border border-rose-300 bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100"
                     >
                       Delete
                     </button>
@@ -406,7 +471,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 {claim.responses?.length ? (
                   <div className="mt-4 space-y-2">
                     {claim.responses.map((response, responseIndex) => (
-                      <div key={`${kind}-${index}-${responseIndex}`} className="rounded-2xl bg-white p-3 text-sm text-slate-700">
+                      <div key={`${kind}-${index}-${responseIndex}`} className="rounded-md bg-white p-3 text-sm text-slate-700">
                         <div>{response.response}</div>
                         <div className="mt-1 text-xs uppercase tracking-[0.15em] text-slate-400">
                           {response.submittedBy} · {formatDateTime(response.submittedDate)}
@@ -448,7 +513,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 id={`tab-${tab.key}`}
                 aria-selected={activeTab === tab.key}
                 aria-controls={`panel-${tab.key}`}
-                className={`flex items-start justify-between rounded-2xl px-4 py-2.5 text-sm font-medium transition ${
+                className={`flex items-start justify-between rounded-md px-4 py-2.5 text-sm font-medium transition ${
                   tab.key === "overview"
                     ? activeTab === tab.key
                       ? "bg-rose-700 text-white shadow ring-2 ring-rose-300"
@@ -462,7 +527,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                   {tab.key === "overview" ? detail.case.title : tab.label}
                 </span>
                 {tabCounts[tab.key as keyof typeof tabCounts] > 0 && (
-                  <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  <span className={`ml-2 rounded-md px-2 py-0.5 text-xs font-semibold ${
                     activeTab === tab.key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
                   }`}>
                     {tabCounts[tab.key as keyof typeof tabCounts]}
@@ -473,7 +538,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             {detail.role === "moderator" ? (
               <Link
                 href={`/cases/${detail.case.id}/edit` as Route}
-                className="mt-3 block rounded-2xl border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-400"
+                className="mt-3 block rounded-md border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-400"
               >
                 Edit case
               </Link>
@@ -500,7 +565,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 {banners.map((b) => (
                   <div
                     key={b.who}
-                    className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                    className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
                   >
                     <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3h.008v.008H12v-.008Zm9.75-2.25c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z" />
@@ -517,14 +582,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             );
           })()}
           {error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {error}
             </div>
           ) : null}
 
       {activeTab === "overview" ? (
         <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" className="space-y-6">
-          <section className="space-y-6 rounded-[28px] border border-slate-200 bg-white p-6">
+          <section className="space-y-6 rounded-md border border-slate-200 bg-white p-6">
             <div>
               <div className="text-xs uppercase tracking-[0.2em] text-slate-400">{detail.roleLabel}</div>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">{detail.case.title}</h1>
@@ -541,14 +606,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 ["Category", detail.case.category || "Not set"],
                 ["Claim amount", formatCurrency(detail.case.claimAmount, detail.case.currency)],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl bg-slate-50 p-4">
+                <div key={label} className="rounded-md bg-slate-50 p-4">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">{label}</div>
                   <div className="mt-2 text-sm font-semibold capitalize text-slate-900">{value}</div>
                 </div>
               ))}
             </div>
 
-            <div className="rounded-[24px] border border-slate-200 p-5">
+            <div className="rounded-md border border-slate-200 p-5">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Lawyer</div>
               {selectedLawyer ? (
                 <div className="mt-3">
@@ -558,7 +623,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               ) : detail.role === "claimant" || detail.role === "respondent" ? (
                 <Link
                   href={`/cases/${detail.case.id}/select-lawyer` as Route}
-                  className="mt-3 inline-flex rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                  className="mt-3 inline-flex rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
                 >
                   Choose lawyer
                 </Link>
@@ -571,7 +636,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "claimant" ? (
-        <div id="panel-claimant" role="tabpanel" aria-labelledby="tab-claimant" className="rounded-[28px] border border-slate-200 bg-white p-6 space-y-4">
+        <div id="panel-claimant" role="tabpanel" aria-labelledby="tab-claimant" className="rounded-md border border-slate-200 bg-white p-6 space-y-4">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Claimant</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
@@ -579,27 +644,53 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             </h2>
           </div>
           {detail.role === "claimant" ? (
-            <div className="space-y-3 rounded-2xl bg-slate-50 p-4">
+            <div className="space-y-3 rounded-md bg-slate-50 p-4">
               <input
                 value={claimantName}
                 onChange={(event) => setClaimantName(event.target.value)}
                 placeholder="Name"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               <input
                 value={claimantEmail}
                 onChange={(event) => setClaimantEmail(event.target.value)}
                 placeholder="Email"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               <input
                 value={claimantPhone}
                 onChange={(event) => setClaimantPhone(event.target.value)}
                 placeholder="Phone (optional)"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
+              />
+              <input
+                value={claimantAddress}
+                onChange={(event) => setClaimantAddress(event.target.value)}
+                placeholder="Street address"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  value={claimantPostalCode}
+                  onChange={(event) => setClaimantPostalCode(event.target.value)}
+                  placeholder="Postal code"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
+                />
+                <input
+                  value={claimantCity}
+                  onChange={(event) => setClaimantCity(event.target.value)}
+                  placeholder="City"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
+                />
+              </div>
+              <input
+                value={claimantCountry}
+                onChange={(event) => setClaimantCountry(event.target.value)}
+                placeholder="Country"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               {contactsError ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                   {contactsError}
                 </div>
               ) : null}
@@ -607,13 +698,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 type="button"
                 disabled={contactsSaving || !contactsHaveChanged}
                 onClick={() => void saveContacts()}
-                className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {contactsSaving ? "Saving..." : "Save claimant details"}
               </button>
             </div>
           ) : (
-            <dl className="grid gap-2 rounded-2xl bg-slate-50 p-4 text-sm">
+            <dl className="grid gap-2 rounded-md bg-slate-50 p-4 text-sm">
               <div>
                 <dt className="text-xs uppercase tracking-[0.16em] text-slate-500">Email</dt>
                 <dd className="text-slate-700">{detail.case.claimantEmail || "-"}</dd>
@@ -622,13 +713,21 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 <dt className="text-xs uppercase tracking-[0.16em] text-slate-500">Phone</dt>
                 <dd className="text-slate-700">{detail.case.claimantPhone || "-"}</dd>
               </div>
+              <div>
+                <dt className="text-xs uppercase tracking-[0.16em] text-slate-500">Address</dt>
+                <dd className="text-slate-700">
+                  {[detail.case.claimantAddress, detail.case.claimantPostalCode, detail.case.claimantCity, detail.case.claimantCountry]
+                    .filter(Boolean)
+                    .join(", ") || "-"}
+                </dd>
+              </div>
             </dl>
           )}
         </div>
       ) : null}
 
       {activeTab === "respondent" ? (
-        <div id="panel-respondent" role="tabpanel" aria-labelledby="tab-respondent" className="rounded-[28px] border border-slate-200 bg-white p-6 space-y-4">
+        <div id="panel-respondent" role="tabpanel" aria-labelledby="tab-respondent" className="rounded-md border border-slate-200 bg-white p-6 space-y-4">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Respondent</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
@@ -641,27 +740,53 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             ) : null}
           </div>
           {(detail.role === "respondent" || (detail.role === "claimant" && !respondentLinked)) ? (
-            <div className="space-y-3 rounded-2xl bg-slate-50 p-4">
+            <div className="space-y-3 rounded-md bg-slate-50 p-4">
               <input
                 value={respondentName}
                 onChange={(event) => setRespondentName(event.target.value)}
                 placeholder="Name"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               <input
                 value={respondentEmail}
                 onChange={(event) => setRespondentEmail(event.target.value)}
                 placeholder="Email"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               <input
                 value={respondentPhone}
                 onChange={(event) => setRespondentPhone(event.target.value)}
                 placeholder="Phone (optional)"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
+              />
+              <input
+                value={respondentAddress}
+                onChange={(event) => setRespondentAddress(event.target.value)}
+                placeholder="Street address"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  value={respondentPostalCode}
+                  onChange={(event) => setRespondentPostalCode(event.target.value)}
+                  placeholder="Postal code"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
+                />
+                <input
+                  value={respondentCity}
+                  onChange={(event) => setRespondentCity(event.target.value)}
+                  placeholder="City"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
+                />
+              </div>
+              <input
+                value={respondentCountry}
+                onChange={(event) => setRespondentCountry(event.target.value)}
+                placeholder="Country"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               {contactsError ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                   {contactsError}
                 </div>
               ) : null}
@@ -670,7 +795,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                   type="button"
                   disabled={contactsSaving || !contactsHaveChanged}
                   onClick={() => void saveContacts()}
-                  className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                  className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   {contactsSaving ? "Saving..." : "Save respondent details"}
                 </button>
@@ -688,7 +813,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                       });
                     }}
                     disabled={isPending || notificationSent}
-                    className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                    className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                   >
                     {isPending ? "Sending..." : notificationSent ? "Respondent notified" : "Notify respondent"}
                   </button>
@@ -696,7 +821,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               </div>
             </div>
           ) : (
-            <dl className="grid gap-2 rounded-2xl bg-slate-50 p-4 text-sm">
+            <dl className="grid gap-2 rounded-md bg-slate-50 p-4 text-sm">
               <div>
                 <dt className="text-xs uppercase tracking-[0.16em] text-slate-500">Email</dt>
                 <dd className="text-slate-700">{detail.case.respondentEmail || "-"}</dd>
@@ -705,27 +830,38 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 <dt className="text-xs uppercase tracking-[0.16em] text-slate-500">Phone</dt>
                 <dd className="text-slate-700">{detail.case.respondentPhone || "-"}</dd>
               </div>
+              <div>
+                <dt className="text-xs uppercase tracking-[0.16em] text-slate-500">Address</dt>
+                <dd className="text-slate-700">
+                  {[detail.case.respondentAddress, detail.case.respondentPostalCode, detail.case.respondentCity, detail.case.respondentCountry]
+                    .filter(Boolean)
+                    .join(", ") || "-"}
+                </dd>
+              </div>
             </dl>
           )}
         </div>
       ) : null}
 
       {activeTab === "activity" ? (
-        <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" className="rounded-md border border-slate-200 bg-white p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Activity timeline</div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Recent activity</h2>
           <div className="mt-4 space-y-3 max-h-[600px] overflow-y-auto">
             {detail.activities.length === 0 ? (
-              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+              <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
                 No activity recorded yet.
               </div>
             ) : (
               detail.activities.map((activity) => (
-                <div key={String(activity.id)} className="rounded-2xl bg-slate-50 p-4">
+                <div key={String(activity.id)} className="rounded-md bg-slate-50 p-4">
                   <div className="font-semibold text-slate-900">{String(activity.title || "Activity")}</div>
                   <div className="mt-1 text-sm text-slate-600">{String(activity.description || activity.type || "")}</div>
-                  <div className="mt-2 text-xs uppercase tracking-[0.15em] text-slate-400">
-                    {formatDateTime(String(activity.createdAt || ""))}
+                  <div className="mt-2 flex flex-wrap gap-x-2 text-xs uppercase tracking-[0.15em] text-slate-400">
+                    <span>{formatDateTime(String(activity.createdAt || ""))}</span>
+                    {activity.performedBy ? (
+                      <span className="text-slate-500">· by {String(activity.performedBy)}</span>
+                    ) : null}
                   </div>
                 </div>
               ))
@@ -735,7 +871,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "todo" ? (
-        <div id="panel-todo" role="tabpanel" aria-labelledby="tab-todo" className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <div id="panel-todo" role="tabpanel" aria-labelledby="tab-todo" className="rounded-md border border-slate-200 bg-white p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">My to do</div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Open points</h2>
           <p className="mt-2 text-sm text-slate-600">
@@ -802,7 +938,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
             if (items.length === 0) {
               return (
-                <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                <div className="mt-4 rounded-md bg-slate-50 p-4 text-sm text-slate-600">
                   Nothing waiting on you right now.
                 </div>
               );
@@ -811,20 +947,20 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             return (
               <ul className="mt-4 space-y-2">
                 {items.map((item) => (
-                  <li key={item.key} className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <li key={item.key} className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-4">
                     <div className="text-sm font-medium text-amber-900">{item.label}</div>
                     {item.tab ? (
                       <button
                         type="button"
                         onClick={() => setActiveTab(item.tab as (typeof tabs)[number]["key"])}
-                        className="rounded-full bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                        className="rounded-md bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
                       >
                         Open
                       </button>
                     ) : item.href ? (
                       <Link
                         href={item.href as Route}
-                        className="rounded-full bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                        className="rounded-md bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
                       >
                         Open
                       </Link>
@@ -838,30 +974,36 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "appeal" ? (
-        <div id="panel-appeal" role="tabpanel" aria-labelledby="tab-appeal" className="rounded-[28px] border border-slate-200 bg-white p-6">
-          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Appeal</div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Request an appeal</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            If you disagree with the judgement, you may request an appeal reviewed by a panel of jurors.
-            Each juror costs <strong>{ACTION_COSTS.appeal_request} tokens</strong>. Choose 1, 3, 5, or 7 jurors (max 7).
-          </p>
-          <AppealPanel caseId={detail.case.id} canRequest={detail.role === "claimant" || detail.role === "respondent"} />
+        <div id="panel-appeal" role="tabpanel" aria-labelledby="tab-appeal" className="space-y-4">
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span className="font-semibold">Appeal only becomes available after judgement.</span>{" "}
+            Once the judgement is issued you will be able to request review by a juror panel.
+          </div>
+          <div className="rounded-md border border-slate-200 bg-white p-6">
+            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Appeal</div>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Request an appeal</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              If you disagree with the judgement, you may request an appeal reviewed by a panel of jurors.
+              Each juror costs <strong>{ACTION_COSTS.appeal_request} tokens</strong>. Choose 1, 3, 5, or 7 jurors (max 7).
+            </p>
+            <AppealPanel caseId={detail.case.id} canRequest={detail.role === "claimant" || detail.role === "respondent"} />
+          </div>
         </div>
       ) : null}
 
       {activeTab === "final-judgement" ? (
-        <div id="panel-final-judgement" role="tabpanel" aria-labelledby="tab-final-judgement" className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <div id="panel-final-judgement" role="tabpanel" aria-labelledby="tab-final-judgement" className="rounded-md border border-slate-200 bg-white p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Final judgement</div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">After appeal</h2>
           <p className="mt-2 text-sm text-slate-600">
             The final, binding judgement issued after appeal review. This decision closes the case.
           </p>
           {(detail.case as any).finalAppealJudgement ? (
-            <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm leading-7 text-emerald-950">
+            <div className="mt-4 rounded-md bg-emerald-50 p-4 text-sm leading-7 text-emerald-950">
               {String((detail.case as any).finalAppealJudgement)}
             </div>
           ) : (
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="mt-4 rounded-md bg-slate-50 p-4 text-sm text-slate-600">
               No final judgement has been issued yet.
             </div>
           )}
@@ -869,7 +1011,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "progress" ? (
-        <div id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <div id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" className="rounded-md border border-slate-200 bg-white p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Case progress</div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Workflow stages</h2>
           <p className="mt-2 text-sm text-slate-600">
@@ -883,7 +1025,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 <li key={stage.key} className="relative flex gap-4">
                   <div className="flex flex-col items-center">
                     <span
-                      className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold ${
+                      className={`flex h-9 w-9 items-center justify-center rounded-md text-sm font-semibold ${
                         stage.completed
                           ? "bg-signal text-white"
                           : isActive
@@ -924,7 +1066,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                       {stage.label}
                     </div>
                     <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-                      {stage.completed ? "Completed" : isActive ? "Current step" : "Pending"}
+                      {stage.completed
+                        ? stage.completedAt
+                          ? `Completed · ${formatDateTime(stage.completedAt)}`
+                          : "Completed"
+                        : isActive
+                          ? "Current step"
+                          : "Pending"}
                     </div>
                   </div>
                 </li>
@@ -939,7 +1087,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           {renderClaims("claimant")}
           {renderClaims("respondent")}
           {detail.role !== "moderator" && detail.role !== "admin" ? (
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+            <section className="rounded-md border border-slate-200 bg-white p-6">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Save claims</div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
@@ -952,7 +1100,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                       }),
                     )
                   }
-                  className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
+                  className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white"
                 >
                   Save claims
                 </button>
@@ -1039,13 +1187,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "audit" ? (
-        <div id="panel-audit" role="tabpanel" aria-labelledby="tab-audit" className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <div id="panel-audit" role="tabpanel" aria-labelledby="tab-audit" className="rounded-md border border-slate-200 bg-white p-6">
           <AuditPanel caseId={detail.case.id} audits={detail.audits || []} userRole={detail.role} />
         </div>
       ) : null}
 
       {activeTab === "arbitration" ? (
-        <div id="panel-arbitration" role="tabpanel" aria-labelledby="tab-arbitration" className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <div id="panel-arbitration" role="tabpanel" aria-labelledby="tab-arbitration" className="rounded-md border border-slate-200 bg-white p-6">
           <ArbitrationPanel
             caseId={detail.case.id}
             status={detail.case.status}
@@ -1068,7 +1216,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
           {/* Existing Hearings (only renders if hearings exist) */}
           {detail.hearings.length > 0 ? (
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+            <div className="rounded-md border border-slate-200 bg-white p-6">
               <ExistingHearings
                 caseId={detail.case.id}
                 caseTitle={detail.case.title}
@@ -1080,14 +1228,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
           {/* AI Judge video session — only when an actual hearing exists */}
           {detail.hearings.length > 0 ? (
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+            <div className="rounded-md border border-slate-200 bg-white p-6">
               <LivekitAnamPanel caseId={detail.case.id} caseTitle={detail.case.title} />
             </div>
           ) : null}
 
           {/* Manual hearing scheduler — moderator-only escape hatch */}
           {detail.role === "moderator" ? (
-            <details className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
+            <details className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
               <summary className="cursor-pointer text-xs uppercase tracking-[0.18em] text-slate-500">
                 Manual hearing scheduler (moderator)
               </summary>
@@ -1100,14 +1248,12 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "judgement" ? (
-        <div id="panel-judgement" role="tabpanel" aria-labelledby="tab-judgement" className="rounded-[28px] border border-slate-200 bg-white p-6">
-          <JudgementPanel
-            caseId={detail.case.id}
-            canModerate={detail.role === "moderator"}
-            judgement={(detail.case as any).judgementJson}
-            finalDecision={detail.case.finalDecision}
-            caseStatus={detail.case.status}
-          />
+        <div id="panel-judgement" role="tabpanel" aria-labelledby="tab-judgement" className="rounded-md border border-slate-200 bg-white p-6">
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Judgement</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Decision</h2>
+          <div className="mt-4 rounded-md bg-slate-50 p-4 text-sm text-slate-600">
+            No decision finalized yet.
+          </div>
         </div>
       ) : null}
 
@@ -1131,7 +1277,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 </p>
                 <Link
                   href={`/cases/${detail.case.id}/select-lawyer` as Route}
-                  className="mt-3 inline-flex rounded-full bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-slate-100"
+                  className="mt-3 inline-flex rounded-md bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-slate-100"
                 >
                   Choose lawyer
                 </Link>

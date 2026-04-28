@@ -234,7 +234,7 @@ const startSession = async () => {
 
   if (!isInSession) {
     return (
-      <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+      <div className="rounded-md border border-slate-200 bg-white p-6">
         <div className="text-center">
           <h3 className="text-lg font-semibold text-ink mb-4">1:1 AI Judge Session</h3>
           <p className="text-slate-600 mb-6">Start a video session with an AI judge</p>
@@ -260,7 +260,7 @@ const startSession = async () => {
           <button
             onClick={startSession}
             disabled={isLoading}
-            className="bg-ink text-white px-6 py-3 rounded-full font-medium hover:bg-ink/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="bg-ink text-white px-6 py-3 rounded-md font-medium hover:bg-ink/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? 'Starting Session...' : 'Enter 1:1 with Judge'}
           </button>
@@ -270,14 +270,14 @@ const startSession = async () => {
   }
 
   return (
-    <div className="rounded-[28px] border border-slate-200 bg-white p-6">
+    <div className="rounded-md border border-slate-200 bg-white p-6">
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-ink">Live Session with AI Judge</h3>
           <button
             onClick={stopSession}
-            className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-red-700 transition-colors"
+            className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
           >
             Stop Session
           </button>

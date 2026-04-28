@@ -93,7 +93,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
 
   if (!canUseChat) {
     return (
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      <section className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
         Lawyer chat is only available to the claimant or respondent on this case.
       </section>
     );
@@ -109,7 +109,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           {messages.length === 0 && !pendingMessage ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
+            <div className="rounded-md border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
               Ask about strategy, evidence gaps, or what to do next.
             </div>
           ) : (
@@ -117,7 +117,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
               {messages.map((item, index) => (
                 <div
                   key={`${item.createdAt}-${index}`}
-                  className={`rounded-2xl px-3 py-2.5 text-sm leading-6 ${
+                  className={`rounded-md px-3 py-2.5 text-sm leading-6 ${
                     item.role === "assistant"
                       ? "bg-white/10 text-white"
                       : "bg-white text-ink"
@@ -132,18 +132,18 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
                 </div>
               ))}
               {pendingMessage ? (
-                <div className="rounded-2xl bg-white px-3 py-2.5 text-sm leading-6 text-ink">
+                <div className="rounded-md bg-white px-3 py-2.5 text-sm leading-6 text-ink">
                   <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">You</div>
                   <div className="mt-1.5">{pendingMessage}</div>
                 </div>
               ) : null}
               {isTyping ? (
                 <div className="flex justify-start">
-                  <div className="rounded-2xl bg-white/10 px-3 py-2.5">
+                  <div className="rounded-md bg-white/10 px-3 py-2.5">
                     <div className="flex items-center space-x-1">
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-slate-300" style={{ animationDelay: "0ms" }} />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-slate-300" style={{ animationDelay: "150ms" }} />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-slate-300" style={{ animationDelay: "300ms" }} />
+                      <div className="h-2 w-2 animate-bounce rounded-md bg-slate-300" style={{ animationDelay: "0ms" }} />
+                      <div className="h-2 w-2 animate-bounce rounded-md bg-slate-300" style={{ animationDelay: "150ms" }} />
+                      <div className="h-2 w-2 animate-bounce rounded-md bg-slate-300" style={{ animationDelay: "300ms" }} />
                     </div>
                   </div>
                 </div>
@@ -166,13 +166,13 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
             }}
             rows={2}
             placeholder="Ask your lawyer..."
-            className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-white/30 focus:outline-none"
+            className="w-full resize-none rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-white/30 focus:outline-none"
           />
           <button
             type="button"
             disabled={isSending || !message.trim()}
             onClick={() => void send()}
-            className="mt-2 w-full rounded-full bg-white px-4 py-2 text-xs font-semibold text-ink transition hover:bg-slate-100 disabled:opacity-50"
+            className="mt-2 w-full rounded-md bg-white px-4 py-2 text-xs font-semibold text-ink transition hover:bg-slate-100 disabled:opacity-50"
           >
             {isSending ? "Sending..." : "Send"}
           </button>
@@ -183,7 +183,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+      <section className="rounded-md border border-slate-200 bg-white p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">AI counsel</div>
@@ -195,7 +195,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
           <select
             value={personality}
             onChange={(event) => setPersonality(event.target.value)}
-            className="rounded-full border border-slate-300 px-4 py-3 text-sm"
+            className="rounded-md border border-slate-300 px-4 py-3 text-sm"
           >
             <option value="strategic">Strategic</option>
             <option value="concise">Concise</option>
@@ -204,23 +204,23 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
         </div>
 
         {conversation?.contextSummary ? (
-          <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
+          <div className="mt-4 rounded-md bg-slate-50 p-4 text-sm text-slate-700">
             <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Working summary</div>
             <p className="mt-2 leading-7">{conversation.contextSummary}</p>
           </div>
         ) : null}
 
         {error ? (
-          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
       </section>
 
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+      <section className="rounded-md border border-slate-200 bg-white p-6">
         <div className="space-y-3">
           {messages.length === 0 && !pendingMessage ? (
-            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
               No messages yet. Ask about strategy, evidence gaps, negotiation framing, or what to do next.
             </div>
           ) : (
@@ -228,7 +228,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
               {messages.map((item, index) => (
                 <div
                   key={`${item.createdAt}-${index}`}
-                  className={`rounded-2xl px-4 py-3 text-sm leading-7 ${
+                  className={`rounded-md px-4 py-3 text-sm leading-7 ${
                     item.role === "assistant"
                       ? "bg-ink text-white"
                       : "bg-slate-50 text-slate-700"
@@ -243,7 +243,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
 
               {/* Pending user message */}
               {pendingMessage && (
-                <div className="rounded-2xl px-4 py-3 text-sm leading-7 bg-slate-50 text-slate-700">
+                <div className="rounded-md px-4 py-3 text-sm leading-7 bg-slate-50 text-slate-700">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-500">You</div>
                   <div className="mt-2">{pendingMessage}</div>
                 </div>
@@ -252,11 +252,11 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
               {/* Typing Indicator */}
               {isTyping && (
                 <div className="flex justify-start">
-                  <div className="max-w-[88%] rounded-2xl px-4 py-3 bg-ink text-white shadow-sm">
+                  <div className="max-w-[88%] rounded-md px-4 py-3 bg-ink text-white shadow-sm">
                     <div className="flex items-center space-x-1">
-                      <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      <div className="w-2 h-2 bg-slate-300 rounded-md animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-slate-300 rounded-md animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-slate-300 rounded-md animate-bounce" style={{ animationDelay: '300ms' }}></div>
                     </div>
                   </div>
                 </div>
@@ -271,13 +271,13 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
             onChange={(event) => setMessage(event.target.value)}
             rows={4}
             placeholder="Ask what argument is strongest, what proof is missing, or how to respond to the other side."
-            className="w-full rounded-[24px] border border-slate-300 px-4 py-3 text-sm"
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
           />
           <button
             type="button"
             disabled={isSending || !message.trim()}
             onClick={() => void send()}
-            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
           >
             {isSending ? "Sending..." : "Send message"}
           </button>

@@ -25,18 +25,18 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
         </p>
       </div>
 
-      <form className="grid gap-4 rounded-[24px] border border-[color:var(--line-soft)] bg-[color:var(--bg-tint)]/35 p-5 md:grid-cols-[minmax(0,1fr)_220px_auto]">
+      <form className="grid gap-4 rounded-md border border-[color:var(--line-soft)] bg-[color:var(--bg-tint)]/35 p-5 md:grid-cols-[minmax(0,1fr)_220px_auto]">
         <input
           type="search"
           name="search"
           defaultValue={search}
           placeholder="Search by case number, title, or party"
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm"
+          className="rounded-md border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm"
         />
         <select
           name="status"
           defaultValue={status}
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm"
+          className="rounded-md border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm"
         >
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -46,14 +46,14 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
         </select>
         <button
           type="submit"
-          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
+          className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
         >
           Apply
         </button>
       </form>
 
       {data.cases.length === 0 ? (
-        <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600">
+        <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600">
           No cases matched the current filters.
         </div>
       ) : (
@@ -62,7 +62,7 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
             <Link
               key={caseItem.id}
               href={`/cases/${caseItem.id}` as Route}
-              className="grid gap-4 rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300 hover:shadow-sm md:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.5fr)_minmax(180px,0.5fr)]"
+              className="grid gap-4 rounded-md border border-slate-200 bg-white p-5 transition hover:border-slate-300 hover:shadow-sm md:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.5fr)_minmax(180px,0.5fr)]"
             >
               <div className="space-y-2">
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-400">

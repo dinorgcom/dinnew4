@@ -145,7 +145,7 @@ export function ExistingHearings({ caseId, caseTitle, viewerRole, viewerKycVerif
   if (loading) {
     return (
       <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <div className="animate-spin rounded-md h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
         <p className="mt-2 text-gray-600">Loading hearings...</p>
       </div>
     );
@@ -203,11 +203,11 @@ export function ExistingHearings({ caseId, caseTitle, viewerRole, viewerKycVerif
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h4 className="font-medium text-gray-900">Court Hearing</h4>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(hearing.status)}`}>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-md ${getStatusColor(hearing.status)}`}>
                     {getStatusText(hearing.status)}
                   </span>
                   {isHearingActive(hearing) && (
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 animate-pulse">
+                    <span className="px-2 py-1 text-xs font-medium rounded-md bg-green-100 text-green-800 animate-pulse">
                       Active
                     </span>
                   )}
@@ -232,7 +232,7 @@ export function ExistingHearings({ caseId, caseTitle, viewerRole, viewerKycVerif
                       {meetingUrlGated ? (
                         <a
                           href={`/verify/start?returnTo=/cases/${caseId}`}
-                          className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200"
+                          className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200"
                         >
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
@@ -280,7 +280,7 @@ export function ExistingHearings({ caseId, caseTitle, viewerRole, viewerKycVerif
                   >
                     {cancelling === hearing.id ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline"></div>
+                        <div className="animate-spin rounded-md h-4 w-4 border-b-2 border-white mr-2 inline"></div>
                         Cancelling...
                       </>
                     ) : (

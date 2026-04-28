@@ -320,7 +320,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
   return (
     <div className="space-y-6">
       {/* Controls Section */}
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+      <section className="rounded-md border border-slate-200 bg-white p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Court Analysis</div>
@@ -336,7 +336,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
                 disabled={isPending || running}
                 onClick={() => setShowChoiceModal(!showChoiceModal)}
                 data-trigger-button
-                className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
               >
                 {(isPending || running) ? "Generating..." : (judgement || simulation) ? "Regenerate analysis" : "Start analysis"}
               </button>
@@ -344,7 +344,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
               {/* Inline Choice Panel - positioned absolutely to not move button */}
               {showChoiceModal && (
                 <div className="absolute top-full left-0 mt-2 z-10 w-full max-w-xs sm:w-80">
-                  <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-lg" data-choice-panel>
+                  <div className="rounded-md border border-gray-200 bg-white p-4 shadow-lg" data-choice-panel>
                     <div className="flex items-center justify-between mb-3">
                       <div className="text-sm font-medium text-gray-900">Choose analysis type:</div>
                       <button
@@ -363,8 +363,8 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
                         className="w-full p-3 sm:p-4 border-2 border-blue-200 rounded-lg hover:bg-blue-50 transition-colors text-left"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                          <div className="w-6 h-6 bg-blue-100 rounded-md flex items-center justify-center flex-shrink-0">
+                            <div className="w-3 h-3 bg-blue-600 rounded-md"></div>
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="font-medium text-gray-900 text-sm">Single AI Analysis</div>
@@ -379,8 +379,8 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
                         className="w-full p-3 sm:p-4 border-2 border-purple-200 rounded-lg hover:bg-purple-50 transition-colors text-left"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <div className="w-3 h-3 bg-purple-600 rounded-full"></div>
+                          <div className="w-6 h-6 bg-purple-100 rounded-md flex items-center justify-center flex-shrink-0">
+                            <div className="w-3 h-3 bg-purple-600 rounded-md"></div>
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="font-medium text-gray-900 text-sm">Multi-Agent Court Simulation</div>
@@ -397,13 +397,13 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
         </div>
 
         {!canModerate ? (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Only moderators and admins can generate or accept a judgement.
           </div>
         ) : null}
 
         {error ? (
-          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
@@ -411,9 +411,9 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
 
       {/* Success Banner - When judgement is accepted */}
       {caseStatus === "resolved" && !isPending && !running && !isRefreshing && (
-        <section className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4">
+        <section className="rounded-md bg-emerald-50 border border-emerald-200 p-4">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
+            <div className="w-2 h-2 bg-emerald-600 rounded-md"></div>
             <span className="text-sm font-medium text-emerald-900">This judgement has been accepted and the case is resolved</span>
           </div>
         </section>
@@ -421,7 +421,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
 
       {/* Final Decision Section */}
       {!running && !isRefreshing && (
-        <section className="rounded-[28px] bg-ink p-6 text-white">
+        <section className="rounded-md bg-ink p-6 text-white">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Final decision</div>
           <div className="mt-3 text-2xl font-semibold tracking-tight">{finalDecision || "No decision finalized yet."}</div>
         </section>
@@ -429,7 +429,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
       
       {/* Show "..." during refresh to hide cached data */}
       {!running && isRefreshing && (
-        <section className="rounded-[28px] bg-ink p-6 text-white">
+        <section className="rounded-md bg-ink p-6 text-white">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Final decision</div>
           <div className="mt-3 text-2xl font-semibold tracking-tight">...</div>
         </section>
@@ -437,7 +437,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
 
       {/* Unified Decision Analysis Panel */}
       {(currentJudgement || simulation) && !running && !isRefreshing ? (
-        <section className="space-y-6 rounded-[28px] border border-slate-200 bg-white p-6">
+        <section className="space-y-6 rounded-md border border-slate-200 bg-white p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Analysis Results</div>
           
           {/* Simulation Metrics (if available) */}
@@ -462,11 +462,11 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
           <div className="space-y-6">
             {/* Claims Analysis */}
             {currentJudgement && (
-              <div className="rounded-2xl bg-slate-50 p-5">
+              <div className="rounded-md bg-slate-50 p-5">
                 <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Claims Analysis</div>
                 <div className="mt-3 space-y-3">
                   {(parsed.claims_analysis || []).map((item, index) => (
-                    <div key={`${item.claim}-${index}`} className="rounded-2xl bg-white p-4">
+                    <div key={`${item.claim}-${index}`} className="rounded-md bg-white p-4">
                       <div className="font-semibold text-slate-900">{item.claim}</div>
                       <div className="mt-2 text-sm text-slate-700">{item.finding}</div>
                       <div className="mt-2 text-sm text-slate-500">{item.reasoning}</div>
@@ -478,7 +478,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
 
             {/* Evidence Assessment */}
             {currentJudgement && (
-              <div className="rounded-2xl bg-slate-50 p-4">
+              <div className="rounded-md bg-slate-50 p-4">
                 <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Evidence Assessment</div>
                 <p className="mt-3 text-sm leading-7 text-slate-700">{parsed.evidence_assessment}</p>
               </div>
@@ -486,7 +486,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
 
             {/* Key Decision Points */}
             {(simulation?.outcome || currentJudgement) && (
-              <div className="rounded-2xl bg-slate-50 p-4 lg:col-span-2">
+              <div className="rounded-md bg-slate-50 p-4 lg:col-span-2">
                 <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Key Decision Points</div>
                 <div className="mt-3 space-y-2 text-sm text-slate-700">
                   <div><strong>Prevailing Party:</strong> {
@@ -530,7 +530,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
               <button
                 onClick={async () => { await submit("accept"); }}
                 disabled={isPending}
-                className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                className="rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
               >
                 Accept judgement
               </button>
@@ -538,21 +538,21 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
           </div>
         </section>
       ) : running ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
+        <section className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
           <div className="flex items-center justify-center space-x-2">
-            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-md animate-spin"></div>
             <span>Generating analysis...</span>
           </div>
         </section>
       ) : isRefreshing ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
+        <section className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
           <div className="flex items-center justify-center space-x-2">
-            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-md animate-spin"></div>
             <span>Loading new analysis...</span>
           </div>
         </section>
       ) : (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
+        <section className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
           No analysis has been generated yet. Click &quot;Start analysis&quot; to begin.
         </section>
       )}
@@ -660,7 +660,7 @@ function ChatTranscript({
 }) {
   const nextSpeaker = getNextSpeaker(lastSpeaker);
   return (
-    <div className={`rounded-xl border border-gray-200 bg-[#efeae2] p-3 space-y-2 ${className}`}>
+    <div className={`rounded-md border border-gray-200 bg-[#efeae2] p-3 space-y-2 ${className}`}>
       {entries.map((entry) => {
         const isJudge = entry.speaker === 'judge';
         const isClaimantAttorney = entry.speaker === 'barrister_a';
@@ -670,7 +670,7 @@ function ChatTranscript({
             className={`flex ${isJudge ? 'justify-center' : isClaimantAttorney ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[88%] rounded-xl px-3 py-2 shadow-sm ${
+              className={`max-w-[88%] rounded-md px-3 py-2 shadow-sm ${
                 isJudge
                   ? 'bg-amber-100 border border-amber-200'
                   : isClaimantAttorney
@@ -696,15 +696,15 @@ function ChatTranscript({
           nextSpeaker === 'barrister_a' ? 'justify-end' : 
           'justify-start'
         }`}>
-          <div className={`max-w-[88%] rounded-xl px-3 py-2 shadow-sm ${
+          <div className={`max-w-[88%] rounded-md px-3 py-2 shadow-sm ${
             nextSpeaker === 'judge' ? 'bg-amber-100 border border-amber-200' :
             nextSpeaker === 'barrister_a' ? 'bg-green-100 border border-green-200' :
             'bg-white border border-gray-200'
           }`}>
             <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-md animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-md animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-md animate-bounce" style={{ animationDelay: '300ms' }}></div>
             </div>
           </div>
         </div>

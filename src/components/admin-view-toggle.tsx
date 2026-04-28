@@ -56,7 +56,7 @@ export function AdminViewToggle({ isAdmin, impersonation }: Props) {
   function buttonClasses(role: "claimant" | "respondent") {
     const isActive = activeRole === role;
     return [
-      "flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition",
+      "flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition",
       isActive
         ? "bg-orange-500 text-white shadow"
         : "bg-white text-slate-800 hover:bg-slate-100",

@@ -66,7 +66,7 @@ export function AdminImpersonationBanner({
     const targetLabel =
       impersonation.targetName || impersonation.targetEmail || impersonation.role;
     return (
-      <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <span className="font-semibold uppercase tracking-wide">Acting as {impersonation.role}</span>
@@ -79,7 +79,7 @@ export function AdminImpersonationBanner({
             type="button"
             onClick={clearRole}
             disabled={pending}
-            className="rounded-full border border-amber-500 bg-white px-4 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+            className="rounded-md border border-amber-500 bg-white px-4 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
           >
             Exit impersonation
           </button>
@@ -93,7 +93,7 @@ export function AdminImpersonationBanner({
   const canRespondent = Boolean(respondentEmail);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+    <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Admin view</span>
@@ -107,7 +107,7 @@ export function AdminImpersonationBanner({
             onClick={() => setRole("claimant")}
             disabled={pending || !canClaimant}
             title={canClaimant ? undefined : "No claimant email on file"}
-            className="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-800 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-800 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             View as Claimant{claimantName ? ` (${claimantName})` : ""}
           </button>
@@ -116,7 +116,7 @@ export function AdminImpersonationBanner({
             onClick={() => setRole("respondent")}
             disabled={pending || !canRespondent}
             title={canRespondent ? undefined : "No respondent email on file"}
-            className="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-800 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-800 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             View as Respondent{respondentName ? ` (${respondentName})` : ""}
           </button>

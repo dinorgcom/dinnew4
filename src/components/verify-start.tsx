@@ -37,9 +37,9 @@ export function VerifyStart({ returnTo }: VerifyStartProps) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[color:var(--bg-canvas)] px-4">
-      <div className="w-full max-w-md space-y-6 rounded-[28px] border border-black/5 bg-white/88 p-8 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
+      <div className="w-full max-w-md space-y-6 rounded-md border border-black/5 bg-white/88 p-8 shadow-[0_24px_80px_rgba(17,24,39,0.08)] backdrop-blur">
         <div className="space-y-2 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-slate-100">
             <svg className="h-7 w-7 text-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
             </svg>
@@ -54,7 +54,7 @@ export function VerifyStart({ returnTo }: VerifyStartProps) {
           </p>
         </div>
 
-        <div className="space-y-3 rounded-2xl bg-slate-50 p-4">
+        <div className="space-y-3 rounded-md bg-slate-50 p-4">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">What you will need</p>
           <ul className="space-y-2 text-sm text-slate-600">
             <li className="flex items-start gap-2">
@@ -69,7 +69,7 @@ export function VerifyStart({ returnTo }: VerifyStartProps) {
         </div>
 
         {error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
@@ -78,7 +78,7 @@ export function VerifyStart({ returnTo }: VerifyStartProps) {
           type="button"
           disabled={isPending}
           onClick={handleStart}
-          className="w-full rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
+          className="w-full rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
         >
           {isPending ? "Starting verification..." : "Start Verification"}
         </button>

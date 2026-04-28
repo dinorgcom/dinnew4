@@ -55,13 +55,13 @@ export default async function AppLayout({
 
           <AdminViewToggle isAdmin={isAdmin} impersonation={impersonationCookie} />
 
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mt-8 rounded-md border border-white/10 bg-white/5 p-4">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Account</div>
             <div className="mt-3 text-sm font-semibold text-white">
               {appUser?.fullName || appUser?.email || "Provisioning pending"}
             </div>
             <div className="mt-1 text-sm text-slate-300">{appUser?.role ?? "user"}</div>
-            <div className="mt-4 rounded-2xl bg-white/10 px-3 py-2 text-sm text-slate-100">
+            <div className="mt-4 rounded-md bg-white/10 px-3 py-2 text-sm text-slate-100">
               Token balance: {balance}
             </div>
           </div>

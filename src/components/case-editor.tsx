@@ -184,7 +184,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
       </div>
 
       {mode === "create" && selectedLawyer ? (
-        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6">
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Chosen lawyer</div>
@@ -196,7 +196,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
             <button
               type="button"
               onClick={() => setSelectedLawyer(null)}
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400"
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400"
             >
               Change lawyer
             </button>
@@ -209,7 +209,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
       ) : null}
 
       {justVerified && kycVerified ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <svg className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
@@ -224,19 +224,19 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
       ) : null}
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
-      <section className="grid gap-4 rounded-[28px] border border-slate-200 bg-white p-6 md:grid-cols-2">
+      <section className="grid gap-4 rounded-md border border-slate-200 bg-white p-6 md:grid-cols-2">
         <label className="space-y-2 md:col-span-2">
           <span className="text-sm font-medium text-slate-700">Dispute summary</span>
           <textarea
             value={form.description}
             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             rows={4}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           />
         </label>
 
@@ -245,7 +245,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
           <select
             value={form.category}
             onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           >
             {categories.map((category) => (
               <option key={category} value={category}>
@@ -265,7 +265,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
                 priority: event.target.value as (typeof priorities)[number],
               }))
             }
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           >
             {priorities.map((priority) => (
               <option key={priority} value={priority}>
@@ -280,7 +280,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
           <input
             value={form.claimAmount}
             onChange={(event) => setForm((current) => ({ ...current, claimAmount: event.target.value }))}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           />
         </label>
 
@@ -289,19 +289,19 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
           <input
             value={form.currency}
             onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
           />
         </label>
       </section>
 
-      <section className="grid gap-6 rounded-[28px] border border-slate-200 bg-white p-6 md:grid-cols-2">
+      <section className="grid gap-6 rounded-md border border-slate-200 bg-white p-6 md:grid-cols-2">
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-ink">Claimant</h2>
           <label className="space-y-2">
             <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
               Name
               {claimantNameLocked ? (
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                   Verified via Stripe Identity
                 </span>
               ) : null}
@@ -315,8 +315,8 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
               }
               className={
                 claimantNameLocked
-                  ? "w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 shadow-sm"
-                  : "w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+                  ? "w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 shadow-sm"
+                  : "w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
               }
             />
             {claimantNameLocked ? (
@@ -339,7 +339,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
                     [key]: event.target.value,
                   }))
                 }
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
               />
             </label>
           ))}
@@ -362,7 +362,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
                     [key]: event.target.value,
                   }))
                 }
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
               />
             </label>
           ))}
@@ -370,7 +370,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
       </section>
 
       {(["claimantClaims", "respondentClaims"] as const).map((kind) => (
-        <section key={kind} className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6">
+        <section key={kind} className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-ink">
               {kind === "claimantClaims" ? "Claimant claims" : "Respondent claims"}
@@ -378,7 +378,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
             <button
               type="button"
               onClick={() => addClaim(kind)}
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
             >
               Add claim
             </button>
@@ -386,19 +386,19 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
 
           <div className="space-y-4">
             {form[kind].map((claim, index) => (
-              <div key={`${kind}-${index}`} className="grid gap-3 rounded-2xl bg-slate-50 p-4">
+              <div key={`${kind}-${index}`} className="grid gap-3 rounded-md bg-slate-50 p-4">
                 <input
                   value={claim.claim}
                   onChange={(event) => updateClaim(kind, index, "claim", event.target.value)}
                   placeholder="Claim title"
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
                 />
                 <textarea
                   value={claim.details || ""}
                   onChange={(event) => updateClaim(kind, index, "details", event.target.value)}
                   placeholder="Supporting detail"
                   rows={3}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
                 />
                 <div>
                   <button
@@ -420,7 +420,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
           type="button"
           disabled={isPending}
           onClick={() => submit("draft")}
-          className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 disabled:opacity-60"
+          className="rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 disabled:opacity-60"
         >
           Save draft
         </button>
@@ -429,7 +429,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
             type="button"
             disabled={isPending}
             onClick={() => submit("file")}
-            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
+            className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
           >
             {mode === "create" ? "Create and file case" : "Save and file"}
           </button>
@@ -438,7 +438,7 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
             type="button"
             disabled={isPending}
             onClick={() => submit("file")}
-            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
+            className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
           >
             {isPending ? "Saving draft..." : "Verify identity to file"}
           </button>

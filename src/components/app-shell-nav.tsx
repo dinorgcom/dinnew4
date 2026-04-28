@@ -3,7 +3,6 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { Coins, FolderOpen, Gavel, LayoutDashboard, PencilRuler, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CASE_DETAIL_RE = /^\/cases\/([^\/]+)(?:\/.*)?$/;
@@ -19,14 +18,13 @@ function getActiveCaseId(pathname: string | null): string | null {
 type NavItem = {
   href: Route;
   label: string;
-  icon: typeof LayoutDashboard;
 };
 
-const claimantItem: NavItem = { href: "/claimant" as Route, label: "Claimant", icon: LayoutDashboard };
-const respondentItem: NavItem = { href: "/respondent" as Route, label: "Respondent", icon: LayoutDashboard };
-const casesItem: NavItem = { href: "/cases" as Route, label: "Cases", icon: FolderOpen };
-const newCaseItem: NavItem = { href: "/cases/new" as Route, label: "New case", icon: PencilRuler };
-const billingItem: NavItem = { href: "/billing" as Route, label: "Buy tokens", icon: Coins };
+const claimantItem: NavItem = { href: "/claimant" as Route, label: "Claimant" };
+const respondentItem: NavItem = { href: "/respondent" as Route, label: "Respondent" };
+const casesItem: NavItem = { href: "/cases" as Route, label: "Cases" };
+const newCaseItem: NavItem = { href: "/cases/new" as Route, label: "New case" };
+const billingItem: NavItem = { href: "/billing" as Route, label: "Buy tokens" };
 
 type CaseSummary = {
   total: number;
@@ -51,7 +49,6 @@ function buildItems(role: string, summary?: CaseSummary): NavItem[] {
       {
         href: `/cases/${summary.singleCase.id}` as Route,
         label: summary.singleCase.title || "My case",
-        icon: FolderOpen,
       },
       newCaseItem,
       billingItem,
@@ -78,7 +75,6 @@ export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
   return (
     <nav className="mt-8 space-y-2">
       {items.map((item) => {
-        const Icon = item.icon;
         const active =
           pathname === item.href
           || (item.href === "/cases" && pathname.startsWith("/cases/") && pathname !== "/cases/new")
@@ -89,11 +85,10 @@ export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
+              "block rounded-md px-4 py-3 text-sm font-medium transition",
               active ? "bg-white text-ink" : "text-slate-300 hover:bg-white/10 hover:text-white",
             )}
           >
-            <Icon className="h-4 w-4" />
             <span className="truncate">{item.label}</span>
           </Link>
         );
@@ -102,25 +97,23 @@ export function AppShellNav({ role, caseSummary }: AppShellNavProps) {
       {arbitrationHref ? (
         <Link
           href={arbitrationHref}
-          className="mt-1 flex items-center gap-3 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/20"
+          className="mt-1 block rounded-md border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/20"
         >
-          <Gavel className="h-4 w-4" />
-          <span>Arbitration offer</span>
+          Arbitration offer
         </Link>
       ) : null}
 
       <div className="pt-4 text-xs uppercase tracking-[0.18em] text-slate-500">Current role</div>
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+      <div className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
         {role}
       </div>
 
       {role === "admin" ? (
         <Link
           href={"/admin" as Route}
-          className="mt-3 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+          className="mt-3 block rounded-md px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
         >
-          <Shield className="h-4 w-4" />
-          <span>Admin</span>
+          Admin
         </Link>
       ) : null}
     </nav>

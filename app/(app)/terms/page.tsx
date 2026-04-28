@@ -104,7 +104,7 @@ export default async function TermsPage() {
         </p>
       </div>
 
-      <section className="space-y-5 rounded-[28px] border border-slate-200 bg-white p-6">
+      <section className="space-y-5 rounded-md border border-slate-200 bg-white p-6">
         {TERMS_SECTIONS.map((section) => (
           <article key={section.title}>
             <h2 className="text-base font-semibold text-ink">{section.title}</h2>
@@ -113,7 +113,7 @@ export default async function TermsPage() {
         ))}
       </section>
 
-      <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6">
+      <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Acceptance log</div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">

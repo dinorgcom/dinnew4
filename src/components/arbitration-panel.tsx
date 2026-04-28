@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type ArbitrationPanelProps = {
@@ -48,28 +48,24 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const parsed = (proposal || {}) as {
-    LIABILITY?: "claimant" | "respondent" | "none";
-    RANGE_LOW?: number | string;
-    RANGE_HIGH?: number | string;
-    RATIONALE?: string;
-    settlement_proposal?: string;
-    settlement_amount?: number | string;
-    rationale?: string;
-  };
-  const initialRangeLow = numericInputValue(parsed.RANGE_LOW);
-  const initialRangeHigh = numericInputValue(parsed.RANGE_HIGH ?? parsed.settlement_amount);
-  const initialRationale =
-    typeof parsed.RATIONALE === "string"
-      ? parsed.RATIONALE
-      : typeof parsed.rationale === "string"
-        ? parsed.rationale
-        : typeof parsed.settlement_proposal === "string"
-          ? parsed.settlement_proposal
-          : "";
-  const [rangeLowUsd, setRangeLowUsd] = useState<string>(initialRangeLow);
-  const [rangeHighUsd, setRangeHighUsd] = useState<string>(initialRangeHigh);
-  const [rationaleText, setRationaleText] = useState<string>(initialRationale);
+  const aiAmount = (() => {
+    const p = proposal as { RANGE_HIGH?: unknown; settlement_amount?: unknown };
+    const raw = p?.RANGE_HIGH ?? p?.settlement_amount;
+    if (typeof raw === "number") return raw;
+    if (typeof raw === "string") {
+      const num = Number(raw.replace(/[^0-9.]/g, ""));
+      return Number.isFinite(num) ? num : null;
+    }
+    return null;
+  })();
+  const [settlementOfferUsd, setSettlementOfferUsd] = useState<string>("");
+
+  // Reset the party offer field whenever the proposal id (or amount) changes,
+  // i.e. after a regenerate. Without this useState-only init the input keeps
+  // showing the value the user typed against the previous proposal.
+  useEffect(() => {
+    setSettlementOfferUsd("");
+  }, [aiAmount, (proposal as { settlement_proposal?: unknown })?.settlement_proposal]);
 
   // Determine arbitration state from response columns
   const isAccepted = arbitrationClaimantResponse === 'accepted' && arbitrationRespondentResponse === 'accepted';
@@ -116,15 +112,19 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
     setError(null);
     setIsGenerating(true);
     try {
-      const rangeLow = rangeLowUsd.trim() !== initialRangeLow.trim() ? parseAmount(rangeLowUsd) : null;
-      const rangeHigh = rangeHighUsd.trim() !== initialRangeHigh.trim() ? parseAmount(rangeHighUsd) : null;
-      const rationaleEdit = rationaleText.trim() && rationaleText.trim() !== initialRationale.trim()
-        ? rationaleText.trim()
-        : null;
+      const numericOffer = Number(settlementOfferUsd.replace(/[^0-9.]/g, ""));
+      const offer = Number.isFinite(numericOffer) && numericOffer > 0 ? numericOffer : null;
+      // Send the party's single offer as both rangeLowUsd and rangeHighUsd
+      // so the upstream range-based arbitration model treats it as a fixed
+      // counter-offer.
       const response = await fetch(`/api/cases/${caseId}/arbitration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, rangeLowUsd: rangeLow, rangeHighUsd: rangeHigh, rationaleText: rationaleEdit }),
+        body: JSON.stringify({
+          ...body,
+          rangeLowUsd: offer,
+          rangeHighUsd: offer,
+        }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -140,7 +140,7 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+      <section className="rounded-md border border-slate-200 bg-white p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">AI arbitration</div>
@@ -160,14 +160,14 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
             type="button"
             disabled={isGenerating}
             onClick={() => void submit({ action: "generate" })}
-            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
           >
             {isGenerating ? "Generating..." : proposal ? "Regenerate proposal" : "Generate proposal"}
           </button>
         </div>
 
         {error ? (
-          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
@@ -177,18 +177,18 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
           const userResponseStatus = getUserResponseStatus();
           if (userResponseStatus === 'accepted') {
             return (
-              <div className="mt-4 rounded-2xl bg-emerald-50 border border-emerald-200 p-4">
+              <div className="mt-4 rounded-md bg-emerald-50 border border-emerald-200 p-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-emerald-600 rounded-md"></div>
                   <span className="text-sm font-medium text-emerald-900">You have accepted this proposal</span>
                 </div>
               </div>
             );
           } else if (userResponseStatus === 'rejected') {
             return (
-              <div className="mt-4 rounded-2xl bg-rose-50 border border-rose-200 p-4">
+              <div className="mt-4 rounded-md bg-rose-50 border border-rose-200 p-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-rose-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-rose-600 rounded-md"></div>
                   <span className="text-sm font-medium text-rose-900">You have rejected this proposal</span>
                 </div>
               </div>
@@ -200,76 +200,56 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
 
       
       {!proposal ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
+        <section className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
           No arbitration proposal has been generated yet.
         </section>
       ) : (
-        <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6">
-          <div className="rounded-2xl bg-emerald-50 p-5">
-            <div className="text-xs uppercase tracking-[0.16em] text-emerald-700">Proposed net range</div>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-emerald-200 bg-white p-3">
-                <div className="text-xs uppercase tracking-[0.14em] text-emerald-700">Net payer</div>
-                <div className="mt-2 text-lg font-semibold capitalize text-emerald-950">
-                  {parsed.LIABILITY || "Not set"}
-                </div>
+        <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-md bg-emerald-50 p-5">
+              <div className="text-xs uppercase tracking-[0.16em] text-emerald-700">AI-suggested amount</div>
+              <div className="mt-3 text-3xl font-semibold text-emerald-950">
+                ${aiAmount !== null ? aiAmount.toLocaleString() : "—"}
               </div>
-              <label className="rounded-2xl border border-emerald-200 bg-white p-3">
-                <span className="text-xs uppercase tracking-[0.14em] text-emerald-700">Range low</span>
-                <input
-                  value={rangeLowUsd}
-                  onChange={(event) => setRangeLowUsd(event.target.value)}
-                  inputMode="decimal"
-                  className="mt-2 w-full bg-transparent text-lg font-semibold text-emerald-950 focus:outline-none"
-                  placeholder="0"
-                />
-              </label>
-              <label className="rounded-2xl border border-emerald-200 bg-white p-3">
-                <span className="text-xs uppercase tracking-[0.14em] text-emerald-700">Range high</span>
-                <input
-                  value={rangeHighUsd}
-                  onChange={(event) => setRangeHighUsd(event.target.value)}
-                  inputMode="decimal"
-                  className="mt-2 w-full bg-transparent text-lg font-semibold text-emerald-950 focus:outline-none"
-                  placeholder="0"
-                />
-              </label>
+              <div className="mt-1 text-xs text-emerald-800">USD</div>
             </div>
-            <div className="mt-3 text-sm text-emerald-800">
-              {parsed.LIABILITY === "respondent"
-                ? `Respondent pays claimant ${formatMoney(parsed.RANGE_LOW)}-${formatMoney(parsed.RANGE_HIGH)}.`
-                : parsed.LIABILITY === "claimant"
-                  ? `Claimant pays respondent ${formatMoney(parsed.RANGE_LOW)}-${formatMoney(parsed.RANGE_HIGH)}.`
-                  : "No net payment is proposed."}
+            <div className="rounded-md border border-slate-200 p-5">
+              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Your offer (optional)</div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-2xl text-slate-400">$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={settlementOfferUsd}
+                  onChange={(event) => {
+                    const cleaned = event.target.value.replace(/[^0-9.]/g, "");
+                    setSettlementOfferUsd(cleaned);
+                  }}
+                  placeholder={aiAmount !== null ? String(aiAmount) : "0"}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-2xl font-semibold focus:border-slate-400 focus:outline-none"
+                />
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Set your own number to override the AI suggestion when you act.
+              </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Rationale</div>
-            <textarea
-              value={rationaleText}
-              onChange={(event) => setRationaleText(event.target.value)}
-              rows={18}
-              className="mt-3 w-full rounded-2xl border border-slate-200 bg-white p-4 font-mono text-sm leading-7 text-slate-800 focus:border-slate-300 focus:outline-none"
-              placeholder="Markdown-formatted arbitration rationale"
-            />
           </div>
 
           {isGenerated && (
-            <div className="rounded-2xl border border-slate-200 p-4">
+            <div className="rounded-md border border-slate-200 p-4">
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 rows={3}
                 placeholder="Optional note when accepting or rejecting the proposal"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
                   disabled={isGenerating}
                   onClick={() => void submit({ action: "accept" })}
-                  className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
                   Accept proposal
                 </button>
@@ -277,7 +257,7 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
                   type="button"
                   disabled={isGenerating}
                   onClick={() => void submit({ action: "reject", note: note.trim() || undefined })}
-                  className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-50"
+                  className="rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-50"
                 >
                   Reject proposal
                 </button>
@@ -288,20 +268,20 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
       )}
 
       {tokenCosts ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6">
+        <section className="rounded-md border border-slate-200 bg-white p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Token spend on din.org so far</div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="rounded-md bg-slate-50 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Claimant</div>
               <div className="mt-2 text-2xl font-semibold text-ink">{tokenCosts.claimant}</div>
               <div className="mt-1 text-xs text-slate-500">tokens</div>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="rounded-md bg-slate-50 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Respondent</div>
               <div className="mt-2 text-2xl font-semibold text-ink">{tokenCosts.respondent}</div>
               <div className="mt-1 text-xs text-slate-500">tokens</div>
             </div>
-            <div className="rounded-2xl bg-emerald-50 p-4">
+            <div className="rounded-md bg-emerald-50 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-emerald-700">Total</div>
               <div className="mt-2 text-2xl font-semibold text-emerald-950">{tokenCosts.total}</div>
               <div className="mt-1 text-xs text-emerald-700">tokens</div>
@@ -314,6 +294,7 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
           ) : null}
         </section>
       ) : null}
+
     </div>
   );
 }

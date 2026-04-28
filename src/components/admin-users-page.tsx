@@ -66,22 +66,22 @@ export function AdminUsersPage({ users }: AdminUsersPageProps) {
       <AdminNav />
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
       <div className="space-y-4">
         {users.map((user) => (
-          <section key={user.id} className="rounded-[28px] border border-slate-200 bg-white p-6">
+          <section key={user.id} className="rounded-md border border-slate-200 bg-white p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-ink">{user.fullName || user.email}</h2>
                 <div className="mt-1 text-sm text-slate-600">{user.email}</div>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs uppercase tracking-[0.16em] text-slate-500">
-                  <span className="rounded-full bg-slate-100 px-3 py-1">{user.role}</span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1">{user.accountStatus}</span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1">{user.balance} tokens</span>
+                  <span className="rounded-md bg-slate-100 px-3 py-1">{user.role}</span>
+                  <span className="rounded-md bg-slate-100 px-3 py-1">{user.accountStatus}</span>
+                  <span className="rounded-md bg-slate-100 px-3 py-1">{user.balance} tokens</span>
                 </div>
               </div>
 
@@ -89,7 +89,7 @@ export function AdminUsersPage({ users }: AdminUsersPageProps) {
                 type="button"
                 disabled={isPending}
                 onClick={() => submit(user.id)}
-                className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
               >
                 Save access
               </button>
@@ -109,7 +109,7 @@ export function AdminUsersPage({ users }: AdminUsersPageProps) {
                       },
                     }))
                   }
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
                 >
                   <option value="user">User</option>
                   <option value="moderator">Moderator</option>
@@ -130,7 +130,7 @@ export function AdminUsersPage({ users }: AdminUsersPageProps) {
                       },
                     }))
                   }
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
                 >
                   <option value="active">Active</option>
                   <option value="suspended">Suspended</option>
@@ -151,7 +151,7 @@ export function AdminUsersPage({ users }: AdminUsersPageProps) {
                     }))
                   }
                   rows={3}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
                 />
               </label>
             </div>

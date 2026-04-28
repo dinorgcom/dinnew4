@@ -412,6 +412,10 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
       fullName: parsed.fullName,
       email: parsed.email,
       phone: parsed.phone || null,
+      address: parsed.address || null,
+      city: parsed.city || null,
+      postalCode: parsed.postalCode || null,
+      country: parsed.country || null,
       relationship: parsed.relationship || null,
       statement: parsed.statement || null,
       statementFileUrl: parsed.attachment?.url ?? null,
@@ -496,6 +500,10 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
       fullName: parsed.fullName,
       email: parsed.email,
       phone: parsed.phone || null,
+      address: parsed.address || null,
+      city: parsed.city || null,
+      postalCode: parsed.postalCode || null,
+      country: parsed.country || null,
       company: parsed.company || null,
       expertise: parsed.expertise || null,
       role: parsed.role || null,
@@ -828,11 +836,19 @@ export async function updateCaseContacts(user: AppUser, caseId: string, payload:
   const claimantTouched =
     parsed.claimantName !== undefined ||
     parsed.claimantEmail !== undefined ||
-    parsed.claimantPhone !== undefined;
+    parsed.claimantPhone !== undefined ||
+    parsed.claimantAddress !== undefined ||
+    parsed.claimantCity !== undefined ||
+    parsed.claimantPostalCode !== undefined ||
+    parsed.claimantCountry !== undefined;
   const respondentTouched =
     parsed.respondentName !== undefined ||
     parsed.respondentEmail !== undefined ||
-    parsed.respondentPhone !== undefined;
+    parsed.respondentPhone !== undefined ||
+    parsed.respondentAddress !== undefined ||
+    parsed.respondentCity !== undefined ||
+    parsed.respondentPostalCode !== undefined ||
+    parsed.respondentCountry !== undefined;
 
   if (claimantTouched) {
     if (role !== "claimant") {
@@ -841,6 +857,10 @@ export async function updateCaseContacts(user: AppUser, caseId: string, payload:
     if (parsed.claimantName !== undefined) update.claimantName = parsed.claimantName;
     if (parsed.claimantEmail !== undefined) update.claimantEmail = parsed.claimantEmail;
     if (parsed.claimantPhone !== undefined) update.claimantPhone = parsed.claimantPhone || null;
+    if (parsed.claimantAddress !== undefined) update.claimantAddress = parsed.claimantAddress || null;
+    if (parsed.claimantCity !== undefined) update.claimantCity = parsed.claimantCity || null;
+    if (parsed.claimantPostalCode !== undefined) update.claimantPostalCode = parsed.claimantPostalCode || null;
+    if (parsed.claimantCountry !== undefined) update.claimantCountry = parsed.claimantCountry || null;
   }
 
   if (respondentTouched) {
@@ -854,6 +874,10 @@ export async function updateCaseContacts(user: AppUser, caseId: string, payload:
     if (parsed.respondentName !== undefined) update.respondentName = parsed.respondentName;
     if (parsed.respondentEmail !== undefined) update.respondentEmail = parsed.respondentEmail;
     if (parsed.respondentPhone !== undefined) update.respondentPhone = parsed.respondentPhone || null;
+    if (parsed.respondentAddress !== undefined) update.respondentAddress = parsed.respondentAddress || null;
+    if (parsed.respondentCity !== undefined) update.respondentCity = parsed.respondentCity || null;
+    if (parsed.respondentPostalCode !== undefined) update.respondentPostalCode = parsed.respondentPostalCode || null;
+    if (parsed.respondentCountry !== undefined) update.respondentCountry = parsed.respondentCountry || null;
   }
 
   if (Object.keys(update).length === 0) {

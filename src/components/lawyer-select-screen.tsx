@@ -56,7 +56,7 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
   return (
     <div className="space-y-8">
       <div className="space-y-4">
-        <div className="inline-flex rounded-full bg-ink px-4 py-2 text-sm font-medium text-white">
+        <div className="inline-flex rounded-md bg-ink px-4 py-2 text-sm font-medium text-white">
           {partyRole === "claimant" ? "Filing a claim" : "Responding to a claim"}
         </div>
         <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-ink">Choose your virtual lawyer</h1>
@@ -66,7 +66,7 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
@@ -77,7 +77,7 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
             key={lawyer.id}
             type="button"
             onClick={() => setSelected(lawyer.id)}
-            className={`rounded-[28px] border p-6 text-left transition ${
+            className={`rounded-md border p-6 text-left transition ${
               selected === lawyer.id
                 ? "border-slate-900 bg-slate-900 text-white shadow-lg"
                 : "border-slate-200 bg-white hover:-translate-y-1 hover:border-slate-300"
@@ -92,7 +92,7 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
                 </div>
               </div>
               {selected === lawyer.id ? (
-                <div className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.16em] text-white">
+                <div className="rounded-md bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.16em] text-white">
                   Selected
                 </div>
               ) : null}
@@ -105,13 +105,13 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
             </p>
           </button>
         ))}
-        <aside className="rounded-[28px] border border-[color:var(--line-soft)] bg-[color:var(--bg-panel)] p-6 lg:sticky lg:top-6 lg:self-start">
+        <aside className="rounded-md border border-[color:var(--line-soft)] bg-[color:var(--bg-panel)] p-6 lg:sticky lg:top-6 lg:self-start">
           <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Selection notes</div>
           <div className="mt-4 space-y-4 text-sm leading-7 text-[color:var(--ink-soft)]">
             <p>Choose the counsel style that matches the tone of your case record and the kind of drafting support you want.</p>
             <p>Claimants usually benefit from decisive framing. Respondents often prefer a more forensic or skeptical posture.</p>
           </div>
-          <div className="mt-6 rounded-[24px] bg-slate-950 px-5 py-4 text-white">
+          <div className="mt-6 rounded-md bg-slate-950 px-5 py-4 text-white">
             <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Current choice</div>
             <div className="mt-3 text-lg font-semibold">
               {lawyers.find((item) => item.id === selected)?.name || "No lawyer selected"}
@@ -128,7 +128,7 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
           type="button"
           disabled={!selected || saving}
           onClick={() => void confirm()}
-          className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-md bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Saving..." : "Confirm lawyer"}
         </button>
@@ -138,7 +138,7 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
           type="button"
           disabled={!selected || saving}
           onClick={() => void confirm()}
-          className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-md bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Saving..." : "Confirm lawyer"}
         </button>

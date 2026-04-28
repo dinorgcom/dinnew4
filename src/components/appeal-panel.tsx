@@ -48,7 +48,7 @@ export function AppealPanel({ caseId, canRequest }: Props) {
   }
 
   return (
-    <div className="mt-5 space-y-4 rounded-2xl border border-slate-200 p-5">
+    <div className="mt-5 space-y-4 rounded-md border border-slate-200 p-5">
       <div>
         <label className="text-xs uppercase tracking-[0.16em] text-slate-500">
           Number of jurors
@@ -59,7 +59,7 @@ export function AppealPanel({ caseId, canRequest }: Props) {
               key={count}
               type="button"
               onClick={() => setJurors(count)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
                 jurors === count
                   ? "bg-ink text-white"
                   : "border border-slate-300 text-slate-700 hover:border-slate-400"
@@ -82,10 +82,10 @@ export function AppealPanel({ caseId, canRequest }: Props) {
           onChange={(event) => setReason(event.target.value)}
           rows={3}
           placeholder="Briefly explain why you believe the judgement should be reviewed."
-          className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-slate-400 focus:outline-none"
+          className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3 text-sm focus:border-slate-400 focus:outline-none"
         />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-slate-50 p-4">
         <div className="text-sm text-slate-700">
           <span className="font-semibold text-ink">{totalCost} tokens</span>{" "}
           ({ACTION_COSTS.appeal_request} × {jurors})
@@ -94,7 +94,7 @@ export function AppealPanel({ caseId, canRequest }: Props) {
           type="button"
           disabled={!canRequest || submitting || submitted}
           onClick={() => void submit()}
-          className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
         >
           {submitted
             ? "Appeal submitted"
@@ -109,7 +109,7 @@ export function AppealPanel({ caseId, canRequest }: Props) {
         </p>
       ) : null}
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
           {error}
         </div>
       ) : null}

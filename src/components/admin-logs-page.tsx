@@ -30,12 +30,12 @@ export function AdminLogsPage({ logs }: AdminLogsPageProps) {
 
       <div className="space-y-4">
         {logs.length === 0 ? (
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
             No admin actions have been recorded yet.
           </div>
         ) : (
           logs.map((log) => (
-            <section key={log.id} className="rounded-[28px] border border-slate-200 bg-white p-6">
+            <section key={log.id} className="rounded-md border border-slate-200 bg-white p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">{log.action}</div>
@@ -51,13 +51,13 @@ export function AdminLogsPage({ logs }: AdminLogsPageProps) {
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="rounded-md bg-slate-50 p-4">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Before</div>
                   <pre className="mt-3 overflow-x-auto text-xs text-slate-700">
                     {JSON.stringify(log.beforeJson, null, 2)}
                   </pre>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="rounded-md bg-slate-50 p-4">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-500">After</div>
                   <pre className="mt-3 overflow-x-auto text-xs text-slate-700">
                     {JSON.stringify(log.afterJson, null, 2)}

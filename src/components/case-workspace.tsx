@@ -75,7 +75,7 @@ function getInitials(name?: string | null): string {
 function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLink: string | null }) {
   const ct = (record.contentType || "").toLowerCase();
   const hasFile = !!record.filePathname;
-  const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200";
+  const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-md border border-slate-200";
 
   if (!hasFile || !fileLink) {
     return (
@@ -211,22 +211,22 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
 
   const stateBadge = (() => {
     if (effectiveState === "accepted") {
-      return <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Accepted</span>;
+      return <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Accepted</span>;
     }
     if (effectiveState === "dismissed") {
-      return <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700">Dismissed</span>;
+      return <span className="rounded-md bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700">Dismissed</span>;
     }
     if (effectiveState === "auto_accepted") {
-      return <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Auto-accepted (no response)</span>;
+      return <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Auto-accepted (no response)</span>;
     }
     if (effectiveState === "expertise_requested") {
-      return <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">AI expertise requested</span>;
+      return <span className="rounded-md bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">AI expertise requested</span>;
     }
-    return <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">Awaiting review</span>;
+    return <span className="rounded-md bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">Awaiting review</span>;
   })();
 
   return (
-    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+    <div className="mt-4 rounded-md border border-slate-100 bg-slate-50/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Opposing-party review</div>
         <div className="flex items-center gap-2 text-xs">
@@ -241,7 +241,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
       </div>
 
       {effectiveState === "dismissed" && record.reviewDismissalReason ? (
-        <div className="mt-3 rounded-2xl bg-white p-3 text-sm text-slate-700">
+        <div className="mt-3 rounded-md bg-white p-3 text-sm text-slate-700">
           <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Dismissal reason</div>
           <div className="mt-1 whitespace-pre-wrap">{record.reviewDismissalReason}</div>
           {record.reviewDismissalFileName ? (
@@ -251,7 +251,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
       ) : null}
 
       {error ? (
-        <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
+        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
       ) : null}
 
       {isOpposing && effectiveState === "pending" ? (
@@ -262,7 +262,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
                 type="button"
                 disabled={submitting !== null}
                 onClick={() => void call("accept")}
-                className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                className="rounded-md bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
               >
                 {submitting === "accept" ? "Accepting..." : `Accept ${reviewLabel}`}
               </button>
@@ -270,7 +270,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
                 type="button"
                 disabled={submitting !== null}
                 onClick={() => setShowDismissForm(true)}
-                className="rounded-full border border-rose-300 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 disabled:opacity-60"
+                className="rounded-md border border-rose-300 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 disabled:opacity-60"
               >
                 Dismiss
               </button>
@@ -278,7 +278,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
                 type="button"
                 disabled={submitting !== null}
                 onClick={() => void call("request_expertise")}
-                className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
+                className="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
               >
                 {submitting === "request_expertise"
                   ? "Requesting..."
@@ -289,7 +289,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
                   type="button"
                   disabled={submitting !== null}
                   onClick={() => void call("extend")}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
                 >
                   {submitting === "extend"
                     ? "Extending..."
@@ -300,13 +300,13 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
               )}
             </div>
           ) : (
-            <div className="space-y-2 rounded-2xl border border-rose-200 bg-white p-3">
+            <div className="space-y-2 rounded-md border border-rose-200 bg-white p-3">
               <div className="text-xs font-medium text-rose-700">Reason for dismissal (required)</div>
               <textarea
                 value={dismissReason}
                 onChange={(event) => setDismissReason(event.target.value)}
                 rows={3}
-                className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Explain why this evidence should be dismissed."
               />
               <div className="flex items-center gap-2">
@@ -323,7 +323,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
                 >
                   {uploadingKey === "evidence-dismissal"
                     ? "Uploading..."
@@ -351,7 +351,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
                       attachment: dismissAttachment ?? undefined,
                     })
                   }
-                  className="rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                  className="rounded-md bg-rose-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
                 >
                   {submitting === "dismiss" ? "Submitting..." : "Submit dismissal"}
                 </button>
@@ -363,7 +363,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
                     setDismissReason("");
                     setDismissAttachment(null);
                   }}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700"
                 >
                   Cancel
                 </button>
@@ -383,7 +383,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
 }
 
 function WitnessAvatar({ record, photoUrl }: { record: RecordSummary; photoUrl: string | null }) {
-  const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-full border border-slate-200";
+  const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-md border border-slate-200";
   if (photoUrl) {
     return (
       <div className={baseClasses}>
@@ -441,47 +441,47 @@ function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: Experti
   const stateBadge = (() => {
     if (status === "published") {
       return (
-        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+        <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
           Final · DIN.ORG reviewed
         </span>
       );
     }
     if (status === "accepted") {
       return (
-        <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+        <span className="rounded-md bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
           Awaiting DIN.ORG review
         </span>
       );
     }
     if (status === "ready") {
       return (
-        <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+        <span className="rounded-md bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
           AI generated · awaiting party review
         </span>
       );
     }
     return (
-      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+      <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
         Draft
       </span>
     );
   })();
 
   return (
-    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+    <div className="mt-4 rounded-md border border-slate-100 bg-slate-50/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Expertise workflow</div>
         {stateBadge}
       </div>
 
       {record.aiAnalysis ? (
-        <div className="mt-3 whitespace-pre-wrap rounded-2xl bg-white p-3 text-sm leading-7 text-slate-700">
+        <div className="mt-3 whitespace-pre-wrap rounded-md bg-white p-3 text-sm leading-7 text-slate-700">
           {record.aiAnalysis}
         </div>
       ) : null}
 
       {error ? (
-        <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
           {error}
         </div>
       ) : null}
@@ -492,7 +492,7 @@ function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: Experti
             type="button"
             disabled={submitting !== null}
             onClick={() => void call("generate")}
-            className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+            className="rounded-md bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
           >
             {submitting === "generate" ? "Generating..." : "Generate AI expertise"}
           </button>
@@ -503,7 +503,7 @@ function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: Experti
               type="button"
               disabled={submitting !== null}
               onClick={() => void call("accept")}
-              className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="rounded-md bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               {submitting === "accept" ? "Accepting..." : "Accept"}
             </button>
@@ -511,7 +511,7 @@ function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: Experti
               type="button"
               disabled={submitting !== null}
               onClick={() => void call("regenerate")}
-              className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-60"
+              className="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-60"
             >
               {submitting === "regenerate" ? "Regenerating..." : "Regenerate"}
             </button>
@@ -522,7 +522,7 @@ function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: Experti
             type="button"
             disabled={submitting !== null}
             onClick={() => void call("finalize")}
-            className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+            className="rounded-md bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
           >
             {submitting === "finalize" ? "Finalizing..." : "Finalize as DIN.ORG reviewed"}
           </button>
@@ -571,9 +571,22 @@ async function uploadCaseFile(caseId: string, category: string, file: File) {
     method: "POST",
     body: formData,
   });
-  const result = await response.json();
+
+  // Some failures (notably 413 Request Entity Too Large from the platform
+  // edge before the route handler runs) return plain text, not JSON. Read
+  // as text first and try to parse so we can surface a useful message.
+  const raw = await response.text();
+  let result: { data?: unknown; error?: { message?: string } } = {};
+  try {
+    result = raw ? JSON.parse(raw) : {};
+  } catch {
+    result = { error: { message: raw || `Upload failed (HTTP ${response.status}).` } };
+  }
   if (!response.ok) {
-    throw new Error(result.error?.message || "Upload failed.");
+    if (response.status === 413) {
+      throw new Error("File is too large. Please upload a smaller file (under ~4 MB).");
+    }
+    throw new Error(result.error?.message || `Upload failed (HTTP ${response.status}).`);
   }
 
   return result.data as FileReference;
@@ -613,6 +626,10 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       fullName: "",
       email: "",
       phone: "",
+      address: "",
+      city: "",
+      postalCode: "",
+      country: "",
       relationship: "",
       statement: "",
       notes: "",
@@ -623,6 +640,10 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       fullName: "",
       email: "",
       phone: "",
+      address: "",
+      city: "",
+      postalCode: "",
+      country: "",
       company: "",
       expertise: "",
       role: "",
@@ -683,7 +704,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     }
 
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+      <div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
         Attached: {file.fileName}
       </div>
     );
@@ -701,7 +722,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
             <Link
               key={`${record.id}-${pathname}-${index}`}
               href={expertiseLink(record.id, index)}
-              className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400"
+              className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400"
             >
               {fileName}
             </Link>
@@ -733,14 +754,14 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
           href={baseHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400"
+          className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400"
         >
           {label}
         </Link>
         <a
           href={downloadHref}
           download={record.fileName || record.attachmentName || "download"}
-          className="inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1 text-xs font-medium text-white transition hover:bg-slate-800"
+          className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1 text-xs font-medium text-white transition hover:bg-slate-800"
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 3v8m0 0L4.5 7.5M8 11l3.5-3.5M3 13h10" />
@@ -763,7 +784,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         {idChecked ? (
           <span
             title="Identity verified via KYC"
-            className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+            className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
           >
             <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3 3 7-7" />
@@ -772,15 +793,15 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
           </span>
         ) : null}
         {accepted ? (
-          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+          <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
             Accepted
           </span>
         ) : linkExpired ? (
-          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
             Link expired
           </span>
         ) : !idChecked ? (
-          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+          <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
             Pending
           </span>
         ) : null}
@@ -799,7 +820,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
   function renderList(records: RecordSummary[], kind: "evidence" | "witnesses" | "consultants" | "expertise" | "messages") {
     if (records.length === 0) {
-      return <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">No records yet.</div>;
+      return <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">No records yet.</div>;
     }
 
     const showVerification = kind === "witnesses" || kind === "consultants";
@@ -820,7 +841,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
             : null;
 
           return (
-            <div key={record.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div key={record.id} className="rounded-md border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-4">
                 {kind === "evidence" ? (
                   <EvidenceThumbnail record={record} fileLink={evidenceFileUrl} />
@@ -1024,7 +1045,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   }
 
   return (
-    <section className="space-y-6 rounded-[28px] border border-slate-200 bg-white p-6">
+    <section className="space-y-6 rounded-md border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
@@ -1040,7 +1061,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               key={section.key}
               type="button"
               onClick={() => setActiveSection(section.key)}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
                 activeSection === section.key
                   ? "bg-ink text-white"
                   : "border border-slate-300 text-slate-700 hover:border-slate-400"
@@ -1053,7 +1074,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       ) : null}
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
@@ -1062,7 +1083,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         <div className="space-y-5">
           {props.canContribute ? (
             <form
-              className="grid gap-3 rounded-2xl bg-slate-50 p-4 md:grid-cols-2"
+              className="grid gap-3 rounded-md bg-slate-50 p-4 md:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 startTransition(async () => {
@@ -1085,7 +1106,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   }))
                 }
                 placeholder="Evidence title"
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               <select
                 value={forms.evidence.type}
@@ -1095,7 +1116,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                     evidence: { ...current.evidence, type: event.target.value },
                   }))
                 }
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="rounded-md border border-slate-300 px-4 py-3 text-sm"
               >
                 {["document", "contract", "correspondence", "photo", "video", "audio", "financial_record", "expert_report", "other"].map((type) => (
                   <option key={type} value={type}>
@@ -1113,7 +1134,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 }
                 placeholder="Description"
                 rows={3}
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm md:col-span-2"
+                className="rounded-md border border-slate-300 px-4 py-3 text-sm md:col-span-2"
               />
               {attachmentBadge(forms.evidence.attachment)}
               <div className="md:col-span-2">
@@ -1130,7 +1151,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 <button
                   type="button"
                   onClick={() => evidenceFileRef.current?.click()}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
                 >
                   {uploadingKey === "evidence" ? "Uploading..." : "Attach file"}
                 </button>
@@ -1138,7 +1159,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               <button
                 type="submit"
                 disabled={isPending || uploadingKey === "evidence"}
-                className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
+                className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
               >
                 Add evidence ({ACTION_COSTS.evidence_create} tokens)
               </button>
@@ -1152,7 +1173,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         <div className="space-y-5">
           {props.canContribute ? (
             <form
-              className="grid gap-3 rounded-2xl bg-slate-50 p-4 md:grid-cols-2"
+              className="grid gap-3 rounded-md bg-slate-50 p-4 md:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 
@@ -1179,7 +1200,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   if (success) {
                     setForms((current) => ({
                       ...current,
-                      witness: { fullName: "", email: "", phone: "", relationship: "", statement: "", notes: "", attachment: null, photo: null },
+                      witness: { fullName: "", email: "", phone: "", address: "", city: "", postalCode: "", country: "", relationship: "", statement: "", notes: "", attachment: null, photo: null },
                     }));
                     setEmailError(null);
                     setFullNameError(null);
@@ -1191,11 +1212,15 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 { key: "fullName", label: "Full Name" },
                 { key: "email", label: "Email" },
                 { key: "phone", label: "Phone (optional)" },
-                { key: "relationship", label: "Relationship (optional)" }
+                { key: "relationship", label: "Relationship (optional)" },
+                { key: "address", label: "Street address (optional)" },
+                { key: "postalCode", label: "Postal code (optional)" },
+                { key: "city", label: "City (optional)" },
+                { key: "country", label: "Country (optional)" },
               ].map(({ key, label }) => (
                 <div key={key}>
                   <input
-                    value={forms.witness[key as "fullName" | "email" | "phone" | "relationship"]}
+                    value={forms.witness[key as "fullName" | "email" | "phone" | "relationship" | "address" | "city" | "postalCode" | "country"]}
                     onChange={(event) => {
                       const value = event.target.value;
                       setForms((current) => ({
@@ -1220,7 +1245,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                       }
                     }}
                     placeholder={label}
-                    className={`rounded-2xl border px-4 py-3 text-sm w-full ${
+                    className={`rounded-md border px-4 py-3 text-sm w-full ${
                       (key === "email" && emailError) || (key === "fullName" && fullNameError)
                         ? "border-red-300 focus:border-red-500"
                         : "border-slate-300 focus:border-slate-400"
@@ -1244,17 +1269,17 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 }
                 placeholder="Witness for:"
                 rows={3}
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm md:col-span-2"
+                className="rounded-md border border-slate-300 px-4 py-3 text-sm md:col-span-2"
               />
               <div className="md:col-span-2 flex items-center gap-3">
                 {forms.witness.photo ? (
                   <img
                     src={forms.witness.photo.url}
                     alt="Witness preview"
-                    className="h-12 w-12 rounded-full border border-slate-200 object-cover"
+                    className="h-12 w-12 rounded-md border border-slate-200 object-cover"
                   />
                 ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-slate-400">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-slate-300 text-xs text-slate-400">
                     {getInitials(forms.witness.fullName)}
                   </div>
                 )}
@@ -1277,7 +1302,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 <button
                   type="button"
                   onClick={() => witnessPhotoRef.current?.click()}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
                 >
                   {uploadingKey === "witness-photo"
                     ? "Uploading..."
@@ -1303,7 +1328,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               <button
                 type="submit"
                 disabled={isPending || uploadingKey === "witness-photo" || !!emailError || !!fullNameError}
-                className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
+                className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
               >
                 Add witness ({ACTION_COSTS.witness_create} tokens)
               </button>
@@ -1317,7 +1342,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         <div className="space-y-5">
           {props.canContribute ? (
             <form
-              className="grid gap-3 rounded-2xl bg-slate-50 p-4 md:grid-cols-2"
+              className="grid gap-3 rounded-md bg-slate-50 p-4 md:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 
@@ -1348,6 +1373,10 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                         fullName: "",
                         email: "",
                         phone: "",
+                        address: "",
+                        city: "",
+                        postalCode: "",
+                        country: "",
                         company: "",
                         expertise: "",
                         role: "",
@@ -1368,11 +1397,15 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 { key: "phone", label: "Phone (optional)" },
                 { key: "company", label: "Company (optional)" },
                 { key: "expertise", label: "Expertise (optional)" },
-                { key: "role", label: "Role (optional)" }
+                { key: "role", label: "Role (optional)" },
+                { key: "address", label: "Street address (optional)" },
+                { key: "postalCode", label: "Postal code (optional)" },
+                { key: "city", label: "City (optional)" },
+                { key: "country", label: "Country (optional)" },
               ].map(({ key, label }) => (
                 <div key={key}>
                   <input
-                    value={forms.consultant[key as "fullName" | "email" | "phone" | "company" | "expertise" | "role"]}
+                    value={forms.consultant[key as "fullName" | "email" | "phone" | "company" | "expertise" | "role" | "address" | "city" | "postalCode" | "country"]}
                     onChange={(event) => {
                       const value = event.target.value;
                       setForms((current) => ({
@@ -1397,7 +1430,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                       }
                     }}
                     placeholder={label}
-                    className={`rounded-2xl border px-4 py-3 text-sm w-full ${
+                    className={`rounded-md border px-4 py-3 text-sm w-full ${
                       (key === "email" && consultantEmailError) || (key === "fullName" && consultantFullNameError)
                         ? "border-red-300 focus:border-red-500"
                         : "border-slate-300 focus:border-slate-400"
@@ -1421,7 +1454,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 }
                 placeholder="Report summary"
                 rows={3}
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm md:col-span-2"
+                className="rounded-md border border-slate-300 px-4 py-3 text-sm md:col-span-2"
               />
               {attachmentBadge(forms.consultant.attachment)}
               <div className="md:col-span-2">
@@ -1438,12 +1471,12 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 <button
                   type="button"
                   onClick={() => consultantFileRef.current?.click()}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
                 >
                   {uploadingKey === "consultants" ? "Uploading..." : "Attach report file"}
                 </button>
               </div>
-              <button type="submit" disabled={isPending || uploadingKey === "consultants" || !!consultantEmailError || !!consultantFullNameError} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2">
+              <button type="submit" disabled={isPending || uploadingKey === "consultants" || !!consultantEmailError || !!consultantFullNameError} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2">
                 Add consultant ({ACTION_COSTS.consultant_create} tokens)
               </button>
             </form>
@@ -1456,7 +1489,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         <div className="space-y-5">
           {props.canContribute ? (
             <form
-              className="grid gap-3 rounded-2xl bg-slate-50 p-4"
+              className="grid gap-3 rounded-md bg-slate-50 p-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 startTransition(async () => {
@@ -1479,7 +1512,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   }))
                 }
                 placeholder="Expertise title"
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               <textarea
                 value={forms.expertise.description}
@@ -1491,12 +1524,12 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 }
                 placeholder="What analysis is needed?"
                 rows={4}
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                className="rounded-md border border-slate-300 px-4 py-3 text-sm"
               />
               {forms.expertise.attachments.length ? (
                 <div className="flex flex-wrap gap-2">
                   {forms.expertise.attachments.map((file) => (
-                    <div key={file.pathname} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                    <div key={file.pathname} className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
                       {file.fileName}
                     </div>
                   ))}
@@ -1523,12 +1556,12 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 <button
                   type="button"
                   onClick={() => expertiseFileRef.current?.click()}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
                 >
                   {uploadingKey === "expertise" ? "Uploading..." : "Attach supporting files"}
                 </button>
               </div>
-              <button type="submit" disabled={isPending || uploadingKey === "expertise"} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
+              <button type="submit" disabled={isPending || uploadingKey === "expertise"} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
                 Generate expertise by AI with human review ({ACTION_COSTS.expertise_create} tokens)
               </button>
             </form>
@@ -1540,7 +1573,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       {activeSection === "messages" ? (
         <div className="space-y-5">
           <form
-            className="grid gap-3 rounded-2xl bg-slate-50 p-4"
+            className="grid gap-3 rounded-md bg-slate-50 p-4"
             onSubmit={(event) => {
               event.preventDefault();
               startTransition(async () => {
@@ -1564,7 +1597,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               }
               placeholder={`Send a message as ${props.roleLabel}`}
               rows={3}
-              className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+              className="rounded-md border border-slate-300 px-4 py-3 text-sm"
             />
             {attachmentBadge(forms.message.attachment)}
             <div>
@@ -1581,12 +1614,12 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               <button
                 type="button"
                 onClick={() => messageFileRef.current?.click()}
-                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
               >
                 {uploadingKey === "messages" ? "Uploading..." : "Attach file"}
               </button>
             </div>
-            <button type="submit" disabled={isPending || uploadingKey === "messages"} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
+            <button type="submit" disabled={isPending || uploadingKey === "messages"} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
               Send message
             </button>
           </form>

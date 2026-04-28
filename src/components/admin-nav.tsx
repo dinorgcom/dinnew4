@@ -21,7 +21,7 @@ export function AdminNav() {
           key={item.href}
           href={item.href}
           className={cn(
-            "rounded-full px-4 py-2 text-sm font-medium transition",
+            "rounded-md px-4 py-2 text-sm font-medium transition",
             pathname === item.href
               ? "bg-ink text-white"
               : "border border-slate-300 text-slate-700 hover:border-slate-400",

@@ -61,7 +61,7 @@ export function PreFilingLawyerChat({ lawyerKey, draftCaseData }: PreFilingLawye
   }
 
   return (
-    <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6">
+    <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
       <div>
         <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Pre-filing lawyer</div>
         <h2 className="mt-2 text-2xl font-semibold text-ink">{lawyer.name}</h2>
@@ -71,21 +71,21 @@ export function PreFilingLawyerChat({ lawyerKey, draftCaseData }: PreFilingLawye
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
       <div className="space-y-3">
         {messages.length === 0 ? (
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+          <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
             No messages yet. Ask what is missing, how to sharpen the claim, or what evidence to add.
           </div>
         ) : (
           messages.map((message, index) => (
             <div
               key={`${message.role}-${index}`}
-              className={`rounded-2xl px-4 py-3 text-sm leading-7 ${
+              className={`rounded-md px-4 py-3 text-sm leading-7 ${
                 message.role === "assistant" ? "bg-ink text-white" : "bg-slate-50 text-slate-700"
               }`}
             >
@@ -101,13 +101,13 @@ export function PreFilingLawyerChat({ lawyerKey, draftCaseData }: PreFilingLawye
           onChange={(event) => setInput(event.target.value)}
           rows={3}
           placeholder={`Ask ${lawyer.name} about your draft case...`}
-          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+          className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
         />
         <button
           type="button"
           disabled={!input.trim() || sending}
           onClick={() => void send()}
-          className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
         >
           {sending ? "Sending..." : `Ask ${lawyer.name}`}
         </button>

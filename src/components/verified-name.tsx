@@ -43,7 +43,7 @@ export function VerifiedName({
 }: Props) {
   const verifiedBadge =
     showBadge && identity.source === "verified" ? (
-      <span className="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+      <span className="ml-2 inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
         Verified
       </span>
     ) : null;
