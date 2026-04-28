@@ -450,95 +450,170 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     return true;
   }
 
-  function renderClaims(kind: "claimant" | "respondent") {
+  function renderClaimEntry(
+    kind: "claimant" | "respondent",
+    index: number,
+    claim: Claim,
+  ) {
     const claims = kind === "claimant" ? claimantClaims : respondentClaims;
     const setClaims = kind === "claimant" ? setClaimantClaims : setRespondentClaims;
     const canEdit = detail.role === kind;
+    const eyebrow = kind === "claimant" ? `CLAIM ${index + 1}` : `DEFENSE ${index + 1}`;
+    const eyebrowClass =
+      kind === "claimant"
+        ? "text-rose-600"
+        : "text-indigo-600";
+    const cardClass =
+      kind === "claimant"
+        ? "rounded-md border border-slate-200 bg-white p-4"
+        : "ml-6 rounded-md border border-indigo-200 bg-indigo-50/40 p-4";
+
+    return (
+      <div key={`${kind}-${index}`} className={cardClass}>
+        <div className="flex items-start justify-between gap-3">
+          <div className={`text-xs font-semibold uppercase tracking-[0.18em] ${eyebrowClass}`}>
+            {eyebrow}
+          </div>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={() => setClaims(claims.filter((_, claimIndex) => claimIndex !== index))}
+              className="rounded-md border border-rose-300 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-600 hover:bg-rose-100"
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
+        {canEdit ? (
+          <div className="mt-3 space-y-3">
+            <input
+              value={claim.claim}
+              onChange={(event) =>
+                setClaims(
+                  claims.map((item, claimIndex) =>
+                    claimIndex === index ? { ...item, claim: event.target.value } : item,
+                  ),
+                )
+              }
+              placeholder={kind === "claimant" ? "Claim title" : "Defense title"}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <textarea
+              value={claim.details || ""}
+              onChange={(event) =>
+                setClaims(
+                  claims.map((item, claimIndex) =>
+                    claimIndex === index ? { ...item, details: event.target.value } : item,
+                  ),
+                )
+              }
+              rows={3}
+              placeholder="Details"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        ) : (
+          <>
+            <div className="mt-2 font-semibold text-slate-900">{claim.claim || "—"}</div>
+            <div className="mt-2 text-sm leading-7 text-slate-600 whitespace-pre-wrap">{claim.details}</div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function renderClaimsAndDefenses() {
+    const total = Math.max(claimantClaims.length, respondentClaims.length);
+    const canEditClaimant = detail.role === "claimant";
+    const canEditRespondent = detail.role === "respondent";
 
     return (
       <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-ink">
-            {kind === "claimant" ? "Claimant claims" : "Respondent defenses"}
-          </h3>
-          {canEdit ? (
-            <button
-              type="button"
-              onClick={() => setClaims([...claims, { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] }])}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-            >
-              Add entry
-            </button>
-          ) : null}
+          <h3 className="text-xl font-semibold text-ink">Claims &amp; defenses</h3>
+          <div className="flex gap-2">
+            {canEditClaimant ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setClaimantClaims([
+                    ...claimantClaims,
+                    { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] },
+                  ])
+                }
+                className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+              >
+                + Add claim
+              </button>
+            ) : null}
+            {canEditRespondent ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setRespondentClaims([
+                    ...respondentClaims,
+                    { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] },
+                  ])
+                }
+                className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+              >
+                + Add defense
+              </button>
+            ) : null}
+          </div>
         </div>
-        <div className="space-y-4">
-          {claims.length === 0 ? (
-            <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">No entries yet.</div>
-          ) : (
-            claims.map((claim, index) => (
-              <div key={`${kind}-${index}`} className="rounded-md bg-slate-50 p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    {canEdit ? (
-                      <>
-                        <input
-                          value={claim.claim}
-                          onChange={(event) =>
-                            setClaims(
-                              claims.map((item, claimIndex) =>
-                                claimIndex === index ? { ...item, claim: event.target.value } : item,
-                              ),
-                            )
-                          }
-                          placeholder="Claim or defense title"
-                          className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
-                        />
-                        <textarea
-                          value={claim.details || ""}
-                          onChange={(event) =>
-                            setClaims(
-                              claims.map((item, claimIndex) =>
-                                claimIndex === index ? { ...item, details: event.target.value } : item,
-                              ),
-                            )
-                          }
-                          rows={3}
-                          className="mt-3 w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
-                        />
-                      </>
+        {total === 0 ? (
+          <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
+            No claims submitted yet.
+          </div>
+        ) : (
+          <ol className="space-y-4">
+            {Array.from({ length: total }).map((_, index) => (
+              <li key={index} className="space-y-3">
+                {claimantClaims[index]
+                  ? renderClaimEntry("claimant", index, claimantClaims[index])
+                  : canEditClaimant ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setClaimantClaims([
+                            ...claimantClaims,
+                            { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] },
+                          ])
+                        }
+                        className="w-full rounded-md border border-dashed border-rose-300 bg-rose-50/40 p-3 text-left text-xs text-rose-700 hover:bg-rose-50"
+                      >
+                        + Add CLAIM {index + 1}
+                      </button>
                     ) : (
-                      <>
-                        <div className="font-semibold text-slate-900">{claim.claim}</div>
-                        <div className="mt-2 text-sm leading-7 text-slate-600">{claim.details}</div>
-                      </>
-                    )}
-                  </div>
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      onClick={() => setClaims(claims.filter((_, claimIndex) => claimIndex !== index))}
-                      className="ml-3 rounded-md border border-rose-300 bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100"
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </div>
-                {claim.responses?.length ? (
-                  <div className="mt-4 space-y-2">
-                    {claim.responses.map((response, responseIndex) => (
-                      <div key={`${kind}-${index}-${responseIndex}`} className="rounded-md bg-white p-3 text-sm text-slate-700">
-                        <div>{response.response}</div>
-                        <div className="mt-1 text-xs uppercase tracking-[0.15em] text-slate-400">
-                          {response.submittedBy} · {formatDateTime(response.submittedDate)}
-                        </div>
+                      <div className="rounded-md border border-dashed border-slate-200 p-3 text-xs text-slate-400">
+                        No claim {index + 1} from claimant
                       </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))
-          )}
-        </div>
+                    )}
+                {respondentClaims[index]
+                  ? renderClaimEntry("respondent", index, respondentClaims[index])
+                  : canEditRespondent ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRespondentClaims([
+                            ...respondentClaims,
+                            { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] },
+                          ])
+                        }
+                        className="ml-6 w-[calc(100%-1.5rem)] rounded-md border border-dashed border-indigo-300 bg-indigo-50/30 p-3 text-left text-xs text-indigo-700 hover:bg-indigo-50/60"
+                      >
+                        + Add DEFENSE {index + 1}
+                      </button>
+                    ) : (
+                      <div className="ml-6 rounded-md border border-dashed border-slate-200 p-3 text-xs text-slate-400">
+                        No defense {index + 1} from respondent
+                      </div>
+                    )}
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
     );
   }
@@ -563,15 +638,38 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               const needsAttention = !!tabAttention[tab.key];
               const isOverview = tab.key === "overview";
               const isActive = activeTab === tab.key;
-              const tabClass = isOverview
-                ? isActive
-                  ? "bg-rose-700 text-white shadow"
-                  : "bg-rose-600 text-white hover:bg-rose-700"
-                : isActive
-                  ? "bg-white text-ink shadow"
-                  : needsAttention
-                    ? "bg-orange-500/90 text-white hover:bg-orange-500"
-                    : "text-slate-300 hover:bg-white/10 hover:text-white";
+              if (isOverview) {
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key)}
+                    role="tab"
+                    id={`tab-${tab.key}`}
+                    aria-selected={isActive}
+                    aria-controls={`panel-${tab.key}`}
+                    className={`block w-full rounded-md px-3 py-2.5 text-left transition ${
+                      isActive ? "bg-rose-700 shadow" : "bg-rose-600 hover:bg-rose-700"
+                    }`}
+                  >
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-rose-100">Case</div>
+                    <div className="mt-1 truncate text-sm font-semibold text-white">
+                      {detail.case.title}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-rose-100">
+                      <span>{detail.case.caseNumber}</span>
+                      <span className="text-base font-bold text-white capitalize">
+                        {detail.case.status.replaceAll("_", " ")}
+                      </span>
+                    </div>
+                  </button>
+                );
+              }
+              const tabClass = isActive
+                ? "bg-white text-ink shadow"
+                : needsAttention
+                  ? "bg-orange-500/90 text-white hover:bg-orange-500"
+                  : "text-slate-300 hover:bg-white/10 hover:text-white";
               return (
                 <button
                   key={tab.key}
@@ -581,11 +679,9 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                   id={`tab-${tab.key}`}
                   aria-selected={isActive}
                   aria-controls={`panel-${tab.key}`}
-                  className={`flex items-start justify-between rounded-md px-4 py-2.5 text-sm font-medium transition ${tabClass} ${isOverview ? "font-semibold" : ""}`}
+                  className={`flex items-start justify-between rounded-md px-4 py-2.5 text-sm font-medium transition ${tabClass}`}
                 >
-                  <span className={isOverview ? "line-clamp-2 text-left leading-snug" : "truncate"}>
-                    {isOverview ? detail.case.title : tab.label}
-                  </span>
+                  <span className="truncate">{tab.label}</span>
                   {tabCounts[tab.key as keyof typeof tabCounts] > 0 ? (
                     <span className={`ml-2 rounded-md px-2 py-0.5 text-xs font-semibold ${
                       isActive ? "bg-ink/10 text-ink" : needsAttention ? "bg-white/30 text-white" : "bg-white/10 text-slate-200"
@@ -593,7 +689,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                       {tabCounts[tab.key as keyof typeof tabCounts]}
                     </span>
                   ) : needsAttention ? (
-                    <span className="ml-2 inline-block h-2 w-2 shrink-0 self-center rounded-full bg-white" aria-hidden="true" />
+                    <span className="ml-2 inline-block h-2 w-2 shrink-0 self-center rounded-md bg-white" aria-hidden="true" />
                   ) : null}
                 </button>
               );
@@ -1147,28 +1243,25 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "claims" ? (
         <div id="panel-claims" role="tabpanel" aria-labelledby="tab-claims" className="space-y-6">
-          {renderClaims("claimant")}
-          {renderClaims("respondent")}
+          {renderClaimsAndDefenses()}
           {detail.role !== "moderator" && detail.role !== "admin" ? (
-            <section className="rounded-md border border-slate-200 bg-white p-6">
-              <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Save claims</div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    startTransition(() =>
-                      void patch(`/api/cases/${detail.case.id}/claims`, {
-                        claimantClaims,
-                        respondentClaims,
-                      }),
-                    )
-                  }
-                  className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white"
-                >
-                  Save claims
-                </button>
-              </div>
-            </section>
+            <div className="sticky bottom-0 flex justify-end rounded-md border border-slate-200 bg-white/95 p-3 backdrop-blur">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() =>
+                  startTransition(() =>
+                    void patch(`/api/cases/${detail.case.id}/claims`, {
+                      claimantClaims,
+                      respondentClaims,
+                    }),
+                  )
+                }
+                className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {isPending ? "Saving..." : "Save claims"}
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}

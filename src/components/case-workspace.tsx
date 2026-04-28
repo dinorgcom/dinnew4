@@ -134,12 +134,24 @@ function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLi
   }
 
   if (isPdf) {
+    // Embed the actual PDF as a thumbnail. Browsers render the first page;
+    // pointer-events are disabled so the surrounding link still handles clicks.
     return (
-      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} flex flex-col items-center justify-center bg-rose-50 text-rose-600`}>
-        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-6 4h6M7 21h10a2 2 0 0 0 2-2V7l-5-5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2Z" />
-        </svg>
-        <span className="mt-0.5 text-[10px] font-semibold tracking-wide">PDF</span>
+      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} relative block overflow-hidden bg-rose-50`}>
+        <object
+          data={`${fileLink}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+          type="application/pdf"
+          className="pointer-events-none h-full w-full"
+          aria-label={record.title || "PDF"}
+        >
+          <div className="flex h-full w-full flex-col items-center justify-center text-rose-600">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-6 4h6M7 21h10a2 2 0 0 0 2-2V7l-5-5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2Z" />
+            </svg>
+            <span className="mt-0.5 text-[10px] font-semibold tracking-wide">PDF</span>
+          </div>
+        </object>
+        <span className="pointer-events-none absolute bottom-0 right-0 rounded-tl-md bg-rose-600 px-1 text-[8px] font-bold uppercase tracking-wide text-white">PDF</span>
       </a>
     );
   }

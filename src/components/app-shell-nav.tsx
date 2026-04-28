@@ -10,8 +10,6 @@ type NavItem = {
   label: string;
 };
 
-const claimantItem: NavItem = { href: "/claimant" as Route, label: "Claimant" };
-const respondentItem: NavItem = { href: "/respondent" as Route, label: "Respondent" };
 const casesItem: NavItem = { href: "/cases" as Route, label: "Cases" };
 const newCaseItem: NavItem = { href: "/cases/new" as Route, label: "New case" };
 const billingItem: NavItem = { href: "/billing" as Route, label: "Buy tokens" };
@@ -29,13 +27,8 @@ type AppShellNavProps = {
   caseSummary?: CaseSummary;
 };
 
-function buildItems(role: string, summary?: CaseSummary): NavItem[] {
-  const isPrivilegedRole = role === "admin" || role === "moderator";
-  if (isPrivilegedRole || !summary) {
-    return [claimantItem, respondentItem, casesItem, newCaseItem, billingItem, settingsItem];
-  }
-
-  if (summary.singleCase) {
+function buildItems(_role: string, summary?: CaseSummary): NavItem[] {
+  if (summary?.singleCase) {
     return [
       {
         href: `/cases/${summary.singleCase.id}` as Route,
@@ -46,14 +39,7 @@ function buildItems(role: string, summary?: CaseSummary): NavItem[] {
       settingsItem,
     ];
   }
-
-  const items: NavItem[] = [];
-  const showClaimant = summary.claimantCount > 0 || summary.total === 0;
-  const showRespondent = summary.respondentCount > 0 || summary.total === 0;
-  if (showClaimant) items.push(claimantItem);
-  if (showRespondent) items.push(respondentItem);
-  items.push(casesItem, newCaseItem, billingItem, settingsItem);
-  return items;
+  return [casesItem, newCaseItem, billingItem, settingsItem];
 }
 
 export function AppShellNav({ role, caseSummary }: AppShellNavProps) {

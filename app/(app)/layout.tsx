@@ -44,8 +44,9 @@ export default async function AppLayout({
       <div className="grid min-h-screen lg:grid-cols-[224px_minmax(0,1fr)]">
         <aside className="sticky top-0 z-10 flex h-screen flex-col overflow-y-auto bg-ink p-4 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
           <div className="flex items-start justify-between gap-4">
-            <Link href="/dashboard" className="text-xl font-semibold tracking-tight text-white">
-              DIN.ORG
+            <Link href="/dashboard" className="flex items-center gap-2 text-xl font-semibold tracking-tight text-white">
+              <img src="/din-logo.svg" alt="DIN.ORG" className="h-7 w-7 rounded-sm" />
+              <span>DIN.ORG</span>
             </Link>
             <UserButton afterSignOutUrl="/" />
           </div>
