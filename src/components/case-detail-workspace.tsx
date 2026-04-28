@@ -215,7 +215,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const finalRulingIssued =
     detail.case.status === "resolved" || !!detail.case.finalDecision;
 
-  const progressStages: Array<{ key: string; label: string; completed: boolean }> = [
+  const progressStagesRaw: Array<{ key: string; label: string; completed: boolean }> = [
     { key: "lawyer", label: "Lawyer selection", completed: selectedLawyer !== null },
     { key: "claims", label: "Submit claims", completed: claimsSubmitted },
     { key: "notify", label: "Notify the opponent", completed: detail.respondentNotified },
@@ -228,6 +228,17 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     { key: "appeal", label: "Appeal", completed: false },
     { key: "final", label: "Final Ruling", completed: finalRulingIssued },
   ];
+
+  // Enforce sequential completion: a stage is only "completed" if all prior
+  // stages are also completed. This way an out-of-order data flag (e.g. an
+  // arbitration proposal arriving before discovery is finished) doesn't make
+  // a downstream stage look done while an upstream one is still pending.
+  let priorAllCompleted = true;
+  const progressStages = progressStagesRaw.map((stage) => {
+    const completed = priorAllCompleted && stage.completed;
+    priorAllCompleted = completed;
+    return { ...stage, completed };
+  });
 
   const firstPendingIndex = progressStages.findIndex((stage) => !stage.completed);
   const activeStageIndex = firstPendingIndex === -1 ? progressStages.length - 1 : firstPendingIndex;
@@ -438,9 +449,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 aria-selected={activeTab === tab.key}
                 aria-controls={`panel-${tab.key}`}
                 className={`flex items-start justify-between rounded-2xl px-4 py-2.5 text-sm font-medium transition ${
-                  activeTab === tab.key
-                    ? "bg-ink text-white shadow"
-                    : "border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                  tab.key === "overview"
+                    ? activeTab === tab.key
+                      ? "bg-rose-700 text-white shadow ring-2 ring-rose-300"
+                      : "bg-rose-600 text-white hover:bg-rose-700"
+                    : activeTab === tab.key
+                      ? "bg-ink text-white shadow"
+                      : "border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                 } ${tab.key === "overview" ? "font-semibold" : ""}`}
               >
                 <span className={tab.key === "overview" ? "line-clamp-2 text-left leading-snug" : "truncate"}>

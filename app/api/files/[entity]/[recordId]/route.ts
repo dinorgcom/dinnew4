@@ -11,7 +11,7 @@ type RouteProps = {
   params: Promise<{ entity: string; recordId: string }>;
 };
 
-async function serveBlob(url: string) {
+async function serveBlob(url: string, opts: { download?: boolean; fileName?: string | null } = {}) {
   if (!env.BLOB_READ_WRITE_TOKEN) {
     return new Response("Blob token not configured", { status: 500 });
   }
@@ -26,10 +26,16 @@ async function serveBlob(url: string) {
     return new Response("Not found", { status: 404 });
   }
 
+  let disposition = blob.blob.contentDisposition;
+  if (opts.download) {
+    const safeName = (opts.fileName || "download").replace(/"/g, "");
+    disposition = `attachment; filename="${safeName}"`;
+  }
+
   return new Response(blob.stream, {
     headers: {
       "content-type": blob.blob.contentType,
-      "content-disposition": blob.blob.contentDisposition,
+      "content-disposition": disposition,
       "cache-control": blob.blob.cacheControl,
       etag: blob.blob.etag,
     },
@@ -40,6 +46,7 @@ export async function GET(request: Request, { params }: RouteProps) {
   const { entity, recordId } = await params;
   const requestUrl = new URL(request.url);
   const index = Number(requestUrl.searchParams.get("index") || "0");
+  const download = requestUrl.searchParams.get("download") === "1";
   const user = await ensureAppUser();
   const db = getDb();
 
@@ -53,7 +60,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return serveBlob(record.fileUrl);
+    return serveBlob(record.fileUrl, { download, fileName: record.fileName });
   }
 
   if (entity === "witnesses") {
@@ -71,7 +78,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return serveBlob(sourceUrl);
+    return serveBlob(sourceUrl, { download, fileName: record.fullName ?? null });
   }
 
   if (entity === "consultants") {
@@ -84,7 +91,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return serveBlob(record.reportFileUrl);
+    return serveBlob(record.reportFileUrl, { download, fileName: record.fullName ?? null });
   }
 
   if (entity === "messages") {
@@ -97,14 +104,14 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return serveBlob(record.attachmentUrl);
+    return serveBlob(record.attachmentUrl, { download, fileName: record.attachmentName ?? null });
   }
 
   if (entity === "expertise") {
     const rows = await db.select().from(expertiseRequests).where(eq(expertiseRequests.id, recordId)).limit(1);
     const record = rows[0];
     const attachments = Array.isArray(record?.fileReferences) ? record.fileReferences : [];
-    const selected = attachments[index] as { url?: string } | undefined;
+    const selected = attachments[index] as { url?: string; fileName?: string } | undefined;
     if (!selected?.url || !record) {
       return new Response("Not found", { status: 404 });
     }
@@ -112,7 +119,7 @@ export async function GET(request: Request, { params }: RouteProps) {
     if (!authorized) {
       return new Response("Forbidden", { status: 403 });
     }
-    return serveBlob(selected.url);
+    return serveBlob(selected.url, { download, fileName: selected.fileName ?? null });
   }
 
   return new Response("Not found", { status: 404 });

@@ -579,15 +579,30 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
     const label =
       record.fileName || record.attachmentName || "Open attachment";
+    const proxyEntity = kind === "messages" ? "messages" : kind;
+    const baseHref = fileLink(proxyEntity, record.id);
+    const downloadHref = `${baseHref}${baseHref.includes("?") ? "&" : "?"}download=1` as Route;
 
     return (
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Link
-          href={fileLink(kind === "messages" ? "messages" : kind, record.id)}
+          href={baseHref}
+          target="_blank"
+          rel="noopener noreferrer"
           className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400"
         >
           {label}
         </Link>
+        <a
+          href={downloadHref}
+          download={record.fileName || record.attachmentName || "download"}
+          className="inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1 text-xs font-medium text-white transition hover:bg-slate-800"
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 3v8m0 0L4.5 7.5M8 11l3.5-3.5M3 13h10" />
+          </svg>
+          Download
+        </a>
       </div>
     );
   }
@@ -859,7 +874,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     <section className="space-y-6 rounded-[28px] border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Case records</h2>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
+            {sections.find((s) => s.key === activeSection)?.label || "Case records"}
+          </h2>
         </div>
       </div>
 
