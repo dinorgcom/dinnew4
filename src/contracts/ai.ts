@@ -8,23 +8,26 @@ export const auditRequestSchema = z.object({
 export const arbitrationActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("generate"),
-    settlementOfferUsd: z.number().nullable().optional(),
-    settlementProposalText: z.string().trim().max(4000).nullable().optional(),
+    rangeLowUsd: z.number().nonnegative().nullable().optional(),
+    rangeHighUsd: z.number().nonnegative().nullable().optional(),
+    rationaleText: z.string().trim().max(20000).nullable().optional(),
   }),
   z.object({
     action: z.literal("accept"),
     arbitrationClaimantResponse: z.enum(["accepted", "rejected"]).optional(),
     arbitrationRespondentResponse: z.enum(["accepted", "rejected"]).optional(),
-    settlementOfferUsd: z.number().nullable().optional(),
-    settlementProposalText: z.string().trim().max(4000).nullable().optional(),
+    rangeLowUsd: z.number().nonnegative().nullable().optional(),
+    rangeHighUsd: z.number().nonnegative().nullable().optional(),
+    rationaleText: z.string().trim().max(20000).nullable().optional(),
   }),
   z.object({
     action: z.literal("reject"),
     note: z.string().trim().max(500).optional(),
     arbitrationClaimantResponse: z.enum(["accepted", "rejected"]).optional(),
     arbitrationRespondentResponse: z.enum(["accepted", "rejected"]).optional(),
-    settlementOfferUsd: z.number().nullable().optional(),
-    settlementProposalText: z.string().trim().max(4000).nullable().optional(),
+    rangeLowUsd: z.number().nonnegative().nullable().optional(),
+    rangeHighUsd: z.number().nonnegative().nullable().optional(),
+    rationaleText: z.string().trim().max(20000).nullable().optional(),
   }),
 ]);
 

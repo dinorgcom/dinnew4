@@ -28,13 +28,25 @@ const auditOutputSchema = z.object({
 });
 
 const arbitrationOutputSchema = z.object({
-  claimant_perspective: z.string(),
-  respondent_perspective: z.string(),
-  common_ground: z.array(z.string()).min(2).max(6),
-  settlement_proposal: z.string(),
-  settlement_amount: z.number().nonnegative(),
-  rationale: z.string(),
-  next_steps: z.array(z.string()).min(2).max(5),
+  LIABILITY: z.enum(["claimant", "respondent", "none"]),
+  RANGE_LOW: z.number().nonnegative(),
+  RANGE_HIGH: z.number().nonnegative(),
+  RATIONALE: z.string(),
+}).superRefine((value, ctx) => {
+  if (value.RANGE_LOW > value.RANGE_HIGH) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "RANGE_LOW must be less than or equal to RANGE_HIGH.",
+      path: ["RANGE_LOW"],
+    });
+  }
+  if (value.LIABILITY === "none" && (value.RANGE_LOW !== 0 || value.RANGE_HIGH !== 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "No-liability proposals must use a zero range.",
+      path: ["LIABILITY"],
+    });
+  }
 });
 
 const judgementOutputSchema = z.object({
@@ -128,6 +140,77 @@ function compactCaseContext(detail: NonNullable<Awaited<ReturnType<typeof getCas
       createdAt: item.createdAt,
     })),
   };
+}
+
+function toFiniteNonnegativeNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^0-9.]/g, ""));
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  }
+  return null;
+}
+
+function formatCurrencyRange(low: number | null, high: number | null) {
+  const format = (value: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(value);
+
+  if (low === null || high === null) return "the proposed range";
+  if (low === high) return format(low);
+  return `${format(low)}-${format(high)}`;
+}
+
+function applyArbitrationProposalOverrides(
+  proposal: Record<string, unknown>,
+  rangeLowUsd?: number | null,
+  rangeHighUsd?: number | null,
+  rationaleText?: string | null,
+) {
+  const next = { ...proposal };
+  if (typeof rangeLowUsd === "number" && Number.isFinite(rangeLowUsd) && rangeLowUsd >= 0) {
+    next.RANGE_LOW = rangeLowUsd;
+  }
+  if (typeof rangeHighUsd === "number" && Number.isFinite(rangeHighUsd) && rangeHighUsd >= 0) {
+    next.RANGE_HIGH = rangeHighUsd;
+  }
+  if (typeof rationaleText === "string" && rationaleText.length > 0) {
+    next.RATIONALE = rationaleText;
+  }
+
+  const low = toFiniteNonnegativeNumber(next.RANGE_LOW);
+  const high = toFiniteNonnegativeNumber(next.RANGE_HIGH);
+  if (low !== null && high !== null && low > high) {
+    throw new Error("Range low cannot exceed range high.");
+  }
+
+  return next;
+}
+
+function arbitrationProposalAmount(proposal: Record<string, unknown>) {
+  return toFiniteNonnegativeNumber(proposal.RANGE_HIGH ?? proposal.settlement_amount);
+}
+
+function summarizeArbitrationProposal(proposal: Record<string, unknown>) {
+  const liability = proposal.LIABILITY;
+  const low = toFiniteNonnegativeNumber(proposal.RANGE_LOW);
+  const high = toFiniteNonnegativeNumber(proposal.RANGE_HIGH);
+  if (liability === "none") {
+    return "No net payment is proposed.";
+  }
+  if (liability === "claimant") {
+    return `Claimant should pay respondent ${formatCurrencyRange(low, high)}.`;
+  }
+  if (liability === "respondent") {
+    return `Respondent should pay claimant ${formatCurrencyRange(low, high)}.`;
+  }
+  if (typeof proposal.settlement_proposal === "string") {
+    return proposal.settlement_proposal;
+  }
+  return "AI arbitration proposal accepted.";
 }
 
 async function getAiContext(user: AppUser, caseId: string) {
@@ -234,39 +317,95 @@ export async function requestAudit(user: AppUser, caseId: string, payload: unkno
 export async function generateArbitrationProposal(
   user: AppUser,
   caseId: string,
-  settlementOfferUsd?: number | null,
-  settlementProposalText?: string | null,
+  rangeLowUsd?: number | null,
+  rangeHighUsd?: number | null,
+  rationaleText?: string | null,
 ) {
   ensureAiReady();
   const { detail, impersonation } = await getAiContext(user, caseId);
   const db = getDb();
 
   const prompt = [
-    "You are a neutral arbitration settlement analyst.",
-    "Review both parties' positions and draft a balanced settlement proposal.",
-    "Focus on realistic common ground and practical next steps.",
-    "Use only the supplied case context.",
+    "You are an impartial AI arbitration judge. Your task is to produce a neutral arbitration proposal, and where the case file requires it, a proposed ruling.",
+    "",
+    "You are not an advocate for either party. Apply the governing arbitration agreement, applicable substantive law, applicable procedural rules, and the record provided. Do not prefer either claimant or respondent because of role, size, sophistication, tone, or volume of submissions.",
+    "",
+    "The current runtime does not provide external legal research tools. Use internal legal reasoning and the supplied case record only. If the relevant law, legal standard, or damages methodology is unclear, state the uncertainty in the rationale and avoid pretending certainty. Do not invent legal authorities, citations, facts, evidence, or procedural history.",
+    "",
+    "INPUT CASE MATERIALS MAY INCLUDE:",
+    "- Arbitration agreement and governing-law clause, if available",
+    "- Claimant's claims",
+    "- Claimant's submitted evidence",
+    "- Discussion, objections, and contests relating to claimant's evidence",
+    "- Respondent's claims, defenses, and counterclaims",
+    "- Respondent's submitted evidence",
+    "- Discussion, objections, and contests relating to respondent's evidence",
+    "- Witness statements, if any",
+    "- Expert testimony, if any",
+    "- Hearing transcripts",
+    "- Any admitted procedural orders or party stipulations",
+    "",
+    "METHOD:",
+    "1. Read the full case record before deciding.",
+    "2. Identify the governing law, legal standards, burden of proof, and damages standard.",
+    "3. Build a neutral chronology of material facts.",
+    "4. Identify each claim, defense, counterclaim, and requested remedy.",
+    "5. For each claim or defense, analyze each required legal element, the party bearing the burden, supporting evidence, opposing evidence, and whether the element is proven, not proven, or uncertain.",
+    "6. Evaluate important evidence item by item for what fact it tends to prove, authenticity/reliability, whether it was contested, whether counterevidence was submitted, and weight assigned.",
+    "7. If a party contests evidence but submits no meaningful counterevidence where counterevidence would reasonably be expected, consider whether an adverse evidentiary inference is appropriate. Treat this as a credibility/procedural-conduct factor only. Do not label conduct fraudulent unless the record independently proves fraud under the applicable legal standard.",
+    "8. Assess witness and expert material for opportunity to observe, consistency, bias or interest, methodology, assumptions, and expertise.",
+    "9. Decide liability first, including percentage allocation if fault, causation, mitigation, contributory fault, or comparative responsibility applies.",
+    "10. Decide damages second. Exclude unsupported, speculative, legally unavailable, or duplicative amounts. Apply mitigation, causation, offsets, caps, limits, interest, fees, or costs only where legally justified by the record.",
+    "11. Net all allowed claims, counterclaims, offsets, and allocations into one non-negative payment range owed by the net payer to the other party.",
+    "12. Explain the result clearly in markdown inside RATIONALE.",
+    "",
+    "MANDATORY PRIVATE REVIEW BEFORE OUTPUT:",
+    "Before producing the final JSON, perform a private self-critique and correction pass. Do not include the private critique in the final JSON unless its conclusions are relevant to RATIONALE.",
+    "Check completeness across all claims, defenses, counterclaims, offsets, evidence contests, witnesses, experts, transcript admissions, governing law, procedure, burden of proof, limitation periods, damages rules, mitigation, interest, costs, and contractual caps.",
+    "Challenge your conclusion from claimant's and respondent's strongest opposing arguments. Check whether you unfairly discounted or over-credited evidence, drew adverse inferences too quickly, shifted the burden incorrectly, double-counted damages or offsets, or chose a range too narrow or broad for the uncertainty.",
+    "Privately rate confidence in liability allocation, damages range, legal-rule accuracy, and evidence assessment. If any confidence score is below 7, correct the draft by widening the range, reducing certainty, removing unsupported findings, flagging uncertainty, or changing the conclusion.",
+    "",
+    "OUTPUT RULES:",
+    "Return only the structured JSON object requested by the schema. RANGE_LOW and RANGE_HIGH must be numbers, not strings. If no net payment is owed, set LIABILITY to \"none\", RANGE_LOW to 0, and RANGE_HIGH to 0.",
+    "LIABILITY identifies the net payer: \"respondent\" means respondent pays claimant; \"claimant\" means claimant pays respondent; \"none\" means no net payment.",
+    "",
+    "RATIONALE must include these markdown sections:",
+    "# Arbitration Proposal",
+    "## Decision Summary",
+    "## Governing Standard",
+    "## Claims and Defenses",
+    "## Evidence Assessment",
+    "## Liability Allocation",
+    "## Damages Calculation",
+    "## Net Range",
+    "## Settlement Offer",
+    "## Confidence and Gaps",
+    "",
+    "QUALITY CONSTRAINTS:",
+    "- Be fair, neutral, and restrained.",
+    "- Separate proven facts from allegations.",
+    "- Separate legal conclusions from credibility judgments.",
+    "- Do not overstate certainty.",
+    "- Do not claim external legal verification because this runtime has no research tools.",
+    "- Prefer the parties' contract, arbitration rules, and supplied record over assumptions.",
+    "- Do not punish a party merely for contesting evidence; only draw adverse inferences when the contest is unsupported, material, and the missing counterevidence would reasonably be expected.",
+    "- If critical information is missing, still produce the best-supported range from the record and explain the uncertainty in RATIONALE.",
     "",
     "Case context:",
     toJsonSafe(compactCaseContext(detail)),
   ].join("\n");
 
   const proposal = await generateStructuredObject(prompt, arbitrationOutputSchema);
-  let finalProposal: Record<string, unknown> = { ...proposal };
-  if (typeof settlementOfferUsd === "number" && settlementOfferUsd > 0) {
-    finalProposal.settlement_amount = settlementOfferUsd;
-  }
-  if (typeof settlementProposalText === "string" && settlementProposalText.length > 0) {
-    finalProposal.settlement_proposal = settlementProposalText;
-  }
-  const finalAmount = (finalProposal as { settlement_amount: number | string }).settlement_amount;
+  const finalProposal = applyArbitrationProposalOverrides(proposal, rangeLowUsd, rangeHighUsd, rationaleText);
+  const finalAmount = arbitrationProposalAmount(finalProposal);
+  const summary = summarizeArbitrationProposal(finalProposal);
 
   const updated = await db
     .update(cases)
     .set({
       status: "in_arbitration",
       arbitrationProposalJson: finalProposal,
-      settlementAmount: finalAmount.toString(),
+      settlementAmount: finalAmount !== null ? finalAmount.toString() : null,
       finalDecision: null,
       arbitrationClaimantResponse: null,
       arbitrationRespondentResponse: null,
@@ -278,7 +417,7 @@ export async function generateArbitrationProposal(
     caseId,
     "decision",
     "Arbitration proposal generated",
-    proposal.settlement_proposal,
+    summary,
     { user, impersonation },
   );
 
@@ -290,8 +429,9 @@ export async function acceptArbitrationProposal(
   caseId: string,
   claimantResponse?: "accepted" | "rejected",
   respondentResponse?: "accepted" | "rejected",
-  settlementOfferUsd?: number | null,
-  settlementProposalText?: string | null,
+  rangeLowUsd?: number | null,
+  rangeHighUsd?: number | null,
+  rationaleText?: string | null,
 ) {
   const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const proposal = detail.case.arbitrationProposalJson;
@@ -302,41 +442,23 @@ export async function acceptArbitrationProposal(
 
   const userRole = authorized.role;
 
-  const overrideAmount =
-    typeof settlementOfferUsd === "number" && settlementOfferUsd > 0
-      ? settlementOfferUsd
-      : null;
-  const overrideText =
-    typeof settlementProposalText === "string" && settlementProposalText.length > 0
-      ? settlementProposalText
-      : null;
-  const effectiveProposal: Record<string, unknown> =
-    overrideAmount !== null || overrideText !== null
-      ? {
-          ...(proposal as Record<string, unknown>),
-          ...(overrideAmount !== null ? { settlement_amount: overrideAmount } : {}),
-          ...(overrideText !== null ? { settlement_proposal: overrideText } : {}),
-        }
-      : (proposal as Record<string, unknown>);
-
-  const summary =
-    typeof (effectiveProposal as Record<string, unknown>).settlement_proposal === "string"
-      ? ((effectiveProposal as Record<string, unknown>).settlement_proposal as string)
-      : "AI arbitration proposal accepted.";
-  const amountValue = (effectiveProposal as Record<string, unknown>).settlement_amount;
-  const amount =
-    typeof amountValue === "number" || typeof amountValue === "string"
-      ? String(amountValue)
-      : null;
+  const effectiveProposal = applyArbitrationProposalOverrides(
+    proposal as Record<string, unknown>,
+    rangeLowUsd,
+    rangeHighUsd,
+    rationaleText,
+  );
+  const summary = summarizeArbitrationProposal(effectiveProposal);
+  const amount = arbitrationProposalAmount(effectiveProposal);
 
   const db = getDb();
 
   const updateData: any = {
     status: "resolved",
     finalDecision: summary,
-    settlementAmount: amount,
+    settlementAmount: amount !== null ? amount.toString() : null,
   };
-  if (overrideAmount !== null || overrideText !== null) {
+  if (effectiveProposal !== proposal) {
     updateData.arbitrationProposalJson = effectiveProposal;
   }
 
@@ -372,8 +494,9 @@ export async function rejectArbitrationProposal(
   note?: string,
   claimantResponse?: "accepted" | "rejected",
   respondentResponse?: "accepted" | "rejected",
-  settlementOfferUsd?: number | null,
-  settlementProposalText?: string | null,
+  rangeLowUsd?: number | null,
+  rangeHighUsd?: number | null,
+  rationaleText?: string | null,
 ) {
   const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const db = getDb();
@@ -391,23 +514,18 @@ export async function rejectArbitrationProposal(
     throw new Error(`Only claimants and respondents can accept or reject arbitration proposals. Your current role is: ${userRole || 'unknown'}`);
   }
 
-  const overrideAmount =
-    typeof settlementOfferUsd === "number" && settlementOfferUsd > 0 ? settlementOfferUsd : null;
-  const overrideText =
-    typeof settlementProposalText === "string" && settlementProposalText.length > 0
-      ? settlementProposalText
-      : null;
-  if (overrideAmount !== null || overrideText !== null) {
-    const proposal = detail.case.arbitrationProposalJson;
-    if (proposal && typeof proposal === "object") {
-      updateData.arbitrationProposalJson = {
-        ...(proposal as Record<string, unknown>),
-        ...(overrideAmount !== null ? { settlement_amount: overrideAmount } : {}),
-        ...(overrideText !== null ? { settlement_proposal: overrideText } : {}),
-      };
-      if (overrideAmount !== null) {
-        updateData.settlementAmount = String(overrideAmount);
-      }
+  const proposal = detail.case.arbitrationProposalJson;
+  if (proposal && typeof proposal === "object") {
+    const effectiveProposal = applyArbitrationProposalOverrides(
+      proposal as Record<string, unknown>,
+      rangeLowUsd,
+      rangeHighUsd,
+      rationaleText,
+    );
+    updateData.arbitrationProposalJson = effectiveProposal;
+    const amount = arbitrationProposalAmount(effectiveProposal);
+    if (amount !== null) {
+      updateData.settlementAmount = amount.toString();
     }
   }
 

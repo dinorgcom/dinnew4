@@ -21,35 +21,55 @@ type ArbitrationPanelProps = {
   };
 };
 
+function numericInputValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string") return value.replace(/[^0-9.]/g, "");
+  return "";
+}
+
+function parseAmount(value: string) {
+  if (!value.trim()) return null;
+  const parsed = Number(value.replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function formatMoney(value: unknown) {
+  const amount = typeof value === "number" ? value : typeof value === "string" ? Number(value) : null;
+  if (amount === null || !Number.isFinite(amount)) return "Not set";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbitrationClaimantResponse, arbitrationRespondentResponse, claimantEmail, respondentEmail, user, tokenCosts }: ArbitrationPanelProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const initialOffer = (() => {
-    const raw = (proposal as { settlement_amount?: unknown })?.settlement_amount;
-    if (typeof raw === "number") return String(raw);
-    if (typeof raw === "string") {
-      const cleaned = raw.replace(/[^0-9.]/g, "");
-      return cleaned;
-    }
-    return "";
-  })();
-  const [settlementOfferUsd, setSettlementOfferUsd] = useState<string>(initialOffer);
-  const initialProposalText =
-    typeof (proposal as { settlement_proposal?: unknown })?.settlement_proposal === "string"
-      ? ((proposal as { settlement_proposal?: string }).settlement_proposal as string)
-      : "";
-  const [proposalText, setProposalText] = useState<string>(initialProposalText);
   const parsed = (proposal || {}) as {
-    claimant_perspective?: string;
-    respondent_perspective?: string;
-    common_ground?: string[];
+    LIABILITY?: "claimant" | "respondent" | "none";
+    RANGE_LOW?: number | string;
+    RANGE_HIGH?: number | string;
+    RATIONALE?: string;
     settlement_proposal?: string;
     settlement_amount?: number | string;
     rationale?: string;
-    next_steps?: string[];
   };
+  const initialRangeLow = numericInputValue(parsed.RANGE_LOW);
+  const initialRangeHigh = numericInputValue(parsed.RANGE_HIGH ?? parsed.settlement_amount);
+  const initialRationale =
+    typeof parsed.RATIONALE === "string"
+      ? parsed.RATIONALE
+      : typeof parsed.rationale === "string"
+        ? parsed.rationale
+        : typeof parsed.settlement_proposal === "string"
+          ? parsed.settlement_proposal
+          : "";
+  const [rangeLowUsd, setRangeLowUsd] = useState<string>(initialRangeLow);
+  const [rangeHighUsd, setRangeHighUsd] = useState<string>(initialRangeHigh);
+  const [rationaleText, setRationaleText] = useState<string>(initialRationale);
 
   // Determine arbitration state from response columns
   const isAccepted = arbitrationClaimantResponse === 'accepted' && arbitrationRespondentResponse === 'accepted';
@@ -96,15 +116,15 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
     setError(null);
     setIsGenerating(true);
     try {
-      const numericOffer = Number(settlementOfferUsd.replace(/[^0-9.]/g, ""));
-      const offer = Number.isFinite(numericOffer) && numericOffer > 0 ? numericOffer : null;
-      const proposalEdit = proposalText.trim() && proposalText.trim() !== initialProposalText.trim()
-        ? proposalText.trim()
+      const rangeLow = rangeLowUsd.trim() !== initialRangeLow.trim() ? parseAmount(rangeLowUsd) : null;
+      const rangeHigh = rangeHighUsd.trim() !== initialRangeHigh.trim() ? parseAmount(rangeHighUsd) : null;
+      const rationaleEdit = rationaleText.trim() && rationaleText.trim() !== initialRationale.trim()
+        ? rationaleText.trim()
         : null;
       const response = await fetch(`/api/cases/${caseId}/arbitration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, settlementOfferUsd: offer, settlementProposalText: proposalEdit }),
+        body: JSON.stringify({ ...body, rangeLowUsd: rangeLow, rangeHighUsd: rangeHigh, rationaleText: rationaleEdit }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -186,26 +206,53 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
       ) : (
         <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6">
           <div className="rounded-2xl bg-emerald-50 p-5">
-            <div className="text-xs uppercase tracking-[0.16em] text-emerald-700">Settlement proposal</div>
-            <textarea
-              value={proposalText}
-              onChange={(event) => setProposalText(event.target.value)}
-              rows={6}
-              className="mt-3 w-full rounded-2xl border border-emerald-200 bg-white p-3 text-sm leading-7 text-emerald-950 focus:border-emerald-300 focus:outline-none"
-              placeholder="Settlement proposal text"
-            />
-            <div className="mt-2 text-sm text-emerald-800">
-              Amount: ${String(parsed.settlement_amount ?? "Not set")}
+            <div className="text-xs uppercase tracking-[0.16em] text-emerald-700">Proposed net range</div>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-emerald-200 bg-white p-3">
+                <div className="text-xs uppercase tracking-[0.14em] text-emerald-700">Net payer</div>
+                <div className="mt-2 text-lg font-semibold capitalize text-emerald-950">
+                  {parsed.LIABILITY || "Not set"}
+                </div>
+              </div>
+              <label className="rounded-2xl border border-emerald-200 bg-white p-3">
+                <span className="text-xs uppercase tracking-[0.14em] text-emerald-700">Range low</span>
+                <input
+                  value={rangeLowUsd}
+                  onChange={(event) => setRangeLowUsd(event.target.value)}
+                  inputMode="decimal"
+                  className="mt-2 w-full bg-transparent text-lg font-semibold text-emerald-950 focus:outline-none"
+                  placeholder="0"
+                />
+              </label>
+              <label className="rounded-2xl border border-emerald-200 bg-white p-3">
+                <span className="text-xs uppercase tracking-[0.14em] text-emerald-700">Range high</span>
+                <input
+                  value={rangeHighUsd}
+                  onChange={(event) => setRangeHighUsd(event.target.value)}
+                  inputMode="decimal"
+                  className="mt-2 w-full bg-transparent text-lg font-semibold text-emerald-950 focus:outline-none"
+                  placeholder="0"
+                />
+              </label>
+            </div>
+            <div className="mt-3 text-sm text-emerald-800">
+              {parsed.LIABILITY === "respondent"
+                ? `Respondent pays claimant ${formatMoney(parsed.RANGE_LOW)}-${formatMoney(parsed.RANGE_HIGH)}.`
+                : parsed.LIABILITY === "claimant"
+                  ? `Claimant pays respondent ${formatMoney(parsed.RANGE_LOW)}-${formatMoney(parsed.RANGE_HIGH)}.`
+                  : "No net payment is proposed."}
             </div>
           </div>
 
           <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Next steps</div>
-            <ul className="mt-3 space-y-2 text-sm text-slate-700">
-              {(parsed.next_steps || []).map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Rationale</div>
+            <textarea
+              value={rationaleText}
+              onChange={(event) => setRationaleText(event.target.value)}
+              rows={18}
+              className="mt-3 w-full rounded-2xl border border-slate-200 bg-white p-4 font-mono text-sm leading-7 text-slate-800 focus:border-slate-300 focus:outline-none"
+              placeholder="Markdown-formatted arbitration rationale"
+            />
           </div>
 
           {isGenerated && (
@@ -267,35 +314,6 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
           ) : null}
         </section>
       ) : null}
-
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6">
-        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Your settlement offer</div>
-        <p className="mt-2 text-sm text-slate-600">
-          Either party may set any USD amount as their settlement offer. The number you enter here is sent
-          with your next action (generate, accept, or reject) so the other side sees what you would settle for.
-        </p>
-        <label className="mt-5 block text-sm">
-          <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Settlement amount (USD)</span>
-          <div className="mt-2 flex items-center gap-3">
-            <span className="text-lg font-semibold text-slate-500">$</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={settlementOfferUsd}
-              onChange={(event) => {
-                const cleaned = event.target.value.replace(/[^0-9.]/g, "");
-                setSettlementOfferUsd(cleaned);
-              }}
-              placeholder="0"
-              className="w-full max-w-xs rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-slate-400 focus:outline-none"
-            />
-            <span className="text-sm text-slate-500">USD</span>
-          </div>
-        </label>
-        <div className="mt-2 text-xs text-slate-500">
-          Leave at 0 to send no specific counter-offer.
-        </div>
-      </section>
     </div>
   );
 }
