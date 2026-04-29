@@ -81,6 +81,8 @@ type CaseDetailWorkspaceProps = {
       respondentUserId?: string | null;
       arbitratorAssignedName: string | null;
       finalDecision: string | null;
+      discoveryReadyClaimantAt?: string | Date | null;
+      discoveryReadyRespondentAt?: string | Date | null;
     };
     role: string;
     roleLabel: string;
@@ -364,6 +366,31 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     !settlementRejected &&
     ((role === "claimant" && !claimantArbResp) ||
       (role === "respondent" && !respondentArbResp));
+  // Discovery readiness handshake — needed when every review is settled
+  // and the viewer party still has to click "I'm ready" on the Hearing tab.
+  const evidenceAllSettled = detail.evidence.every((e) => {
+    const state = String((e as any).reviewState || "pending").toLowerCase();
+    if (state !== "pending") return true;
+    const deadline = (e as any).discussionDeadline;
+    if (!deadline) return false;
+    const d = new Date(deadline);
+    return !Number.isNaN(d.getTime()) && new Date() > d;
+  });
+  const witnessesAllSettled = detail.witnesses.every(
+    (w) => String((w as any).status || "").toLowerCase() !== "pending",
+  );
+  const expertiseAllSettled = detail.expertiseRequests.every((er) => {
+    const s = String((er as any).status || "").toLowerCase();
+    return s !== "draft" && s !== "generating";
+  });
+  const allReviewsSettled = evidenceAllSettled && witnessesAllSettled && expertiseAllSettled;
+  const claimantReadyConfirmed = !!(detail.case as any).discoveryReadyClaimantAt;
+  const respondentReadyConfirmed = !!(detail.case as any).discoveryReadyRespondentAt;
+  const hearingNeedsAttention =
+    allReviewsSettled &&
+    ((role === "claimant" && !claimantReadyConfirmed) ||
+      (role === "respondent" && !respondentReadyConfirmed));
+
   const todoNeedsAttention =
     claimsNeedAttention ||
     evidenceNeedsAttention ||
@@ -371,7 +398,8 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     consultantsNeedAttention ||
     expertiseNeedsAttention ||
     respondentTabNeedsAttention ||
-    settlementNeedsAttention;
+    settlementNeedsAttention ||
+    hearingNeedsAttention;
 
   const tabAttention: Partial<Record<(typeof tabs)[number]["key"], boolean>> = {
     claims: claimsNeedAttention,
@@ -380,6 +408,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     consultants: consultantsNeedAttention,
     expertise: expertiseNeedsAttention,
     respondent: respondentTabNeedsAttention,
+    hearing: hearingNeedsAttention,
     todo: todoNeedsAttention,
   };
 
@@ -1106,6 +1135,44 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               }
               if (role === "respondent" && !respondentArb) {
                 items.push({ key: "respond-settlement-r", label: "Respond to the settlement offer", tab: "settlement" });
+              }
+            }
+
+            // Discovery readiness handshake: when every review item is settled
+            // and the viewing party has not yet confirmed they're ready for
+            // the hearing, show a To-do nudge that opens the Hearing tab.
+            const evidenceSettled = detail.evidence.every((e) => {
+              const state = String((e as any).reviewState || "pending").toLowerCase();
+              if (state !== "pending") return true;
+              const deadline = (e as any).discussionDeadline;
+              if (!deadline) return false;
+              const d = new Date(deadline);
+              return !Number.isNaN(d.getTime()) && new Date() > d;
+            });
+            const witnessSettled = detail.witnesses.every(
+              (w) => String((w as any).status || "").toLowerCase() !== "pending",
+            );
+            const expertiseSettled = detail.expertiseRequests.every((er) => {
+              const s = String((er as any).status || "").toLowerCase();
+              return s !== "draft" && s !== "generating";
+            });
+            const tasksSettledForReady = evidenceSettled && witnessSettled && expertiseSettled;
+            const claimantReady = !!(detail.case as any).discoveryReadyClaimantAt;
+            const respondentReady = !!(detail.case as any).discoveryReadyRespondentAt;
+            if (tasksSettledForReady) {
+              if (role === "claimant" && !claimantReady) {
+                items.push({
+                  key: "discovery-ready-c",
+                  label: "Confirm: I'm ready for the hearing",
+                  tab: "hearing",
+                });
+              }
+              if (role === "respondent" && !respondentReady) {
+                items.push({
+                  key: "discovery-ready-r",
+                  label: "Confirm: I'm ready for the hearing",
+                  tab: "hearing",
+                });
               }
             }
 

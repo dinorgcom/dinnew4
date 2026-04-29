@@ -242,9 +242,9 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
               type="button"
               onClick={() => void markReady()}
               disabled={busy !== null}
-              className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              className="rounded-md bg-rose-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-60"
             >
-              {busy === "ready" ? "Confirming..." : "I'm ready for the hearing"}
+              {busy === "ready" ? "Confirming..." : "Confirm — I'm ready for the hearing"}
             </button>
           ) : null}
           {tasksSettled && isParty && myReady ? (

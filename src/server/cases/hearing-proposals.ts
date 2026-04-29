@@ -11,7 +11,6 @@ import {
 } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { getAuthorizedCase } from "@/server/cases/mutations";
-import { generateStructuredObject, isAiConfigured } from "@/server/ai/service";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -138,7 +137,11 @@ export async function markDiscoveryReady(user: AppUser, caseId: string) {
     .where(eq(cases.id, caseId))
     .returning();
 
-  return { case: updated[0], role: authorized.role };
+  // If both parties are now ready, kick off the slot proposal automatically
+  // so the second party doesn't have to click "Generate" afterwards.
+  const generated = await tryAutoGenerateProposal(user, caseId);
+
+  return { case: updated[0], role: authorized.role, generatedProposal: generated };
 }
 
 export async function getActiveHearingProposal(caseId: string) {
@@ -152,10 +155,6 @@ export async function getActiveHearingProposal(caseId: string) {
   return rows[0] ?? null;
 }
 
-const aiSchema = z.object({
-  slots: z.array(z.string()).length(SLOT_COUNT),
-});
-
 function isFutureWeekdayBusinessHourUTC(value: Date) {
   if (Number.isNaN(value.getTime())) return false;
   if (value.getTime() < Date.now() + 24 * 60 * 60 * 1000) return false;
@@ -165,10 +164,27 @@ function isFutureWeekdayBusinessHourUTC(value: Date) {
   return hour >= 9 && hour <= 17;
 }
 
-export async function generateHearingProposal(user: AppUser, caseId: string) {
-  if (!isAiConfigured()) {
-    throw new Error("AI is not configured.");
+// Deterministic slot picker: starting 7 days out, walks forward day by day,
+// keeps the next SLOT_COUNT weekdays at 14:00 UTC. Always returns valid
+// slots — no AI variability, no "AI returned invalid slots" errors.
+function pickProceduralSlots(): string[] {
+  const out: string[] = [];
+  const start = new Date();
+  start.setUTCHours(14, 0, 0, 0);
+  start.setUTCDate(start.getUTCDate() + 7);
+  let cursor = new Date(start);
+  // Hard cap on iterations (~21 days) to avoid runaway loops.
+  for (let i = 0; out.length < SLOT_COUNT && i < 21; i += 1) {
+    if (isFutureWeekdayBusinessHourUTC(cursor)) {
+      out.push(cursor.toISOString());
+    }
+    cursor = new Date(cursor);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
+  return out;
+}
+
+export async function generateHearingProposal(user: AppUser, caseId: string) {
   const authorized = await getAuthorizedCase(user, caseId);
   if (!authorized) throw new Error("Forbidden");
   if (authorized.role !== "claimant" && authorized.role !== "respondent" && authorized.role !== "moderator") {
@@ -190,24 +206,9 @@ export async function generateHearingProposal(user: AppUser, caseId: string) {
   const caseRow = (await db.select().from(cases).where(eq(cases.id, caseId)).limit(1))[0];
   if (!caseRow) throw new Error("Case not found");
 
-  const startWindow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const endWindow = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-  const prompt = [
-    `You are scheduling a video hearing for an arbitration case on the DIN.ORG platform.`,
-    `Suggest exactly ${SLOT_COUNT} candidate hearing time slots, each on a different weekday between ${startWindow} and ${endWindow} (UTC).`,
-    `Each slot must be 9:00-17:00 UTC, a 60-minute meeting (use the start time only), at least 24 hours in the future, and on a weekday.`,
-    `Spread the slots across different days. Do not repeat dates.`,
-    `Output JSON: { "slots": ["ISO-8601 string", ...5 items] }.`,
-  ].join("\n");
-
-  const ai = (await generateStructuredObject(prompt, aiSchema)) as z.infer<typeof aiSchema>;
-  const validSlots = ai.slots
-    .map((s: string) => new Date(s))
-    .filter(isFutureWeekdayBusinessHourUTC)
-    .map((d: Date) => d.toISOString());
-
-  if (validSlots.length < SLOT_COUNT) {
-    throw new Error("AI returned invalid slots. Please retry.");
+  const slots = pickProceduralSlots();
+  if (slots.length < SLOT_COUNT) {
+    throw new Error("Could not generate slots. Please retry.");
   }
 
   // Replace any prior open proposals.
@@ -222,13 +223,28 @@ export async function generateHearingProposal(user: AppUser, caseId: string) {
     .insert(hearingProposals)
     .values({
       caseId,
-      slots: validSlots.slice(0, SLOT_COUNT),
+      slots: slots.slice(0, SLOT_COUNT),
       availability: { claimant: [], respondent: [] },
       status: "open",
       votingDeadline,
     })
     .returning();
   return inserted[0];
+}
+
+async function tryAutoGenerateProposal(user: AppUser, caseId: string) {
+  // Called after a party marks ready. If discovery is now complete and there
+  // is no open proposal yet, generate one immediately so the slot voting UI
+  // shows up without an extra click.
+  try {
+    const status = await isDiscoveryComplete(caseId);
+    if (!status.complete) return null;
+    const existing = await getActiveHearingProposal(caseId);
+    if (existing && existing.status === "open") return null;
+    return await generateHearingProposal(user, caseId);
+  } catch {
+    return null;
+  }
 }
 
 export async function autoFinalizeHearingProposalIfDue(caseId: string) {
