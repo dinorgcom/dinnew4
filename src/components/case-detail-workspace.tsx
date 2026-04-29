@@ -145,7 +145,30 @@ const tabs = [
   { key: "judgement", label: "Judgement" },
   { key: "appeal", label: "Appeal" },
   { key: "final-judgement", label: "Final judgement" },
+  // "settlement" is reachable only via the NAV1 "Offer Settlement" deep
+  // link (?tab=settlement). It does NOT appear in the visible tab list.
+  { key: "settlement", label: "Settlement (hidden)" },
 ] as const;
+
+const VISIBLE_TAB_KEYS = new Set([
+  "overview",
+  "progress",
+  "claimant",
+  "respondent",
+  "activity",
+  "todo",
+  "claims",
+  "evidence",
+  "witnesses",
+  "consultants",
+  "expertise",
+  "hearing",
+  "audit",
+  "arbitration",
+  "judgement",
+  "appeal",
+  "final-judgement",
+]);
 
 function asClaims(input: Record<string, unknown>[] | null | undefined): Claim[] {
   return (input || []).map((item) => ({
@@ -634,7 +657,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       >
         <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto bg-ink p-4 lg:pt-[68px] text-white">
           <div role="tablist" aria-label="Case workspace sections" className="flex flex-col gap-1">
-            {tabs.map((tab) => {
+            {tabs.filter((tab) => VISIBLE_TAB_KEYS.has(tab.key)).map((tab) => {
               const needsAttention = !!tabAttention[tab.key];
               const isOverview = tab.key === "overview";
               const isActive = activeTab === tab.key;
@@ -1343,7 +1366,47 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "arbitration" ? (
-        <div id="panel-arbitration" role="tabpanel" aria-labelledby="tab-arbitration" className="rounded-md border border-slate-200 bg-white p-6">
+        <div id="panel-arbitration" role="tabpanel" aria-labelledby="tab-arbitration" className="space-y-4">
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span className="font-semibold">
+              Arbitration becomes available only after the case proceedings are complete.
+            </span>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-white p-6 space-y-3">
+            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+              Binding arbitration
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight text-ink">
+              How it works
+            </h2>
+            <ol className="list-decimal space-y-2 pl-5 text-sm leading-7 text-slate-700">
+              <li>
+                Once the proceedings (claims, evidence, witnesses, consultants,
+                expertise, hearing) are closed, the AI judge produces a binding
+                arbitration proposal.
+              </li>
+              <li>
+                If <strong>both parties accept</strong> the proposal, it
+                becomes the final, binding outcome of the case.
+              </li>
+              <li>
+                If <strong>either party declines</strong>, the AI judge issues
+                a judgement instead, and the case continues to the Judgement
+                step.
+              </li>
+            </ol>
+            <p className="text-xs text-slate-500">
+              For a non-binding settlement offer between the parties at any
+              point during proceedings, use{" "}
+              <span className="font-semibold">Offer Settlement</span> in the
+              left sidebar.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "settlement" ? (
+        <div id="panel-settlement" role="tabpanel" aria-labelledby="tab-settlement" className="rounded-md border border-slate-200 bg-white p-6">
           <ArbitrationPanel
             caseId={detail.case.id}
             status={detail.case.status}
