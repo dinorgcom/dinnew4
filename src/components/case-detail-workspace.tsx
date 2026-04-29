@@ -196,20 +196,23 @@ function asClaims(input: Record<string, unknown>[] | null | undefined): Claim[] 
 export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // useSearchParams returns a stable object reference even when query changes,
+  // so we depend on the primitive `tab` string instead. Otherwise the in-page
+  // navigation from the NAV1 "Offer Settlement" link to ?tab=settlement won't
+  // re-fire the effect when only the search part changes.
+  const requestedTab = searchParams?.get("tab") ?? "";
   const initialTab = (() => {
-    const requested = searchParams?.get("tab");
-    return requested && tabs.some((t) => t.key === requested)
-      ? (requested as (typeof tabs)[number]["key"])
+    return requestedTab && tabs.some((t) => t.key === requestedTab)
+      ? (requestedTab as (typeof tabs)[number]["key"])
       : "overview";
   })();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>(initialTab);
 
   useEffect(() => {
-    const requested = searchParams?.get("tab");
-    if (requested && tabs.some((t) => t.key === requested)) {
-      setActiveTab(requested as (typeof tabs)[number]["key"]);
+    if (requestedTab && tabs.some((t) => t.key === requestedTab)) {
+      setActiveTab(requestedTab as (typeof tabs)[number]["key"]);
     }
-  }, [searchParams]);
+  }, [requestedTab]);
   const [claimantClaims, setClaimantClaims] = useState(asClaims(detail.case.claimantClaims));
   const [respondentClaims, setRespondentClaims] = useState(asClaims(detail.case.respondentClaims));
   const [arbitrator, setArbitrator] = useState(detail.case.arbitratorAssignedName || "");
@@ -352,8 +355,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   // column under the hood. Pending response on it is a Settlement task, not an
   // Arbitration task. Arbitration becomes a separate DIN.ORG-side proposal
   // post-proceedings and never lights up the Arbitration tab in orange.
+  // A settlement is dead the moment ONE party rejects it — so don't keep
+  // pestering the other party for a response after that.
+  const settlementRejected =
+    claimantArbResp === "rejected" || respondentArbResp === "rejected";
   const settlementNeedsAttention =
     !!arbitrationProposal &&
+    !settlementRejected &&
     ((role === "claimant" && !claimantArbResp) ||
       (role === "respondent" && !respondentArbResp));
   const todoNeedsAttention =
@@ -1085,10 +1093,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             // Settlement-offer response pending (the party-to-party flow lives
             // behind the NAV1 "Offer Settlement" link and the hidden settlement
             // tab; it reuses the arbitration_proposal column under the hood).
+            // A single "rejected" from either side closes the settlement, so
+            // we stop nagging once that has happened.
             const claimantArb = (detail.case as any).arbitrationClaimantResponse;
             const respondentArb = (detail.case as any).arbitrationRespondentResponse;
             const proposal = (detail.case as any).arbitrationProposalJson;
-            if (proposal) {
+            const proposalIsRejected =
+              claimantArb === "rejected" || respondentArb === "rejected";
+            if (proposal && !proposalIsRejected) {
               if (role === "claimant" && !claimantArb) {
                 items.push({ key: "respond-settlement-c", label: "Respond to the settlement offer", tab: "settlement" });
               }
