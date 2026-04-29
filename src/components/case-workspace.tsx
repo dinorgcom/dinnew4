@@ -38,6 +38,7 @@ type RecordSummary = {
   attachmentPathname?: string | null;
   fileReferences?: Record<string, unknown>[] | null;
   submittedBy?: string | null;
+  evidenceNumber?: number | null;
   // Witness-specific fields
   email?: string | null;
   phone?: string | null;
@@ -882,7 +883,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
     return (
       <div className="space-y-3">
-        {records.map((record) => {
+        {records.map((record, recordIndex) => {
           const isExpanded = 
             (kind === "witnesses" && expandedWitness === record.id) ||
             (kind === "consultants" && expandedConsultant === record.id);
@@ -905,6 +906,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   <WitnessAvatar record={record} photoUrl={witnessPhotoUrl} />
                 ) : null}
                 <div className="space-y-1 flex-1">
+                  {kind === "evidence" ? (
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">
+                      Evidence {String(record.evidenceNumber ?? records.length - recordIndex).padStart(3, "0")}
+                    </div>
+                  ) : null}
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900">
                       {record.title || record.fullName || record.senderName || "Record"}

@@ -69,32 +69,19 @@ export async function spendForAction(user: AppUser, input: {
     throw new Error("Unauthorized");
   }
 
-  if (user.role === "admin" || user.role === "moderator") {
-    // Skip the bypass when an admin is currently impersonating a party so
-    // testing flows actually deduct tokens like a real user. Moderators in
-    // their normal role still bypass.
-    let impersonating = false;
-    if (user.role === "admin") {
-      try {
-        const { readImpersonationCookie } = await import(
-          "@/server/auth/impersonation"
-        );
-        const cookie = await readImpersonationCookie();
-        impersonating = !!cookie;
-      } catch {
-        impersonating = false;
-      }
-    }
-    if (!impersonating) {
-      return {
-        success: true,
-        replayed: false,
-        previousBalance: await getTokenBalance(user.id),
-        amountDeducted: 0,
-        newBalance: await getTokenBalance(user.id),
-        bypassed: true,
-      };
-    }
+  // Moderators don't pay (they're DIN.ORG-side mediators driving cases on
+  // behalf of the platform). Admins now pay like everyone else so the token
+  // ledger reflects every chargeable action; previous behavior bypassed
+  // admins which made testing the spend flow impossible.
+  if (user.role === "moderator") {
+    return {
+      success: true,
+      replayed: false,
+      previousBalance: await getTokenBalance(user.id),
+      amountDeducted: 0,
+      newBalance: await getTokenBalance(user.id),
+      bypassed: true,
+    };
   }
 
   const required = getActionCost(input.actionCode);
