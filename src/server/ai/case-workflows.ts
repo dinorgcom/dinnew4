@@ -5,7 +5,7 @@ import { caseAudits, cases, lawyerConversations, simulations } from "@/db/schema
 import { auditRequestSchema, lawyerChatMessageSchema } from "@/contracts/ai";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { generateStructuredObject, isAiConfigured } from "@/server/ai/service";
-import { getAuthorizedCase, createCaseActivity } from "@/server/cases/mutations";
+import { getAuthorizedCase, createCaseActivity, recordCaseAuditEvent } from "@/server/cases/mutations";
 import { getCaseDetail } from "@/server/cases/queries";
 import { spendForAction } from "@/server/billing/service";
 
@@ -345,7 +345,7 @@ export async function requestAudit(user: AppUser, caseId: string, payload: unkno
       requestedByUserId: user?.id ?? null,
       requestedByRole: authorized.role,
       requestedAt: new Date(),
-      title: parsed.title || `${requestedSide[0].toUpperCase()}${requestedSide.slice(1)} audit`,
+      title: parsed.title || `${requestedSide[0].toUpperCase()}${requestedSide.slice(1)} summary`,
       snapshotJson: snapshot,
       auditJson: audit,
     })
@@ -354,8 +354,8 @@ export async function requestAudit(user: AppUser, caseId: string, payload: unkno
   await createCaseActivity(
     caseId,
     "note",
-    "AI audit generated",
-    `Generated ${requestedSide} audit.`,
+    "AI summary generated",
+    `Generated ${requestedSide} summary.`,
     { user, impersonation },
   );
 
@@ -370,7 +370,7 @@ export async function generateArbitrationProposal(
   rationaleText?: string | null,
 ) {
   ensureAiReady();
-  const { detail, impersonation } = await getAiContext(user, caseId);
+  const { authorized, detail, impersonation } = await getAiContext(user, caseId);
   const db = getDb();
 
   const prompt = [
@@ -461,12 +461,19 @@ export async function generateArbitrationProposal(
     .where(eq(cases.id, caseId))
     .returning();
 
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     "decision",
     "Arbitration proposal generated",
     summary,
     { user, impersonation },
+    {
+      eventKey: "arbitration_requested",
+      actorRole: authorized.role,
+      entityType: "case",
+      entityId: caseId,
+      outcome: "proposal_generated",
+    },
   );
 
   return updated[0];
@@ -525,12 +532,19 @@ export async function acceptArbitrationProposal(
     .where(eq(cases.id, caseId))
     .returning();
 
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     "decision",
     "Arbitration proposal accepted",
     summary,
     { user, impersonation },
+    {
+      eventKey: "case_finalized",
+      actorRole: userRole,
+      entityType: "case",
+      entityId: caseId,
+      outcome: "settlement_accepted",
+    },
   );
 
   return updated[0];
@@ -583,12 +597,20 @@ export async function rejectArbitrationProposal(
     .where(eq(cases.id, caseId))
     .returning();
 
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     "status_change",
     "Arbitration proposal rejected",
     note || `${userRole} rejected the arbitration proposal.`,
     { user, impersonation },
+    {
+      eventKey: "settlement_refused",
+      actorRole: userRole,
+      entityType: "case",
+      entityId: caseId,
+      outcome: "settlement_rejected",
+      note: note || null,
+    },
   );
 
   return updated[0];
@@ -736,12 +758,19 @@ export async function generateJudgement(user: AppUser, caseId: string, clearSimu
     .where(eq(cases.id, caseId))
     .returning();
 
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     "decision",
     clearSimulationData ? "Single AI judgement generated" : "Judgement generated",
     summarizeJudgement(judgement),
     { user, impersonation },
+    {
+      eventKey: "ruling_requested",
+      actorRole: authorized.role,
+      entityType: "case",
+      entityId: caseId,
+      outcome: clearSimulationData ? "single_ai_judgement_generated" : "judgement_generated",
+    },
   );
 
   return updated[0];
@@ -791,12 +820,19 @@ export async function acceptJudgement(user: AppUser, caseId: string) {
       .returning();
   }
 
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     "decision",
     "Judgement accepted",
     summary,
     { user, impersonation },
+    {
+      eventKey: "case_finalized",
+      actorRole: authorized.role,
+      entityType: "case",
+      entityId: caseId,
+      outcome: "judgement_accepted",
+    },
   );
 
   return updated[0];

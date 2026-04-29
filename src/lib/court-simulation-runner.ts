@@ -2,7 +2,7 @@ import { eq, desc } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { cases, evidence, witnesses, consultants, simulations } from '@/db/schema';
 import { runCourtSimulation, type CourtSimulationResult, type CourtTranscriptEntry } from '@/lib/court-simulation';
-import { createCaseActivity, getAuthorizedCase } from '@/server/cases/mutations';
+import { getAuthorizedCase, recordCaseAuditEvent } from '@/server/cases/mutations';
 import { getCaseDetail } from '@/server/cases/queries';
 import type { ProvisionedAppUser } from '@/server/auth/provision';
 
@@ -203,12 +203,20 @@ export async function runAndPersistCourtSimulation(
       .returning();
 
     // Create activity log
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       'decision',
       'Court simulation completed',
       `${simulation.outcome.type} reached: ${simulation.outcome.summary}`,
       { user, impersonation },
+      {
+        eventKey: 'ruling_requested',
+        actorRole: authorized.role,
+        entityType: 'case',
+        entityId: caseId,
+        outcome: 'court_simulation_completed',
+        simulationOutcomeType: simulation.outcome.type,
+      },
     );
 
     return simulation;
@@ -263,12 +271,20 @@ export async function runAndPersistCourtSimulation(
     .returning();
 
   // Create activity log
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     'decision',
     'Court simulation completed',
     `${simulation.outcome.type} reached: ${simulation.outcome.summary}`,
     { user, impersonation },
+    {
+      eventKey: 'ruling_requested',
+      actorRole: authorized.role,
+      entityType: 'case',
+      entityId: caseId,
+      outcome: 'court_simulation_completed',
+      simulationOutcomeType: simulation.outcome.type,
+    },
   );
 
   return simulation;

@@ -10,7 +10,7 @@ type CaseAiNavProps = {
 };
 
 const items = [
-  { href: "audit", label: "Audit" },
+  { href: "audit", label: "Summary" },
   { href: "arbitration", label: "Arbitration" },
   { href: "hearing", label: "Hearing" },
   { href: "judgement", label: "Judgement" },

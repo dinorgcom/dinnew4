@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { fail, ok } from "@/server/api/responses";
 import { ensureAppUser } from "@/server/auth/provision";
-import { getAuthorizedCase, createCaseActivity } from "@/server/cases/mutations";
+import { getAuthorizedCase, recordCaseAuditEvent } from "@/server/cases/mutations";
 import { spendForAction } from "@/server/billing/service";
 import { ACTION_COSTS } from "@/server/billing/config";
 
@@ -40,12 +40,20 @@ export async function POST(request: Request, { params }: RouteProps) {
       }
     }
 
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       "Appeal requested",
       `Appeal requested with ${body.jurors} juror${body.jurors === 1 ? "" : "s"} (${ACTION_COSTS.appeal_request * body.jurors} tokens). ${body.reason ?? ""}`.trim(),
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "appeal_requested",
+        actorRole: authorized.role,
+        entityType: "case",
+        entityId: caseId,
+        jurors: body.jurors,
+        reason: body.reason ?? null,
+      },
     );
 
     return ok({ jurors: body.jurors, totalCost: ACTION_COSTS.appeal_request * body.jurors });

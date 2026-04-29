@@ -226,3 +226,7 @@ export const messageCreateSchema = z.object({
     .optional()
     .nullable(),
 });
+
+export const recordCommentCreateSchema = z.object({
+  comment: z.string().trim().min(1).max(4000),
+});

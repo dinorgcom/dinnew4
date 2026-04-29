@@ -75,10 +75,10 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
       <section className="rounded-md border border-slate-200 bg-white p-6">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1">
-            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">AI audit</div>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Readiness review</h2>
+            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">AI summary</div>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Case summary</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Generate a party-side audit that scores the current record, missing proof, and next moves.
+              Generate a party-side summary that scores the current record, missing proof, and next moves.
             </p>
           </div>
           <select
@@ -103,7 +103,7 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
           >
             {isGenerating
               ? "Generating..."
-              : `Generate audit (${ACTION_COSTS.audit_request} tokens)`}
+              : `Generate summary (${ACTION_COSTS.audit_request} tokens)`}
           </button>
         </div>
 
@@ -117,7 +117,7 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
       <section className="space-y-4">
         {audits.length === 0 ? (
           <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
-            No AI audits yet for this case.
+            No AI summaries yet for this case.
           </div>
         ) : (
           audits.map((audit) => {
@@ -137,7 +137,7 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      {snapshot.perspective || "Case"} audit
+                      {snapshot.perspective || "Case"} summary
                     </div>
                     <h3 className="mt-2 text-xl font-semibold text-ink">{audit.title || "Untitled audit"}</h3>
                   </div>
@@ -145,6 +145,12 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
                     <div className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                       {body.overall_readiness || "unknown"} readiness
                     </div>
+                    <a
+                      href={`/api/cases/${caseId}/audit/export?auditId=${audit.id}`}
+                      className="rounded-md bg-ink px-3 py-1 text-sm font-medium text-white hover:bg-slate-800"
+                    >
+                      Export PDF
+                    </a>
                     {userRole === "moderator" ? (
                       <button
                         type="button"

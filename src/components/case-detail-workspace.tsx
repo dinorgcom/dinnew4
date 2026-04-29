@@ -11,6 +11,7 @@ import { ArbitrationPanel } from "@/components/arbitration-panel";
 import { HearingScheduler } from "@/components/hearing-scheduler";
 import { HearingProposalPanel } from "@/components/hearing-proposal-panel";
 import { AppealPanel } from "@/components/appeal-panel";
+import { AuditTrailPanel } from "@/components/audit-trail-panel";
 import { ACTION_COSTS } from "@/server/billing/config";
 import { ExistingHearings } from "./existing-hearings";
 import { JudgementPanel } from "@/components/judgement-panel";
@@ -132,7 +133,7 @@ const tabs = [
   { key: "progress", label: "Progress" },
   { key: "claimant", label: "Claimant" },
   { key: "respondent", label: "Respondent" },
-  { key: "activity", label: "Activity" },
+  { key: "activity", label: "Audit trail" },
   { key: "todo", label: "To do" },
   { key: "claims", label: "Claims" },
   { key: "evidence", label: "Evidence" },
@@ -140,7 +141,7 @@ const tabs = [
   { key: "consultants", label: "Consultants" },
   { key: "expertise", label: "Expertise" },
   { key: "hearing", label: "Hearing" },
-  { key: "audit", label: "Audit" },
+  { key: "audit", label: "Summary" },
   { key: "arbitration", label: "Arbitration" },
   { key: "judgement", label: "Judgement" },
   { key: "appeal", label: "Appeal" },
@@ -288,7 +289,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     { key: "defence", label: "Opponents defence", completed: respondentDefenceSubmitted, completedAt: defenceTime },
     { key: "discovery", label: "Discovery phase", completed: discoveryStarted, completedAt: discoveryTime },
     { key: "hearing", label: "Hearing", completed: hearingCompleted, completedAt: hearingTime },
-    { key: "audit", label: "Audit", completed: auditRequested, completedAt: auditTime },
+    { key: "audit", label: "Summary", completed: auditRequested, completedAt: auditTime },
     { key: "arbitration", label: "Arbitration", completed: arbitrationRequested, completedAt: arbitrationTime },
     { key: "ruling", label: "Ruling", completed: rulingIssued, completedAt: rulingTime },
     { key: "appeal", label: "Appeal", completed: false, completedAt: null },
@@ -1020,29 +1021,8 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "activity" ? (
-        <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" className="rounded-md border border-slate-200 bg-white p-6">
-          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Activity timeline</div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Recent activity</h2>
-          <div className="mt-4 space-y-3 max-h-[600px] overflow-y-auto">
-            {detail.activities.length === 0 ? (
-              <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
-                No activity recorded yet.
-              </div>
-            ) : (
-              detail.activities.map((activity) => (
-                <div key={String(activity.id)} className="rounded-md bg-slate-50 p-4">
-                  <div className="font-semibold text-slate-900">{String(activity.title || "Activity")}</div>
-                  <div className="mt-1 text-sm text-slate-600">{String(activity.description || activity.type || "")}</div>
-                  <div className="mt-2 flex flex-wrap gap-x-2 text-xs uppercase tracking-[0.15em] text-slate-400">
-                    <span>{formatDateTime(String(activity.createdAt || ""))}</span>
-                    {activity.performedBy ? (
-                      <span className="text-slate-500">· by {String(activity.performedBy)}</span>
-                    ) : null}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity">
+          <AuditTrailPanel caseId={detail.case.id} />
         </div>
       ) : null}
 

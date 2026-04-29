@@ -8,7 +8,7 @@ type RouteProps = {
 };
 
 const bodySchema = z.object({
-  action: z.enum(["generate", "accept", "regenerate", "finalize"]),
+  action: z.enum(["generate", "accept", "regenerate", "finalize", "reject"]),
 });
 
 export async function POST(request: Request, { params }: RouteProps) {

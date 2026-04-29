@@ -29,6 +29,7 @@ import {
   hearingScheduleSchema,
   caseContactsUpdateSchema,
   messageCreateSchema,
+  recordCommentCreateSchema,
   witnessCreateSchema,
 } from "@/contracts/cases";
 import {
@@ -138,6 +139,7 @@ export async function createCaseActivity(
   title: string,
   description: string,
   actor: ActivityActor,
+  metadataJson?: Record<string, unknown> | null,
 ) {
   const db = getDb();
 
@@ -147,7 +149,27 @@ export async function createCaseActivity(
     title,
     description,
     performedBy: formatPerformedBy(actor.user, actor.impersonation),
+    metadataJson: metadataJson ?? null,
   });
+}
+
+export async function recordCaseAuditEvent(
+  caseId: string,
+  type: typeof caseActivities.$inferInsert.type,
+  title: string,
+  description: string,
+  actor: ActivityActor,
+  metadata: {
+    eventKey: string;
+    entityType?: string;
+    entityId?: string;
+    entityTitle?: string | null;
+    actorRole?: string | null;
+    outcome?: string;
+    [key: string]: unknown;
+  },
+) {
+  await createCaseActivity(caseId, type, title, description, actor, metadata);
 }
 
 function buildCaseTitle(claimantName: string, respondentName: string) {
@@ -361,12 +383,19 @@ export async function createEvidence(user: AppUser, caseId: string, payload: unk
     })
     .returning();
 
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     "evidence_submitted",
     "Evidence submitted",
     parsed.title,
     { user, impersonation: authorized.impersonation },
+    {
+      eventKey: "evidence_added",
+      actorRole: authorized.role,
+      entityType: "evidence",
+      entityId: inserted[0].id,
+      entityTitle: parsed.title,
+    },
   );
 
   return inserted[0];
@@ -433,12 +462,19 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
     })
     .returning();
 
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     "witness_added",
     "Witness added",
     parsed.fullName,
     { user, impersonation: authorized.impersonation },
+    {
+      eventKey: "witness_added",
+      actorRole: authorized.role,
+      entityType: "witness",
+      entityId: inserted[0].id,
+      entityTitle: parsed.fullName,
+    },
   );
 
   // Send invitation email
@@ -661,12 +697,19 @@ export async function createExpertise(user: AppUser, caseId: string, payload: un
     })
     .returning();
 
-  await createCaseActivity(
+  await recordCaseAuditEvent(
     caseId,
     "note",
     "Expertise request created",
     parsed.title,
     { user, impersonation: authorized.impersonation },
+    {
+      eventKey: "expertise_added",
+      actorRole: authorized.role,
+      entityType: "expertise",
+      entityId: inserted[0].id,
+      entityTitle: parsed.title,
+    },
   );
 
   return inserted[0];
@@ -682,6 +725,124 @@ export async function deleteExpertise(user: AppUser, caseId: string, recordId: s
   await db
     .delete(expertiseRequests)
     .where(and(eq(expertiseRequests.id, recordId), eq(expertiseRequests.caseId, caseId)));
+}
+
+type CommentableKind = "evidence" | "witnesses" | "expertise";
+
+export async function addRecordComment(
+  user: AppUser,
+  caseId: string,
+  kind: CommentableKind,
+  recordId: string,
+  payload: unknown,
+) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+
+  const parsed = recordCommentCreateSchema.parse(payload);
+  const db = getDb();
+  const submittedAt = new Date().toISOString();
+  const submittedBy = authorized.role;
+  const entry = {
+    comment: parsed.comment,
+    submittedBy,
+    submittedAt,
+    userId: user?.id ?? null,
+    userName: user?.fullName || user?.email || "Unknown user",
+  };
+
+  if (kind === "evidence") {
+    const rows = await db
+      .select()
+      .from(evidence)
+      .where(and(eq(evidence.id, recordId), eq(evidence.caseId, caseId)))
+      .limit(1);
+    const record = rows[0];
+    if (!record) throw new Error("Evidence not found");
+    const discussion = Array.isArray(record.discussion) ? record.discussion : [];
+    const updated = await db
+      .update(evidence)
+      .set({ discussion: [...discussion, entry], updatedAt: new Date() })
+      .where(eq(evidence.id, recordId))
+      .returning();
+    await recordCaseAuditEvent(
+      caseId,
+      "message",
+      "Evidence comment added",
+      `${record.title}: ${parsed.comment.slice(0, 160)}`,
+      { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "evidence_comment_added",
+        actorRole: submittedBy,
+        entityType: "evidence",
+        entityId: record.id,
+        entityTitle: record.title,
+      },
+    );
+    return updated[0];
+  }
+
+  if (kind === "witnesses") {
+    const rows = await db
+      .select()
+      .from(witnesses)
+      .where(and(eq(witnesses.id, recordId), eq(witnesses.caseId, caseId)))
+      .limit(1);
+    const record = rows[0];
+    if (!record) throw new Error("Witness not found");
+    const discussion = Array.isArray(record.discussion) ? record.discussion : [];
+    const updated = await db
+      .update(witnesses)
+      .set({ discussion: [...discussion, entry], updatedAt: new Date() })
+      .where(eq(witnesses.id, recordId))
+      .returning();
+    await recordCaseAuditEvent(
+      caseId,
+      "message",
+      "Witness comment added",
+      `${record.fullName}: ${parsed.comment.slice(0, 160)}`,
+      { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "witness_comment_added",
+        actorRole: submittedBy,
+        entityType: "witness",
+        entityId: record.id,
+        entityTitle: record.fullName,
+      },
+    );
+    return updated[0];
+  }
+
+  const rows = await db
+    .select()
+    .from(expertiseRequests)
+    .where(and(eq(expertiseRequests.id, recordId), eq(expertiseRequests.caseId, caseId)))
+    .limit(1);
+  const record = rows[0];
+  if (!record) throw new Error("Expertise request not found");
+  const discussion = Array.isArray(record.discussion) ? record.discussion : [];
+  const updated = await db
+    .update(expertiseRequests)
+    .set({ discussion: [...discussion, entry], updatedAt: new Date() })
+    .where(eq(expertiseRequests.id, recordId))
+    .returning();
+  await recordCaseAuditEvent(
+    caseId,
+    "message",
+    "Expertise comment added",
+    `${record.title}: ${parsed.comment.slice(0, 160)}`,
+    { user, impersonation: authorized.impersonation },
+    {
+      eventKey: "expertise_comment_added",
+      actorRole: submittedBy,
+      entityType: "expertise",
+      entityId: record.id,
+      entityTitle: record.title,
+    },
+  );
+  return updated[0];
 }
 
 export async function createMessage(user: AppUser, caseId: string, payload: unknown) {
@@ -1008,12 +1169,20 @@ export async function reviewEvidence(
       })
       .where(eq(evidence.id, evidenceId))
       .returning();
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       "Evidence accepted",
       record.title,
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "evidence_accepted",
+        actorRole: reviewerRole,
+        entityType: "evidence",
+        entityId: record.id,
+        entityTitle: record.title,
+        outcome: "accepted",
+      },
     );
     return updated[0];
   }
@@ -1034,12 +1203,21 @@ export async function reviewEvidence(
       })
       .where(eq(evidence.id, evidenceId))
       .returning();
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       "Evidence dismissed",
       `${record.title}: ${parsed.reason}`,
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "evidence_dismissed",
+        actorRole: reviewerRole,
+        entityType: "evidence",
+        entityId: record.id,
+        entityTitle: record.title,
+        outcome: "dismissed",
+        reason: parsed.reason,
+      },
     );
     return updated[0];
   }
@@ -1132,12 +1310,21 @@ export async function reviewEvidence(
       })
       .where(eq(evidence.id, evidenceId))
       .returning();
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       "AI expertise requested",
       record.title,
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "expertise_added",
+        actorRole: reviewerRole,
+        entityType: "expertise",
+        entityId: expertise[0].id,
+        entityTitle: expertise[0].title,
+        sourceEntityType: "evidence",
+        sourceEntityId: record.id,
+      },
     );
     return updated[0];
   }
@@ -1149,7 +1336,7 @@ export async function runExpertiseWorkflow(
   user: AppUser,
   caseId: string,
   recordId: string,
-  action: "generate" | "accept" | "regenerate" | "finalize",
+  action: "generate" | "accept" | "regenerate" | "finalize" | "reject",
 ) {
   const authorized = await getAuthorizedCase(user, caseId);
   if (!authorized) {
@@ -1221,12 +1408,50 @@ export async function runExpertiseWorkflow(
       .set({ status: "accepted", updatedAt: now })
       .where(eq(expertiseRequests.id, recordId))
       .returning();
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       "Expertise accepted (awaiting DIN.ORG review)",
       record.title,
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "expertise_accepted",
+        actorRole: role,
+        entityType: "expertise",
+        entityId: record.id,
+        entityTitle: record.title,
+        outcome: "accepted",
+      },
+    );
+    return updated[0];
+  }
+
+  if (action === "reject") {
+    if (role !== "claimant" && role !== "respondent" && role !== "moderator") {
+      throw new Error("Only a case party or DIN.ORG moderator can reject expertise");
+    }
+    if (!["ready", "accepted"].includes(record.status)) {
+      throw new Error("Only generated or accepted expertise can be rejected");
+    }
+    const updated = await db
+      .update(expertiseRequests)
+      .set({ status: "rejected", updatedAt: now })
+      .where(eq(expertiseRequests.id, recordId))
+      .returning();
+    await recordCaseAuditEvent(
+      caseId,
+      "note",
+      "Expertise rejected",
+      record.title,
+      { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "expertise_rejected",
+        actorRole: role,
+        entityType: "expertise",
+        entityId: record.id,
+        entityTitle: record.title,
+        outcome: "rejected",
+      },
     );
     return updated[0];
   }
@@ -1243,12 +1468,20 @@ export async function runExpertiseWorkflow(
       .set({ status: "published", isPublished: true, updatedAt: now })
       .where(eq(expertiseRequests.id, recordId))
       .returning();
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       "Expertise finalized by DIN.ORG",
       record.title,
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "expertise_finalized",
+        actorRole: role,
+        entityType: "expertise",
+        entityId: record.id,
+        entityTitle: record.title,
+        outcome: "published",
+      },
     );
     return updated[0];
   }
@@ -1313,12 +1546,20 @@ export async function reviewParticipant(
       })
       .where(eq(table.id, recordId))
       .returning();
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       `${label} accepted`,
       record.fullName,
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: kind === "witnesses" ? "witness_accepted" : "consultant_accepted",
+        actorRole: reviewerRole,
+        entityType: kind === "witnesses" ? "witness" : "consultant",
+        entityId: record.id,
+        entityTitle: record.fullName,
+        outcome: "accepted",
+      },
     );
     return updated[0];
   }
@@ -1339,12 +1580,21 @@ export async function reviewParticipant(
       })
       .where(eq(table.id, recordId))
       .returning();
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       `${label} dismissed`,
       `${record.fullName}: ${parsed.reason}`,
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: kind === "witnesses" ? "witness_dismissed" : "consultant_dismissed",
+        actorRole: reviewerRole,
+        entityType: kind === "witnesses" ? "witness" : "consultant",
+        entityId: record.id,
+        entityTitle: record.fullName,
+        outcome: "dismissed",
+        reason: parsed.reason,
+      },
     );
     return updated[0];
   }
@@ -1429,12 +1679,21 @@ export async function reviewParticipant(
       })
       .where(eq(table.id, recordId))
       .returning();
-    await createCaseActivity(
+    await recordCaseAuditEvent(
       caseId,
       "note",
       "AI expertise requested",
       record.fullName,
       { user, impersonation: authorized.impersonation },
+      {
+        eventKey: "expertise_added",
+        actorRole: reviewerRole,
+        entityType: "expertise",
+        entityId: expertise[0].id,
+        entityTitle: expertise[0].title,
+        sourceEntityType: kind === "witnesses" ? "witness" : "consultant",
+        sourceEntityId: record.id,
+      },
     );
     return updated[0];
   }

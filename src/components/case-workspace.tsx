@@ -66,6 +66,12 @@ type RecordSummary = {
   reviewExpertiseRequestId?: string | null;
   discussionDeadline?: string | Date | null;
   rejectedBy?: string | null;
+  discussion?: Array<{
+    comment?: string;
+    submittedBy?: string;
+    submittedAt?: string;
+    userName?: string;
+  }> | null;
   // Expertise-specific fields
   aiAnalysis?: string | null;
   isPublished?: boolean | null;
@@ -476,7 +482,7 @@ function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: Experti
   const isParty = caseRole === "claimant" || caseRole === "respondent";
   const isModerator = caseRole === "moderator";
 
-  async function call(action: "generate" | "accept" | "regenerate" | "finalize") {
+  async function call(action: "generate" | "accept" | "regenerate" | "finalize" | "reject") {
     setError(null);
     setSubmitting(action);
     try {
@@ -511,6 +517,13 @@ function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: Experti
       return (
         <span className="rounded-md bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
           Awaiting DIN.ORG review
+        </span>
+      );
+    }
+    if (status === "rejected") {
+      return (
+        <span className="rounded-md bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700">
+          Rejected
         </span>
       );
     }
@@ -576,23 +589,121 @@ function ExpertiseWorkflowSection({ record, caseId, caseRole, refresh }: Experti
             >
               {submitting === "regenerate" ? "Regenerating..." : "Regenerate"}
             </button>
+            <button
+              type="button"
+              disabled={submitting !== null}
+              onClick={() => void call("reject")}
+              className="rounded-md border border-rose-300 px-4 py-2 text-xs font-semibold text-rose-700 hover:border-rose-400 disabled:opacity-60"
+            >
+              {submitting === "reject" ? "Rejecting..." : "Reject"}
+            </button>
           </>
         ) : null}
         {status === "accepted" && isModerator ? (
-          <button
-            type="button"
-            disabled={submitting !== null}
-            onClick={() => void call("finalize")}
-            className="rounded-md bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
-          >
-            {submitting === "finalize" ? "Finalizing..." : "Finalize as DIN.ORG reviewed"}
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={submitting !== null}
+              onClick={() => void call("finalize")}
+              className="rounded-md bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+            >
+              {submitting === "finalize" ? "Finalizing..." : "Finalize as DIN.ORG reviewed"}
+            </button>
+            <button
+              type="button"
+              disabled={submitting !== null}
+              onClick={() => void call("reject")}
+              className="rounded-md border border-rose-300 px-4 py-2 text-xs font-semibold text-rose-700 hover:border-rose-400 disabled:opacity-60"
+            >
+              {submitting === "reject" ? "Rejecting..." : "Reject"}
+            </button>
+          </>
         ) : null}
         {status === "accepted" && isParty ? (
           <span className="text-xs text-slate-500">
             DIN.ORG will review and finalize this expertise.
           </span>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+type RecordDiscussionSectionProps = {
+  record: RecordSummary;
+  caseId: string;
+  kind: "evidence" | "witnesses" | "expertise";
+  refresh: () => void;
+};
+
+function RecordDiscussionSection({ record, caseId, kind, refresh }: RecordDiscussionSectionProps) {
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const discussion = Array.isArray(record.discussion) ? record.discussion : [];
+
+  async function submitComment() {
+    const trimmed = comment.trim();
+    if (!trimmed) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/cases/${caseId}/${kind}/${record.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: trimmed }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error?.message || "Failed to add comment.");
+        return;
+      }
+      setComment("");
+      refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-md border border-slate-100 bg-slate-50/60 p-4">
+      <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Comments</div>
+      {discussion.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {discussion.map((entry, index) => (
+            <div key={`${record.id}-comment-${index}`} className="rounded-md bg-white p-3 text-sm text-slate-700">
+              <div className="whitespace-pre-wrap">{entry.comment || ""}</div>
+              <div className="mt-2 text-xs uppercase tracking-[0.12em] text-slate-400">
+                {entry.submittedBy || "unknown"}
+                {entry.submittedAt ? ` · ${new Date(entry.submittedAt).toLocaleString()}` : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3 text-sm text-slate-500">No comments yet.</div>
+      )}
+      {error ? (
+        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
+      ) : null}
+      <div className="mt-3 flex flex-col gap-2">
+        <textarea
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+          rows={3}
+          placeholder="Add a comment"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+        />
+        <div>
+          <button
+            type="button"
+            disabled={submitting || comment.trim().length === 0}
+            onClick={() => void submitComment()}
+            className="rounded-md bg-ink px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+          >
+            {submitting ? "Adding..." : "Add comment"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1108,6 +1219,14 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   record={record}
                   caseId={props.caseId}
                   caseRole={props.caseRole ?? null}
+                  refresh={() => router.refresh()}
+                />
+              ) : null}
+              {kind === "evidence" || kind === "witnesses" || kind === "expertise" ? (
+                <RecordDiscussionSection
+                  record={record}
+                  caseId={props.caseId}
+                  kind={kind}
                   refresh={() => router.refresh()}
                 />
               ) : null}
