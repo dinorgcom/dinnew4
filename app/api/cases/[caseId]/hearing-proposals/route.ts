@@ -1,6 +1,7 @@
 import { fail, ok } from "@/server/api/responses";
 import { ensureAppUser } from "@/server/auth/provision";
 import {
+  autoFinalizeHearingProposalIfDue,
   confirmHearingSlot,
   generateHearingProposal,
   getActiveHearingProposal,
@@ -16,6 +17,10 @@ export async function GET(_request: Request, { params }: RouteProps) {
   try {
     const { caseId } = await params;
     await ensureAppUser();
+    // Lazy auto-finalize: every read triggers a check; if voting deadline
+    // has passed and there's a clear winner the proposal is confirmed and
+    // the corresponding hearings row is created on the spot.
+    await autoFinalizeHearingProposalIfDue(caseId);
     const [proposal, discovery] = await Promise.all([
       getActiveHearingProposal(caseId),
       isDiscoveryComplete(caseId),

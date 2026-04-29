@@ -54,6 +54,9 @@ export const cases = pgTable(
     judgementJson: jsonb("judgement_json").$type<Record<string, unknown> | null>(),
     finalDecision: text("final_decision"),
     settlementAmount: numeric("settlement_amount", { precision: 12, scale: 2 }),
+    discoveryReadyClaimantAt: timestamp("discovery_ready_claimant_at", { withTimezone: true }),
+    discoveryReadyRespondentAt: timestamp("discovery_ready_respondent_at", { withTimezone: true }),
+    lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
     // Reference to current simulation
     currentSimulationId: text("current_simulation_id"),
     notes: text("notes"),

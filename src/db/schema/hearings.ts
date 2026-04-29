@@ -145,6 +145,7 @@ export const hearingProposals = pgTable(
       respondent?: (boolean | null)[];
     }>().default({}).notNull(),
     selectedSlotIndex: integer("selected_slot_index"),
+    votingDeadline: timestamp("voting_deadline", { withTimezone: true }),
     createdAt,
     updatedAt,
   },

@@ -16,22 +16,45 @@ import { generateStructuredObject, isAiConfigured } from "@/server/ai/service";
 type AppUser = ProvisionedAppUser | null;
 
 const SLOT_COUNT = 5;
+const DISCOVERY_INACTIVITY_DAYS = 14;
+const VOTING_WINDOW_DAYS = 7;
 
 export type DiscoveryStatus = {
   complete: boolean;
+  // Discovery completion source: which gate(s) closed it
+  reason: "tasks-settled" | "both-parties-ready" | "inactivity" | "incomplete";
   pendingEvidence: number;
   pendingWitnesses: number;
   pendingExpertise: number;
+  // Per-party readiness flags
+  claimantReadyAt: string | null;
+  respondentReadyAt: string | null;
+  // The point in time at which the inactivity countdown will trip discovery
+  // closed if no further activity happens. Computed against last_activity_at
+  // (or case createdAt as a fallback). Null when reviewable items are still
+  // pending — the inactivity countdown only matters once tasks are settled.
+  inactivityCloseAt: string | null;
 };
 
 export async function isDiscoveryComplete(caseId: string): Promise<DiscoveryStatus> {
   const db = getDb();
-  const [evidenceRows, witnessRows, expertiseRows] = await Promise.all([
+  const [caseRows, evidenceRows, witnessRows, expertiseRows] = await Promise.all([
+    db
+      .select({
+        createdAt: cases.createdAt,
+        lastActivityAt: cases.lastActivityAt,
+        claimantReadyAt: cases.discoveryReadyClaimantAt,
+        respondentReadyAt: cases.discoveryReadyRespondentAt,
+      })
+      .from(cases)
+      .where(eq(cases.id, caseId))
+      .limit(1),
     db.select({ id: evidence.id, reviewState: evidence.reviewState, status: evidence.status, deadline: evidence.discussionDeadline }).from(evidence).where(eq(evidence.caseId, caseId)),
     db.select({ id: witnesses.id, status: witnesses.status }).from(witnesses).where(eq(witnesses.caseId, caseId)),
     db.select({ id: expertiseRequests.id, status: expertiseRequests.status }).from(expertiseRequests).where(eq(expertiseRequests.caseId, caseId)),
   ]);
 
+  const caseRow = caseRows[0];
   const now = new Date();
   const pendingEvidence = evidenceRows.filter((row) => {
     const stored = (row.reviewState || "pending").toLowerCase();
@@ -41,13 +64,81 @@ export async function isDiscoveryComplete(caseId: string): Promise<DiscoveryStat
   }).length;
   const pendingWitnesses = witnessRows.filter((row) => row.status === "pending").length;
   const pendingExpertise = expertiseRows.filter((row) => row.status === "draft" || row.status === "generating").length;
+  const tasksSettled = pendingEvidence === 0 && pendingWitnesses === 0 && pendingExpertise === 0;
+
+  const claimantReadyAt = caseRow?.claimantReadyAt ?? null;
+  const respondentReadyAt = caseRow?.respondentReadyAt ?? null;
+  const bothPartiesReady = !!claimantReadyAt && !!respondentReadyAt;
+
+  // Inactivity gate: if tasks are settled and there's been no activity for
+  // 14 days, treat discovery as auto-closed. Use last_activity_at if known,
+  // else fall back to case createdAt.
+  const lastActivityIso = caseRow?.lastActivityAt
+    ? new Date(caseRow.lastActivityAt).toISOString()
+    : caseRow?.createdAt
+      ? new Date(caseRow.createdAt).toISOString()
+      : null;
+  const inactivityCloseAt =
+    tasksSettled && lastActivityIso
+      ? new Date(
+          new Date(lastActivityIso).getTime() + DISCOVERY_INACTIVITY_DAYS * 24 * 60 * 60 * 1000,
+        ).toISOString()
+      : null;
+  const inactivityElapsed =
+    inactivityCloseAt !== null && now > new Date(inactivityCloseAt);
+
+  let reason: DiscoveryStatus["reason"] = "incomplete";
+  let complete = false;
+  if (tasksSettled && bothPartiesReady) {
+    complete = true;
+    reason = "both-parties-ready";
+  } else if (tasksSettled && inactivityElapsed) {
+    complete = true;
+    reason = "inactivity";
+  } else if (tasksSettled) {
+    // Tasks are done but neither auto-close has tripped. We still surface
+    // this as "incomplete" so the UI shows the ready prompt + inactivity
+    // countdown.
+    reason = "incomplete";
+  }
 
   return {
-    complete: pendingEvidence === 0 && pendingWitnesses === 0 && pendingExpertise === 0,
+    complete,
+    reason,
     pendingEvidence,
     pendingWitnesses,
     pendingExpertise,
+    claimantReadyAt: claimantReadyAt ? new Date(claimantReadyAt).toISOString() : null,
+    respondentReadyAt: respondentReadyAt ? new Date(respondentReadyAt).toISOString() : null,
+    inactivityCloseAt,
   };
+}
+
+export async function markDiscoveryReady(user: AppUser, caseId: string) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) throw new Error("Forbidden");
+  if (authorized.role !== "claimant" && authorized.role !== "respondent") {
+    throw new Error("Only case parties can mark discovery ready");
+  }
+
+  const db = getDb();
+  const now = new Date();
+  const update: Partial<typeof cases.$inferInsert> = {
+    lastActivityAt: now,
+    updatedAt: now,
+  };
+  if (authorized.role === "claimant") {
+    update.discoveryReadyClaimantAt = now;
+  } else {
+    update.discoveryReadyRespondentAt = now;
+  }
+  const updated = await db
+    .update(cases)
+    .set(update)
+    .where(eq(cases.id, caseId))
+    .returning();
+
+  return { case: updated[0], role: authorized.role };
 }
 
 export async function getActiveHearingProposal(caseId: string) {
@@ -125,6 +216,8 @@ export async function generateHearingProposal(user: AppUser, caseId: string) {
     .set({ status: "expired", updatedAt: new Date() })
     .where(and(eq(hearingProposals.caseId, caseId), eq(hearingProposals.status, "open")));
 
+  const votingDeadline = new Date(Date.now() + VOTING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
   const inserted = await db
     .insert(hearingProposals)
     .values({
@@ -132,9 +225,66 @@ export async function generateHearingProposal(user: AppUser, caseId: string) {
       slots: validSlots.slice(0, SLOT_COUNT),
       availability: { claimant: [], respondent: [] },
       status: "open",
+      votingDeadline,
     })
     .returning();
   return inserted[0];
+}
+
+export async function autoFinalizeHearingProposalIfDue(caseId: string) {
+  const db = getDb();
+  const proposal = await getActiveHearingProposal(caseId);
+  if (!proposal || proposal.status !== "open") return null;
+  if (!proposal.votingDeadline) return null;
+
+  const deadlineIso =
+    typeof proposal.votingDeadline === "string"
+      ? new Date(proposal.votingDeadline)
+      : proposal.votingDeadline;
+  if (new Date() < deadlineIso) return null;
+
+  const tally = tallyAvailability(proposal);
+  // Pick the slot with the most yes votes; tiebreak by earliest slot.
+  const sorted = [...tally].sort((a, b) => {
+    if (b.yesCount !== a.yesCount) return b.yesCount - a.yesCount;
+    const slotA = new Date(proposal.slots?.[a.index] || 0).getTime();
+    const slotB = new Date(proposal.slots?.[b.index] || 0).getTime();
+    return slotA - slotB;
+  });
+  const winner = sorted[0];
+  if (!winner || winner.yesCount === 0) {
+    // No one voted yes on anything — leave the proposal open for moderator
+    // intervention rather than confirming an empty slot.
+    return null;
+  }
+
+  const slotIso = proposal.slots?.[winner.index];
+  if (!slotIso) return null;
+  const start = new Date(slotIso);
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+  const inserted = await db
+    .insert(hearings)
+    .values({
+      caseId,
+      scheduledStartTime: start,
+      scheduledEndTime: end,
+      status: "scheduled",
+      meetingPlatform: "anam",
+    })
+    .returning();
+
+  await db
+    .update(hearingProposals)
+    .set({ status: "confirmed", selectedSlotIndex: winner.index, updatedAt: new Date() })
+    .where(eq(hearingProposals.id, proposal.id));
+
+  await db
+    .update(cases)
+    .set({ status: "hearing_scheduled", lastActivityAt: new Date(), updatedAt: new Date() })
+    .where(eq(cases.id, caseId));
+
+  return { hearing: inserted[0], proposalId: proposal.id, slotIndex: winner.index };
 }
 
 const voteSchema = z.object({
