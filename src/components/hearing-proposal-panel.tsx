@@ -98,6 +98,7 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
   }
 
   if (discovery && !discovery.complete && (!proposal || proposal.status === "expired")) {
+    const isModerator = caseRole === "moderator";
     return (
       <section className="rounded-md border border-slate-200 bg-slate-100 p-6">
         <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
@@ -108,6 +109,9 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
         </h2>
         <p className="mt-2 text-sm text-slate-700">
           Once discovery is complete the AI can suggest 5 candidate hearing slots.
+          {isModerator
+            ? " As a moderator you can force-generate slots anyway below."
+            : ""}
         </p>
         <ul className="mt-4 grid gap-2 sm:grid-cols-3 text-sm text-slate-800">
           <li className="rounded-md bg-white p-3">
@@ -123,6 +127,23 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
             <div className="mt-1 text-xl font-semibold">{discovery.pendingExpertise}</div>
           </li>
         </ul>
+        {error ? (
+          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
+        {isModerator ? (
+          <button
+            type="button"
+            onClick={() => void send({ action: "generate" }, "generate")}
+            disabled={busy !== null}
+            className="mt-5 rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busy === "generate"
+              ? "Generating..."
+              : "Force-generate slots (moderator)"}
+          </button>
+        ) : null}
       </section>
     );
   }

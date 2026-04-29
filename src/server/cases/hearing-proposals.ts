@@ -84,9 +84,15 @@ export async function generateHearingProposal(user: AppUser, caseId: string) {
     throw new Error("Only case parties or moderators can generate proposals");
   }
 
-  const discovery = await isDiscoveryComplete(caseId);
-  if (!discovery.complete) {
-    throw new Error("Discovery is not yet complete.");
+  // Moderators (DIN.ORG-side mediators and admins viewing as moderators)
+  // can force-generate even if the parties haven't finished discovery —
+  // useful for testing and for nudging stalled cases forward. Parties
+  // still need a clean discovery state.
+  if (authorized.role !== "moderator") {
+    const discovery = await isDiscoveryComplete(caseId);
+    if (!discovery.complete) {
+      throw new Error("Discovery is not yet complete.");
+    }
   }
 
   const db = getDb();
