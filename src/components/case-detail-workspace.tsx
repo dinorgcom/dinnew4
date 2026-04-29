@@ -348,7 +348,11 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const arbitrationProposal = (detail.case as any).arbitrationProposalJson;
   const claimantArbResp = (detail.case as any).arbitrationClaimantResponse;
   const respondentArbResp = (detail.case as any).arbitrationRespondentResponse;
-  const arbitrationNeedsAttention =
+  // The settlement-offer flow (party-to-party) reuses the arbitration_proposal
+  // column under the hood. Pending response on it is a Settlement task, not an
+  // Arbitration task. Arbitration becomes a separate DIN.ORG-side proposal
+  // post-proceedings and never lights up the Arbitration tab in orange.
+  const settlementNeedsAttention =
     !!arbitrationProposal &&
     ((role === "claimant" && !claimantArbResp) ||
       (role === "respondent" && !respondentArbResp));
@@ -359,7 +363,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     consultantsNeedAttention ||
     expertiseNeedsAttention ||
     respondentTabNeedsAttention ||
-    arbitrationNeedsAttention;
+    settlementNeedsAttention;
 
   const tabAttention: Partial<Record<(typeof tabs)[number]["key"], boolean>> = {
     claims: claimsNeedAttention,
@@ -368,7 +372,6 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     consultants: consultantsNeedAttention,
     expertise: expertiseNeedsAttention,
     respondent: respondentTabNeedsAttention,
-    arbitration: arbitrationNeedsAttention,
     todo: todoNeedsAttention,
   };
 
@@ -672,12 +675,12 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                     id={`tab-${tab.key}`}
                     aria-selected={isActive}
                     aria-controls={`panel-${tab.key}`}
-                    className={`block w-full rounded-md px-3 py-2.5 text-left transition ${
+                    className={`block min-h-[88px] w-full rounded-md px-3 py-2.5 text-left transition ${
                       isActive ? "bg-rose-700 shadow" : "bg-rose-600 hover:bg-rose-700"
                     }`}
                   >
                     <div className="text-[10px] uppercase tracking-[0.2em] text-rose-100">Case</div>
-                    <div className="mt-1 text-sm font-semibold leading-snug text-white line-clamp-2">
+                    <div className="mt-1 text-sm font-semibold leading-snug text-white line-clamp-3">
                       {detail.case.title}
                     </div>
                   </button>
@@ -1079,16 +1082,18 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 }
               }
             }
-            // Arbitration response pending
+            // Settlement-offer response pending (the party-to-party flow lives
+            // behind the NAV1 "Offer Settlement" link and the hidden settlement
+            // tab; it reuses the arbitration_proposal column under the hood).
             const claimantArb = (detail.case as any).arbitrationClaimantResponse;
             const respondentArb = (detail.case as any).arbitrationRespondentResponse;
             const proposal = (detail.case as any).arbitrationProposalJson;
             if (proposal) {
               if (role === "claimant" && !claimantArb) {
-                items.push({ key: "respond-arb-c", label: "Respond to the arbitration proposal", tab: "arbitration" });
+                items.push({ key: "respond-settlement-c", label: "Respond to the settlement offer", tab: "settlement" });
               }
               if (role === "respondent" && !respondentArb) {
-                items.push({ key: "respond-arb-r", label: "Respond to the arbitration proposal", tab: "arbitration" });
+                items.push({ key: "respond-settlement-r", label: "Respond to the settlement offer", tab: "settlement" });
               }
             }
 
@@ -1103,20 +1108,20 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             return (
               <ul className="mt-4 space-y-2">
                 {items.map((item) => (
-                  <li key={item.key} className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-4">
-                    <div className="text-sm font-medium text-amber-900">{item.label}</div>
+                  <li key={item.key} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-100 p-4">
+                    <div className="text-sm font-medium text-slate-800">{item.label}</div>
                     {item.tab ? (
                       <button
                         type="button"
                         onClick={() => setActiveTab(item.tab as (typeof tabs)[number]["key"])}
-                        className="rounded-md bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                        className="rounded-md bg-ink px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
                       >
                         Open
                       </button>
                     ) : item.href ? (
                       <Link
                         href={item.href as Route}
-                        className="rounded-md bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                        className="rounded-md bg-ink px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
                       >
                         Open
                       </Link>
@@ -1347,7 +1352,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "arbitration" ? (
         <div id="panel-arbitration" role="tabpanel" aria-labelledby="tab-arbitration" className="space-y-4">
-          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="rounded-md border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-800">
             <span className="font-semibold">
               Arbitration becomes available only after the case proceedings are complete.
             </span>

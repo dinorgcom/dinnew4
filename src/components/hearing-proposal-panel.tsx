@@ -99,27 +99,27 @@ export function HearingProposalPanel({ caseId, caseRole }: Props) {
 
   if (discovery && !discovery.complete && (!proposal || proposal.status === "expired")) {
     return (
-      <section className="rounded-md border border-amber-200 bg-amber-50 p-6">
-        <div className="text-xs uppercase tracking-[0.2em] text-amber-700">
+      <section className="rounded-md border border-slate-200 bg-slate-100 p-6">
+        <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
           Discovery in progress
         </div>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-amber-950">
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
           Hearing scheduling is locked
         </h2>
-        <p className="mt-2 text-sm text-amber-900">
+        <p className="mt-2 text-sm text-slate-700">
           Once discovery is complete the AI can suggest 5 candidate hearing slots.
         </p>
-        <ul className="mt-4 grid gap-2 sm:grid-cols-3 text-sm text-amber-900">
+        <ul className="mt-4 grid gap-2 sm:grid-cols-3 text-sm text-slate-800">
           <li className="rounded-md bg-white p-3">
-            <div className="text-xs uppercase tracking-[0.16em] text-amber-700">Evidence pending</div>
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Evidence pending</div>
             <div className="mt-1 text-xl font-semibold">{discovery.pendingEvidence}</div>
           </li>
           <li className="rounded-md bg-white p-3">
-            <div className="text-xs uppercase tracking-[0.16em] text-amber-700">Witnesses pending</div>
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Witnesses pending</div>
             <div className="mt-1 text-xl font-semibold">{discovery.pendingWitnesses}</div>
           </li>
           <li className="rounded-md bg-white p-3">
-            <div className="text-xs uppercase tracking-[0.16em] text-amber-700">Expertise pending</div>
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Expertise pending</div>
             <div className="mt-1 text-xl font-semibold">{discovery.pendingExpertise}</div>
           </li>
         </ul>

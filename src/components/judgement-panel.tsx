@@ -423,7 +423,7 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
         </div>
 
         {!canModerate ? (
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-700">
             Only moderators and admins can generate or accept a judgement.
           </div>
         ) : null}
@@ -540,10 +540,10 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
                   }</div>
                   <div><strong>Award Amount:</strong> {formatMoney(damagesAwarded ?? simulation?.outcome?.amount)}</div>
                   {simulation?.outcome?.type === 'Abort' && simulation.outcome.needsMoreEvidence && (
-                    <div className="mt-3 p-3 bg-amber-100 border border-amber-200 rounded-lg">
-                      <div className="font-medium text-amber-900">Additional Evidence Needed</div>
+                    <div className="mt-3 p-3 bg-slate-100 border border-slate-200 rounded-lg">
+                      <div className="font-medium text-slate-900">Additional Evidence Needed</div>
                       {(simulation.outcome.evidenceRequests || []).map((request) => (
-                        <div key={request} className="text-sm text-amber-800 mt-1">- {request}</div>
+                        <div key={request} className="text-sm text-slate-700 mt-1">- {request}</div>
                       ))}
                     </div>
                   )}

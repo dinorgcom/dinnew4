@@ -50,7 +50,7 @@ export default async function AppLayout({
             <UserButton afterSignOutUrl="/" />
           </div>
 
-          <div className="mt-6 rounded-md border border-white/10 bg-white/5 px-3 py-2.5">
+          <div className="mt-6 min-h-[88px] rounded-md border border-white/10 bg-white/5 px-3 py-2.5">
             <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Account</div>
             <div className="mt-1 truncate text-sm font-semibold text-white">
               {appUser?.fullName || appUser?.email || "Provisioning pending"}
