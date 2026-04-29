@@ -54,6 +54,16 @@ type JudgementPanelProps = {
   caseStatus: string;
 };
 
+function formatMoney(value: unknown) {
+  const amount = typeof value === "number" ? value : typeof value === "string" ? Number(value) : null;
+  if (amount === null || !Number.isFinite(amount)) return "Not set";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, caseStatus }: JudgementPanelProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +79,9 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
   const currentJudgement = isRefreshing ? null : judgement;
   
   const parsed = (currentJudgement || {}) as {
+    LIABILITY?: "claimant" | "respondent" | "none";
+    DAMAGES_AWARDED?: number | string;
+    RATIONALE?: string;
     summary?: string;
     claims_analysis?: Array<{ claim?: string; finding?: string; reasoning?: string }>;
     evidence_assessment?: string;
@@ -78,6 +91,19 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
     award_amount?: number | string;
     detailed_rationale?: string;
   };
+  const netPayer = parsed.LIABILITY;
+  const damagesAwarded = parsed.DAMAGES_AWARDED ?? parsed.award_amount;
+  const rulingRationale = parsed.RATIONALE ?? parsed.detailed_rationale;
+  const decisionSummary =
+    parsed.summary ??
+    parsed.judgement_summary ??
+    (netPayer === "respondent"
+      ? `Respondent must pay claimant ${formatMoney(damagesAwarded)}.`
+      : netPayer === "claimant"
+        ? `Claimant must pay respondent ${formatMoney(damagesAwarded)}.`
+        : netPayer === "none"
+          ? "No net payment is awarded."
+          : null);
 
   // Load stored simulation on component mount
   useEffect(() => {
@@ -451,10 +477,10 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
           )}
 
           {/* Primary Decision Summary */}
-          {currentJudgement && parsed.summary && (
+          {currentJudgement && decisionSummary && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900">Analysis Summary</h4>
-              <p className="text-sm text-blue-800 mt-1">{parsed.summary}</p>
+              <h4 className="font-medium text-blue-900">Ruling Summary</h4>
+              <p className="text-sm text-blue-800 mt-1">{decisionSummary}</p>
             </div>
           )}
 
@@ -464,20 +490,24 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
             {currentJudgement && (
               <div className="rounded-md bg-slate-50 p-5">
                 <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Claims Analysis</div>
-                <div className="mt-3 space-y-3">
-                  {(parsed.claims_analysis || []).map((item, index) => (
-                    <div key={`${item.claim}-${index}`} className="rounded-md bg-white p-4">
-                      <div className="font-semibold text-slate-900">{item.claim}</div>
-                      <div className="mt-2 text-sm text-slate-700">{item.finding}</div>
-                      <div className="mt-2 text-sm text-slate-500">{item.reasoning}</div>
-                    </div>
-                  ))}
-                </div>
+                {parsed.claims_analysis?.length ? (
+                  <div className="mt-3 space-y-3">
+                    {parsed.claims_analysis.map((item, index) => (
+                      <div key={`${item.claim}-${index}`} className="rounded-md bg-white p-4">
+                        <div className="font-semibold text-slate-900">{item.claim}</div>
+                        <div className="mt-2 text-sm text-slate-700">{item.finding}</div>
+                        <div className="mt-2 text-sm text-slate-500">{item.reasoning}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{rulingRationale}</p>
+                )}
               </div>
             )}
 
             {/* Evidence Assessment */}
-            {currentJudgement && (
+            {currentJudgement && parsed.evidence_assessment && (
               <div className="rounded-md bg-slate-50 p-4">
                 <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Evidence Assessment</div>
                 <p className="mt-3 text-sm leading-7 text-slate-700">{parsed.evidence_assessment}</p>
@@ -490,19 +520,25 @@ export function JudgementPanel({ caseId, canModerate, judgement, finalDecision, 
                 <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Key Decision Points</div>
                 <div className="mt-3 space-y-2 text-sm text-slate-700">
                   <div><strong>Prevailing Party:</strong> {
-                    parsed.prevailing_party === 'split' 
+                    netPayer === 'none'
                       ? 'No prevailing party determined' 
-                      : parsed.prevailing_party === 'claimant' 
+                      : netPayer === 'respondent'
                         ? 'Claimant'
-                        : parsed.prevailing_party === 'respondent'
+                        : netPayer === 'claimant'
                           ? 'Respondent'
-                          : simulation?.outcome?.winner === 'PartyA' 
-                            ? 'Claimant' 
-                            : simulation?.outcome?.winner === 'PartyB' 
-                              ? 'Respondent' 
-                              : 'Not set'
+                          : parsed.prevailing_party === 'split' 
+                            ? 'No prevailing party determined' 
+                            : parsed.prevailing_party === 'claimant' 
+                              ? 'Claimant'
+                              : parsed.prevailing_party === 'respondent'
+                                ? 'Respondent'
+                                : simulation?.outcome?.winner === 'PartyA' 
+                                  ? 'Claimant' 
+                                  : simulation?.outcome?.winner === 'PartyB' 
+                                    ? 'Respondent' 
+                                    : 'Not set'
                   }</div>
-                  <div><strong>Award Amount:</strong> {String(parsed.award_amount ?? simulation?.outcome?.amount ?? "Not set")}</div>
+                  <div><strong>Award Amount:</strong> {formatMoney(damagesAwarded ?? simulation?.outcome?.amount)}</div>
                   {simulation?.outcome?.type === 'Abort' && simulation.outcome.needsMoreEvidence && (
                     <div className="mt-3 p-3 bg-amber-100 border border-amber-200 rounded-lg">
                       <div className="font-medium text-amber-900">Additional Evidence Needed</div>

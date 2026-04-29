@@ -50,20 +50,17 @@ const arbitrationOutputSchema = z.object({
 });
 
 const judgementOutputSchema = z.object({
-  summary: z.string(),
-  claims_analysis: z.array(
-    z.object({
-      claim: z.string(),
-      finding: z.string(),
-      reasoning: z.string(),
-    }),
-  ).min(1).max(8),
-  evidence_assessment: z.string(),
-  prevailing_party: z.enum(["claimant", "respondent", "split"]),
-  judgement_summary: z.string(),
-  remedies_ordered: z.array(z.string()).min(1).max(6),
-  award_amount: z.number().nonnegative(),
-  detailed_rationale: z.string(),
+  LIABILITY: z.enum(["claimant", "respondent", "none"]),
+  DAMAGES_AWARDED: z.number().nonnegative(),
+  RATIONALE: z.string(),
+}).superRefine((value, ctx) => {
+  if (value.LIABILITY === "none" && value.DAMAGES_AWARDED !== 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "No-liability rulings must award zero damages.",
+      path: ["LIABILITY"],
+    });
+  }
 });
 
 const lawyerReplySchema = z.object({
@@ -108,32 +105,49 @@ function compactCaseContext(detail: NonNullable<Awaited<ReturnType<typeof getCas
       judgementJson: detail.case.judgementJson,
     },
     evidence: detail.evidence.map((item) => ({
+      id: item.id,
+      evidenceNumber: item.evidenceNumber,
       title: item.title,
       type: item.type,
       description: item.description,
       status: item.status,
+      submittedBy: item.submittedBy,
+      fileName: item.fileName,
+      discussion: item.discussion,
       notes: item.notes,
     })),
     witnesses: detail.witnesses.map((item) => ({
+      id: item.id,
       fullName: item.fullName,
       relationship: item.relationship,
+      calledBy: item.calledBy,
       statement: item.statement,
       status: item.status,
+      notes: item.notes,
+      discussion: item.discussion,
     })),
     consultants: detail.consultants.map((item) => ({
+      id: item.id,
       fullName: item.fullName,
       company: item.company,
       expertise: item.expertise,
       role: item.role,
+      calledBy: item.calledBy,
       report: item.report,
       status: item.status,
+      notes: item.notes,
+      discussion: item.discussion,
     })),
     expertiseRequests: detail.expertiseRequests.map((item) => ({
+      id: item.id,
       title: item.title,
       description: item.description,
+      requestedBy: item.requestedBy,
+      aiAnalysis: item.aiAnalysis,
       status: item.status,
     })),
     messages: detail.messages.slice(0, 8).map((item) => ({
+      id: item.id,
       senderRole: item.senderRole,
       senderName: item.senderName,
       content: item.content,
@@ -211,6 +225,40 @@ function summarizeArbitrationProposal(proposal: Record<string, unknown>) {
     return proposal.settlement_proposal;
   }
   return "AI arbitration proposal accepted.";
+}
+
+function judgementAmount(judgement: Record<string, unknown>) {
+  return toFiniteNonnegativeNumber(judgement.DAMAGES_AWARDED ?? judgement.award_amount);
+}
+
+function summarizeJudgement(judgement: Record<string, unknown>) {
+  const liability = judgement.LIABILITY;
+  const amount = judgementAmount(judgement);
+  const amountText =
+    amount !== null
+      ? new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 0,
+        }).format(amount)
+      : "the awarded amount";
+
+  if (liability === "none") {
+    return "No net payment is awarded.";
+  }
+  if (liability === "claimant") {
+    return `Claimant must pay respondent ${amountText}.`;
+  }
+  if (liability === "respondent") {
+    return `Respondent must pay claimant ${amountText}.`;
+  }
+  if (typeof judgement.judgement_summary === "string") {
+    return judgement.judgement_summary;
+  }
+  if (typeof judgement.summary === "string") {
+    return judgement.summary;
+  }
+  return "Judgement accepted.";
 }
 
 async function getAiContext(user: AppUser, caseId: string) {
@@ -578,9 +626,85 @@ export async function generateJudgement(user: AppUser, caseId: string, clearSimu
   }
 
   const prompt = [
-    "You are an arbitrator preparing a formal judgement.",
-    "Weigh the claims, evidence, and procedural record fairly.",
-    "Use only the case context provided here.",
+    "You are an impartial AI arbitration judge. The parties failed to settle after the arbitration proposal stage. Your task is now to issue a proposed final ruling.",
+    "",
+    "You are not an advocate for either party. Apply the governing arbitration agreement, applicable substantive law, applicable procedural rules, and the admitted case record. Do not prefer either claimant or respondent because of role, size, sophistication, tone, or volume of submissions.",
+    "",
+    "You must decide liability and award a specific damages amount, not a settlement range. If no party owes damages, set LIABILITY to \"none\" and DAMAGES_AWARDED to 0.",
+    "",
+    "The current runtime does not provide external legal research tools. Use internal legal reasoning and the supplied case record only. If a legal rule materially affects liability or damages but cannot be verified from the case record, reflect that uncertainty in RATIONALE. Do not invent legal authorities, legal citations, facts, evidence, procedural history, exhibit numbers, transcript pages, testimony, expert conclusions, or admissions.",
+    "",
+    "INPUT CASE MATERIALS MAY INCLUDE:",
+    "- Arbitration agreement and governing-law clause, if available",
+    "- Prior arbitration proposal, including prior LIABILITY, RANGE_LOW, RANGE_HIGH, and RATIONALE",
+    "- Claimant's claims",
+    "- Claimant's submitted evidence",
+    "- Discussion, objections, and contests relating to claimant's evidence",
+    "- Respondent's claims, defenses, and counterclaims",
+    "- Respondent's submitted evidence",
+    "- Discussion, objections, and contests relating to respondent's evidence",
+    "- Witness statements, if any",
+    "- Expert testimony, if any",
+    "- Hearing transcripts",
+    "- Any admitted procedural orders, party stipulations, settlement communications permitted to be considered, and applicable arbitration rules",
+    "",
+    "CORE DUTY:",
+    "Issue a final ruling based only on the record and verified legal standards available in the case context. The prior arbitration proposal is relevant context, but it is not binding. Reconsider the matter independently.",
+    "",
+    "METHOD:",
+    "1. Read the full case record and the prior arbitration proposal before deciding.",
+    "2. Identify the governing law, legal standards, burden of proof, damages standard, and any applicable arbitration rules.",
+    "3. Build a neutral chronology of material facts.",
+    "4. Identify each claim, defense, counterclaim, offset, and requested remedy.",
+    "5. For each claim or defense, analyze each required legal element, the party bearing the burden, supporting evidence, opposing evidence, and whether the element is proven, not proven, or uncertain.",
+    "6. Evaluate evidence item by item for the fact it tends to prove, whether it exists in the record, its record identifier/title/exhibit number/transcript page/witness name/other precise citation, reliability, whether it was contested, whether counterevidence was submitted, and weight assigned.",
+    "7. If a party contests evidence but submits no meaningful counterevidence where counterevidence would reasonably be expected, consider whether an adverse evidentiary inference is appropriate. Treat this as a credibility/procedural-conduct factor only. Do not label conduct fraudulent unless the record independently proves fraud under the applicable legal standard.",
+    "8. Assess witness and expert material for opportunity to observe, internal consistency, consistency with documents and other testimony, bias or interest, methodology, assumptions, and expertise.",
+    "9. Decide liability, including percentage allocation if fault, causation, mitigation, contributory fault, comparative responsibility, or counterclaims apply.",
+    "10. Decide damages by category. Determine legal recoverability and factual proof. Exclude unsupported, speculative, legally unavailable, duplicative, or insufficiently caused amounts. Apply mitigation, causation, offsets, caps, limits, interest, fees, costs, or penalties only where legally justified by the record. Convert the result into one specific net amount.",
+    "11. Compare the ruling against the prior arbitration proposal and explain whether the final award falls within, below, or above the prior proposed range. If it differs materially from the prior range or rationale, explain why.",
+    "",
+    "MANDATORY FACT-CITATION RULE:",
+    "Every factual assertion that materially supports liability or damages must cite a specific existing record item from the case context. Acceptable citations include claim ID or claim section, evidence ID/evidence number/title, document title plus page/section where available, hearing transcript page/line or timestamp where available, witness statement name plus paragraph/page where available, expert report name plus paragraph/page where available, party admission, stipulation, procedural order ID, or case message ID.",
+    "Before final output, verify that each cited item exists in the provided record, supports the factual statement, and is not overstated. If a citation cannot be verified from the context, remove the factual assertion or rephrase it as an unresolved allegation.",
+    "",
+    "MANDATORY PRIVATE REVIEW BEFORE OUTPUT:",
+    "Before producing the final JSON, perform a private self-critique and correction pass. Do not include this private critique in the final JSON except where its conclusions are relevant to RATIONALE.",
+    "Check completeness across all claimant claims and remedies, respondent defenses, claims, counterclaims, offsets, submitted evidence and contests, witnesses, expert testimony, hearing admissions/concessions/contradictions/credibility issues, governing law, procedural rules, burden of proof, limitation periods, damages rules, mitigation, interest, costs, contractual caps, and the prior arbitration proposal.",
+    "Check every factual citation for existence, exact support, and non-exaggeration. Remove or correct unsupported factual statements.",
+    "Challenge your draft ruling from both sides. Check whether you unfairly discounted or over-credited evidence, drew adverse inferences too quickly, shifted the burden incorrectly, double-counted damages or offsets, awarded unproven damages, or failed to award legally and factually proven damages.",
+    "Privately rate confidence in liability decision, damages award, legal-rule accuracy, evidence assessment, and citation accuracy. If any score is below 7, correct the draft by reducing certainty, removing unsupported findings, adjusting damages, flagging legal uncertainty, or changing the conclusion.",
+    "",
+    "OUTPUT RULES:",
+    "Return only the structured JSON object requested by the schema. DAMAGES_AWARDED must be a number, not a string.",
+    "LIABILITY is the net payer: use \"claimant\" if claimant must pay respondent, \"respondent\" if respondent must pay claimant, and \"none\" if no net payment is owed.",
+    "DAMAGES_AWARDED is the specific net amount awarded from the liable party to the other party. Use 0 if LIABILITY is \"none\".",
+    "RATIONALE is a markdown-formatted explanation of the final ruling.",
+    "",
+    "RATIONALE must include these markdown sections:",
+    "# Final Arbitration Ruling",
+    "## Decision",
+    "## Procedural Posture",
+    "## Prior Arbitration Proposal",
+    "## Governing Standard",
+    "## Claims and Defenses",
+    "## Findings of Fact",
+    "## Evidence Assessment",
+    "## Liability Analysis",
+    "## Damages Award",
+    "## Confidence and Gaps",
+    "",
+    "QUALITY CONSTRAINTS:",
+    "- Be fair, neutral, and restrained.",
+    "- Separate proven facts from allegations.",
+    "- Separate legal conclusions from credibility judgments.",
+    "- Do not overstate certainty.",
+    "- Do not claim external legal verification because this runtime has no research tools.",
+    "- Cite factual record items precisely and only when verified from the supplied context.",
+    "- Prefer the parties' contract, arbitration rules, and supplied record over assumptions.",
+    "- Do not punish a party merely for refusing settlement.",
+    "- Do not punish a party merely for contesting evidence; only draw adverse inferences when the contest is unsupported, material, and the missing counterevidence would reasonably be expected.",
+    "- If critical information is missing, still issue the best-supported ruling from the record and explain the uncertainty in RATIONALE.",
     "",
     "Case context:",
     toJsonSafe(compactCaseContext(detail)),
@@ -592,7 +716,7 @@ export async function generateJudgement(user: AppUser, caseId: string, clearSimu
   const updateData: any = {
     status: "awaiting_decision",
     judgementJson: judgement,
-    settlementAmount: judgement.award_amount.toString(),
+    settlementAmount: judgement.DAMAGES_AWARDED.toString(),
     finalDecision: null, // Only set when judgement is accepted, not during generation
   };
 
@@ -616,7 +740,7 @@ export async function generateJudgement(user: AppUser, caseId: string, clearSimu
     caseId,
     "decision",
     clearSimulationData ? "Single AI judgement generated" : "Judgement generated",
-    judgement.summary,
+    summarizeJudgement(judgement),
     { user, impersonation },
   );
 
@@ -634,24 +758,9 @@ export async function acceptJudgement(user: AppUser, caseId: string) {
     throw new Error("No judgement is available yet.");
   }
 
-  const summary =
-    typeof judgement.judgement_summary === "string"
-      ? judgement.judgement_summary
-      : "Judgement accepted.";
-  const amount =
-    typeof judgement.award_amount === "number" || typeof judgement.award_amount === "string"
-      ? judgement.award_amount.toString()
-      : null;
-  const prevailing =
-    typeof judgement.prevailing_party === "string" ? judgement.prevailing_party : "The decision";
-
-  // Construct final decision text properly for all prevailing_party values
-  let finalDecisionText: string;
-  if (prevailing === "split") {
-    finalDecisionText = `No prevailing party determined. ${summary}`;
-  } else {
-    finalDecisionText = `${prevailing} prevails. ${summary}`;
-  }
+  const summary = summarizeJudgement(judgement as Record<string, unknown>);
+  const amount = judgementAmount(judgement as Record<string, unknown>);
+  const finalDecisionText = summary;
 
   const db = getDb();
 
@@ -660,7 +769,7 @@ export async function acceptJudgement(user: AppUser, caseId: string) {
     .set({
       status: "resolved",
       finalDecision: finalDecisionText,
-      settlementAmount: amount,
+      settlementAmount: amount !== null ? amount.toString() : null,
     })
     .where(eq(cases.id, caseId))
     .returning();
