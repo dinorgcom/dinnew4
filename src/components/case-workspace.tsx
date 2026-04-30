@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
 import { upload } from "@vercel/blob/client";
@@ -122,8 +123,8 @@ function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLi
 
   if (isImage) {
     return (
-      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} block bg-slate-50`}>
-        <img src={fileLink} alt={record.title || "Evidence"} className="h-full w-full object-cover" loading="lazy" />
+      <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} relative block bg-slate-50`}>
+        <Image src={fileLink} alt={record.title || "Evidence"} fill sizes="64px" className="object-cover" />
       </a>
     );
   }
@@ -453,8 +454,8 @@ function WitnessAvatar({ record, photoUrl }: { record: RecordSummary; photoUrl: 
   const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-md border border-slate-200";
   if (photoUrl) {
     return (
-      <div className={baseClasses}>
-        <img src={photoUrl} alt={record.fullName || "Witness"} className="h-full w-full object-cover" loading="lazy" />
+      <div className={`${baseClasses} relative`}>
+        <Image src={photoUrl} alt={record.fullName || "Witness"} fill sizes="64px" className="object-cover" />
       </div>
     );
   }
@@ -1473,9 +1474,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               />
               <div className="md:col-span-2 flex items-center gap-3">
                 {forms.witness.photo ? (
-                  <img
+                  <Image
                     src={forms.witness.photo.url}
                     alt="Witness preview"
+                    width={48}
+                    height={48}
                     className="h-12 w-12 rounded-md border border-slate-200 object-cover"
                   />
                 ) : (

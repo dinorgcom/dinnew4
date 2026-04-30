@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "This invitation link has expired. Please ask the party to resend." }, { status: 410 });
     }
 
-    const result = await createWitnessVerificationSession(witness.id, token);
+    const result = await createWitnessVerificationSession(witness.id, token, new URL(request.url).origin);
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to create verification session";

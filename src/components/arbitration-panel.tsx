@@ -58,6 +58,7 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
     }
     return null;
   })();
+  const settlementProposal = (proposal as { settlement_proposal?: unknown })?.settlement_proposal;
   const [settlementOfferUsd, setSettlementOfferUsd] = useState<string>("");
 
   // Reset the party offer field whenever the proposal id (or amount) changes,
@@ -65,7 +66,7 @@ export function ArbitrationPanel({ caseId, status, proposal, finalDecision, arbi
   // showing the value the user typed against the previous proposal.
   useEffect(() => {
     setSettlementOfferUsd("");
-  }, [aiAmount, (proposal as { settlement_proposal?: unknown })?.settlement_proposal]);
+  }, [aiAmount, settlementProposal]);
 
   // Determine arbitration state from response columns
   const isAccepted = arbitrationClaimantResponse === 'accepted' && arbitrationRespondentResponse === 'accepted';

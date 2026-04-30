@@ -10,7 +10,15 @@ import { sendRespondentLinkedEmail } from "@/server/email/respondent-linked-noti
 
 type AppUser = ProvisionedAppUser | null;
 
-export async function createVerificationSession(user: AppUser) {
+function getAppBaseUrl(requestOrigin?: string) {
+  return (requestOrigin || env.NEXT_PUBLIC_APP_URL).replace(/\/$/, "");
+}
+
+function hasExpectedAppOrigin(session: Stripe.Identity.VerificationSession, expectedAppOrigin: string) {
+  return session.metadata?.app_origin === expectedAppOrigin;
+}
+
+export async function createVerificationSession(user: AppUser, requestOrigin?: string) {
   assertAppUserActive(user);
   if (!user.id) {
     throw new Error("Unauthorized");
@@ -24,12 +32,18 @@ export async function createVerificationSession(user: AppUser) {
 
   const db = getDb();
   const stripe = getStripe();
+  const appOrigin = getAppBaseUrl(requestOrigin);
+  const returnUrl = `${appOrigin}/verify/result`;
 
   // If there's a pending session, check if it's still usable
   if (existing.status === "pending" && existing.stripeSessionId) {
     try {
       const existingSession = await stripe.identity.verificationSessions.retrieve(existing.stripeSessionId);
-      if (existingSession.url && existingSession.status === "requires_input") {
+      if (
+        existingSession.url &&
+        existingSession.status === "requires_input" &&
+        hasExpectedAppOrigin(existingSession, appOrigin)
+      ) {
         // Session is still active, reuse it
         return { alreadyVerified: false as const, url: existingSession.url, sessionId: existingSession.id };
       }
@@ -51,11 +65,9 @@ export async function createVerificationSession(user: AppUser) {
       .where(eq(kycVerifications.stripeSessionId, existing.stripeSessionId));
   }
 
-  const returnUrl = `${env.NEXT_PUBLIC_APP_URL}/verify/result`;
-
   const session = await stripe.identity.verificationSessions.create({
     type: "document",
-    metadata: { user_id: user.id },
+    metadata: { user_id: user.id, app_origin: appOrigin },
     options: {
       document: {
         require_matching_selfie: true,
@@ -122,7 +134,7 @@ export async function isUserKycVerified(userId: string): Promise<boolean> {
   return status.status === "verified";
 }
 
-export async function createWitnessVerificationSession(witnessId: string, token: string) {
+export async function createWitnessVerificationSession(witnessId: string, token: string, requestOrigin?: string) {
   const db = getDb();
 
   const rows = await db.select().from(witnesses).where(eq(witnesses.id, witnessId)).limit(1);
@@ -130,6 +142,10 @@ export async function createWitnessVerificationSession(witnessId: string, token:
   if (!witness) {
     throw new Error("Witness not found");
   }
+
+  const stripe = getStripe();
+  const appOrigin = getAppBaseUrl(requestOrigin);
+  const returnUrl = `${appOrigin}/witness/${token}/result`;
 
   // Check if already verified
   if (witness.kycVerificationId) {
@@ -145,10 +161,13 @@ export async function createWitnessVerificationSession(witnessId: string, token:
 
     // Try to reuse pending session
     if (kycRows[0]?.status === "pending" && kycRows[0]?.stripeSessionId) {
-      const stripe = getStripe();
       try {
         const existingSession = await stripe.identity.verificationSessions.retrieve(kycRows[0].stripeSessionId);
-        if (existingSession.url && existingSession.status === "requires_input") {
+        if (
+          existingSession.url &&
+          existingSession.status === "requires_input" &&
+          hasExpectedAppOrigin(existingSession, appOrigin)
+        ) {
           return { alreadyVerified: false as const, url: existingSession.url, sessionId: existingSession.id };
         }
       } catch {
@@ -157,12 +176,9 @@ export async function createWitnessVerificationSession(witnessId: string, token:
     }
   }
 
-  const stripe = getStripe();
-  const returnUrl = `${env.NEXT_PUBLIC_APP_URL}/witness/${token}/result`;
-
   const session = await stripe.identity.verificationSessions.create({
     type: "document",
-    metadata: { witness_id: witnessId, entity_type: "witness" },
+    metadata: { witness_id: witnessId, entity_type: "witness", app_origin: appOrigin },
     options: {
       document: {
         require_matching_selfie: true,
@@ -192,7 +208,7 @@ export async function createWitnessVerificationSession(witnessId: string, token:
   return { alreadyVerified: false as const, url: session.url, sessionId: session.id };
 }
 
-export async function createConsultantVerificationSession(consultantId: string, token: string) {
+export async function createConsultantVerificationSession(consultantId: string, token: string, requestOrigin?: string) {
   const db = getDb();
 
   const rows = await db.select().from(consultants).where(eq(consultants.id, consultantId)).limit(1);
@@ -200,6 +216,10 @@ export async function createConsultantVerificationSession(consultantId: string, 
   if (!consultant) {
     throw new Error("Consultant not found");
   }
+
+  const stripe = getStripe();
+  const appOrigin = getAppBaseUrl(requestOrigin);
+  const returnUrl = `${appOrigin}/consultant/${token}/result`;
 
   // Check if already verified
   if (consultant.kycVerificationId) {
@@ -214,10 +234,13 @@ export async function createConsultantVerificationSession(consultantId: string, 
     }
 
     if (kycRows[0]?.status === "pending" && kycRows[0]?.stripeSessionId) {
-      const stripe = getStripe();
       try {
         const existingSession = await stripe.identity.verificationSessions.retrieve(kycRows[0].stripeSessionId);
-        if (existingSession.url && existingSession.status === "requires_input") {
+        if (
+          existingSession.url &&
+          existingSession.status === "requires_input" &&
+          hasExpectedAppOrigin(existingSession, appOrigin)
+        ) {
           return { alreadyVerified: false as const, url: existingSession.url, sessionId: existingSession.id };
         }
       } catch {
@@ -226,12 +249,9 @@ export async function createConsultantVerificationSession(consultantId: string, 
     }
   }
 
-  const stripe = getStripe();
-  const returnUrl = `${env.NEXT_PUBLIC_APP_URL}/consultant/${token}/result`;
-
   const session = await stripe.identity.verificationSessions.create({
     type: "document",
-    metadata: { consultant_id: consultantId, entity_type: "consultant" },
+    metadata: { consultant_id: consultantId, entity_type: "consultant", app_origin: appOrigin },
     options: {
       document: {
         require_matching_selfie: true,
