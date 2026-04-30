@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { activeSessions, SESSION_TIMEOUT_MS, findSessionByInterviewId, cleanupExpiredSessions, storeSession, canCreateSession, markSessionAttempt, AnamSession } from '../session-store';
+import { ensureAppUser } from '@/server/auth/provision';
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await ensureAppUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { interviewId, personaConfig } = body;
 
@@ -179,6 +185,11 @@ export async function POST(req: NextRequest) {
 // Clean up expired sessions
 export async function GET() {
   try {
+    const user = await ensureAppUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Use the shared cleanup function
     const expiredCount = cleanupExpiredSessions();
 
@@ -203,6 +214,11 @@ export async function GET() {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const user = await ensureAppUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const url = new URL(req.url);
     const sessionToken = url.searchParams.get('sessionToken');
 

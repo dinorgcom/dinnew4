@@ -3,8 +3,9 @@ import type { SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, tokenLedger, users, witnesses, hearings, caseAudits } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
-import { getImpersonationContext, type ImpersonationContext } from "@/server/auth/impersonation";
 import { isDatabaseConfigured } from "@/server/runtime";
+import { buildCaseAccessCondition, getCaseAccess, resolveCaseRole } from "@/server/cases/access";
+import { reconcileCaseStatusFromDetail } from "@/server/cases/status";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -12,101 +13,6 @@ type CaseFilters = {
   search?: string;
   status?: string;
 };
-
-function normalizeEmail(value: string | null | undefined) {
-  return (value || "").trim().toLowerCase();
-}
-
-function calculateSmartStatus(caseItem: typeof cases.$inferSelect, hearingRows: any[], activityRows: any[]) {
-  // Priority order: resolved > awaiting_decision > in_arbitration > hearing_scheduled > filed > draft
-  
-  // 1. Check if truly resolved (not just aborted/failed judgement)
-  if (caseItem.finalDecision) {
-    // Check if this is a genuine resolution vs aborted process
-    const decisionContent = typeof caseItem.finalDecision === 'string' ? caseItem.finalDecision.toLowerCase() : '';
-    
-    // Don't treat aborted/failed processes as final resolutions
-    // But allow legitimate settlements that mention evidence issues
-    const isAbortedProcess = decisionContent.includes('aborted') || 
-                           decisionContent.includes('failed') ||
-                           decisionContent.includes('incomplete');
-    
-    const isEvidenceIssueButSettled = decisionContent.includes('compromise settlement') ||
-                                     decisionContent.includes('settlement of') ||
-                                     decisionContent.includes('settled for') ||
-                                     decisionContent.includes('agreed to pay');
-    
-    if (isAbortedProcess || 
-        (decisionContent.includes('lack of evidence') && !isEvidenceIssueButSettled) || 
-        (decisionContent.includes('insufficient') && !isEvidenceIssueButSettled)) {
-      // This is a failed process, not a final resolution
-      if (caseItem.judgementJson) return "awaiting_decision";
-      if (caseItem.arbitrationProposalJson) return "in_arbitration";
-      return "filed";
-    }
-    
-    return "resolved";
-  }
-  
-  // 2. Check if in decision phase
-  if (caseItem.judgementJson) return "awaiting_decision";
-  
-  // 3. Check if in arbitration
-  if (caseItem.arbitrationProposalJson) return "in_arbitration";
-  
-  // 4. Check if hearing is actually scheduled (not cancelled)
-  const activeHearing = hearingRows.find(h => 
-    h.status === "scheduled" || h.status === "in_progress" || h.status === "ai_ready"
-  );
-  if (activeHearing) return "hearing_scheduled";
-  
-  // 5. Check if filed (has notification activity)
-  if (activityRows.some(a => a.title === "Defendant notified")) return "filed";
-  
-  // 6. Default to draft
-  return "draft";
-}
-
-function resolveCaseRole(
-  caseItem: typeof cases.$inferSelect,
-  user: NonNullable<AppUser>,
-  impersonation: ImpersonationContext | null = null,
-) {
-  if (impersonation && impersonation.caseId === caseItem.id) {
-    return impersonation.role;
-  }
-
-  const userEmail = normalizeEmail(user.email);
-
-  if (normalizeEmail(caseItem.claimantEmail) === userEmail) {
-    return "claimant";
-  }
-  if (normalizeEmail(caseItem.respondentEmail) === userEmail) {
-    return "respondent";
-  }
-  if (user.role === "admin" || user.role === "moderator") {
-    return "moderator";
-  }
-  if (caseItem.arbitratorAssignedUserId && caseItem.arbitratorAssignedUserId === user.id) {
-    return "moderator";
-  }
-
-  return null;
-}
-
-function buildAccessCondition(user: NonNullable<AppUser>) {
-  if (user.role === "admin" || user.role === "moderator") {
-    return undefined;
-  }
-
-  const normalizedEmail = normalizeEmail(user.email);
-
-  return or(
-    sql`lower(${cases.claimantEmail}) = ${normalizedEmail}`,
-    sql`lower(${cases.respondentEmail}) = ${normalizedEmail}`,
-    ...(user.id ? [eq(cases.arbitratorAssignedUserId, user.id)] : []),
-  );
-}
 
 function toRoleLabel(role: string | null) {
   switch (role) {
@@ -142,7 +48,7 @@ export async function getCaseList(user: AppUser, filters: CaseFilters = {}) {
   const db = getDb();
 
   const clauses: SQL[] = [];
-  const accessCondition = buildAccessCondition(user);
+  const accessCondition = buildCaseAccessCondition(user);
   if (accessCondition) {
     clauses.push(accessCondition);
   }
@@ -297,20 +203,14 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     return null;
   }
 
+  const access = await getCaseAccess(user, caseId);
+  if (!access) {
+    return null;
+  }
   const db = getDb();
-
-  const caseRow = await db.select().from(cases).where(eq(cases.id, caseId)).limit(1);
-  const caseItem = caseRow[0];
-
-  if (!caseItem) {
-    return null;
-  }
-
-  const impersonation = await getImpersonationContext(user, caseId);
-  const role = resolveCaseRole(caseItem, user, impersonation);
-  if (!role) {
-    return null;
-  }
+  const caseItem = access.case;
+  const role = access.caseRole;
+  const impersonation = access.impersonation;
 
   const [activityRows, evidenceRows, witnessRows, consultantRows, expertiseRows, messageRows, conversations, auditRows, notificationCheck, claimantKycRows, respondentKycRows] = await Promise.all([
     db
@@ -360,14 +260,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
   const hearingRows = await db.select().from(hearings).where(eq(hearings.caseId, caseId));
   const hasHearing = hearingRows.length > 0;
 
-  // Calculate smart status and sync if needed
-  const smartStatus = calculateSmartStatus(caseItem, hearingRows, activityRows);
-  
-  // Update case status if it's out of sync
-  if (smartStatus !== caseItem.status) {
-    await db.update(cases).set({ status: smartStatus }).where(eq(cases.id, caseId));
-    caseItem.status = smartStatus; // Update local reference
-  }
+  await reconcileCaseStatusFromDetail(caseItem, hearingRows, activityRows);
 
   const respondentNotified = notificationCheck[0]?.count > 0;
 

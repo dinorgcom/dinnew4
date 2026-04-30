@@ -3,7 +3,7 @@ import PDFDocument from "pdfkit";
 import { getDb } from "@/db/client";
 import { caseActivities } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
-import { getAuthorizedCase } from "@/server/cases/mutations";
+import { getAuthorizedCase } from "@/server/cases/access";
 
 type AppUser = ProvisionedAppUser | null;
 

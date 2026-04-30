@@ -10,7 +10,8 @@ import {
   witnesses,
 } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
-import { getAuthorizedCase } from "@/server/cases/mutations";
+import { getAuthorizedCase } from "@/server/cases/access";
+import { touchCaseActivity } from "@/server/cases/status";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -229,6 +230,7 @@ export async function generateHearingProposal(user: AppUser, caseId: string) {
       votingDeadline,
     })
     .returning();
+  await touchCaseActivity(caseId);
   return inserted[0];
 }
 
@@ -279,6 +281,13 @@ export async function autoFinalizeHearingProposalIfDue(caseId: string) {
   const start = new Date(slotIso);
   const end = new Date(start.getTime() + 60 * 60 * 1000);
 
+  const claimed = await db
+    .update(hearingProposals)
+    .set({ status: "confirmed", selectedSlotIndex: winner.index, updatedAt: new Date() })
+    .where(and(eq(hearingProposals.id, proposal.id), eq(hearingProposals.status, "open")))
+    .returning();
+  if (!claimed[0]) return null;
+
   const inserted = await db
     .insert(hearings)
     .values({
@@ -289,11 +298,6 @@ export async function autoFinalizeHearingProposalIfDue(caseId: string) {
       meetingPlatform: "anam",
     })
     .returning();
-
-  await db
-    .update(hearingProposals)
-    .set({ status: "confirmed", selectedSlotIndex: winner.index, updatedAt: new Date() })
-    .where(eq(hearingProposals.id, proposal.id));
 
   await db
     .update(cases)
@@ -343,6 +347,7 @@ export async function voteAvailability(user: AppUser, caseId: string, payload: u
     .set({ availability, updatedAt: new Date() })
     .where(eq(hearingProposals.id, parsed.proposalId))
     .returning();
+  await touchCaseActivity(caseId);
   return updated[0];
 }
 
@@ -374,6 +379,13 @@ export async function confirmHearingSlot(user: AppUser, caseId: string, payload:
   const start = new Date(slotIso);
   const end = new Date(start.getTime() + 60 * 60 * 1000);
 
+  const claimed = await db
+    .update(hearingProposals)
+    .set({ status: "confirmed", selectedSlotIndex: parsed.slotIndex, updatedAt: new Date() })
+    .where(and(eq(hearingProposals.id, parsed.proposalId), eq(hearingProposals.status, "open")))
+    .returning();
+  if (!claimed[0]) throw new Error("Proposal is closed");
+
   const inserted = await db
     .insert(hearings)
     .values({
@@ -386,13 +398,8 @@ export async function confirmHearingSlot(user: AppUser, caseId: string, payload:
     .returning();
 
   await db
-    .update(hearingProposals)
-    .set({ status: "confirmed", selectedSlotIndex: parsed.slotIndex, updatedAt: new Date() })
-    .where(eq(hearingProposals.id, parsed.proposalId));
-
-  await db
     .update(cases)
-    .set({ status: "hearing_scheduled", updatedAt: new Date() })
+    .set({ status: "hearing_scheduled", lastActivityAt: new Date(), updatedAt: new Date() })
     .where(eq(cases.id, caseId));
 
   return { hearing: inserted[0], proposalId: parsed.proposalId, slotIndex: parsed.slotIndex };

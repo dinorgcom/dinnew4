@@ -1,5 +1,6 @@
 import { fail, ok } from "@/server/api/responses";
 import { ensureAppUser } from "@/server/auth/provision";
+import { getCaseAccess } from "@/server/cases/access";
 import {
   autoFinalizeHearingProposalIfDue,
   confirmHearingSlot,
@@ -16,7 +17,11 @@ type RouteProps = {
 export async function GET(_request: Request, { params }: RouteProps) {
   try {
     const { caseId } = await params;
-    await ensureAppUser();
+    const user = await ensureAppUser();
+    const access = await getCaseAccess(user, caseId);
+    if (!access) {
+      return fail("HEARING_PROPOSAL_FORBIDDEN", "Forbidden", 403);
+    }
     // Lazy auto-finalize: every read triggers a check; if voting deadline
     // has passed and there's a clear winner the proposal is confirmed and
     // the corresponding hearings row is created on the spot.
@@ -28,7 +33,8 @@ export async function GET(_request: Request, { params }: RouteProps) {
     return ok({ proposal, discovery });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load proposal";
-    return fail("HEARING_PROPOSAL_LOAD_FAILED", message, 400);
+    const status = message === "Unauthorized" ? 401 : message === "Forbidden" ? 403 : 400;
+    return fail("HEARING_PROPOSAL_LOAD_FAILED", message, status);
   }
 }
 

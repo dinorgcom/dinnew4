@@ -13,11 +13,9 @@ import {
   hearings,
 } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
-import {
-  getImpersonationContext,
-  formatPerformedBy,
-  type ImpersonationContext,
-} from "@/server/auth/impersonation";
+import { formatPerformedBy, type ImpersonationContext } from "@/server/auth/impersonation";
+import { getAuthorizedCase } from "@/server/cases/access";
+import { touchCaseActivity } from "@/server/cases/status";
 import {
   caseMutationSchema,
   caseClaimsUpdateSchema,
@@ -47,22 +45,12 @@ import { nanoid } from "nanoid";
 
 type AppUser = ProvisionedAppUser | null;
 
-function normalizeEmail(value: string | null | undefined) {
-  return (value || "").trim().toLowerCase();
-}
-
 export type ActivityActor = {
   user: AppUser;
   impersonation: ImpersonationContext | null;
 };
 
 const SYSTEM_ACTOR: ActivityActor = { user: null, impersonation: null };
-
-type AuthorizedCase = {
-  case: typeof cases.$inferSelect;
-  role: "claimant" | "respondent" | "moderator";
-  impersonation: ImpersonationContext | null;
-};
 
 async function getVerifiedClaimantEnrichment(userId: string | null | undefined) {
   if (!userId) return null;
@@ -91,47 +79,7 @@ async function getVerifiedClaimantEnrichment(userId: string | null | undefined) 
   };
 }
 
-export async function getAuthorizedCase(user: AppUser, caseId: string): Promise<AuthorizedCase | null> {
-  assertAppUserActive(user);
-  if (!user) {
-    return null;
-  }
-
-  const db = getDb();
-  const rows = await db.select().from(cases).where(eq(cases.id, caseId)).limit(1);
-  const caseItem = rows[0];
-
-  if (!caseItem) {
-    return null;
-  }
-
-  const impersonation = await getImpersonationContext(user, caseId);
-  if (impersonation) {
-    return {
-      case: caseItem,
-      role: impersonation.role,
-      impersonation,
-    };
-  }
-
-  const userEmail = normalizeEmail(user.email);
-  const claimant = normalizeEmail(caseItem.claimantEmail) === userEmail;
-  const respondent = normalizeEmail(caseItem.respondentEmail) === userEmail;
-  const moderator =
-    user.role === "admin" ||
-    user.role === "moderator" ||
-    (user.id ? caseItem.arbitratorAssignedUserId === user.id : false);
-
-  if (!claimant && !respondent && !moderator) {
-    return null;
-  }
-
-  return {
-    case: caseItem,
-    role: claimant ? "claimant" : respondent ? "respondent" : "moderator",
-    impersonation: null,
-  };
-}
+export { getAuthorizedCase };
 
 export async function createCaseActivity(
   caseId: string,
@@ -142,6 +90,7 @@ export async function createCaseActivity(
   metadataJson?: Record<string, unknown> | null,
 ) {
   const db = getDb();
+  const now = new Date();
 
   await db.insert(caseActivities).values({
     caseId,
@@ -150,7 +99,9 @@ export async function createCaseActivity(
     description,
     performedBy: formatPerformedBy(actor.user, actor.impersonation),
     metadataJson: metadataJson ?? null,
+    createdAt: now,
   });
+  await touchCaseActivity(caseId, now);
 }
 
 export async function recordCaseAuditEvent(
@@ -409,6 +360,7 @@ export async function deleteEvidence(user: AppUser, caseId: string, recordId: st
 
   const db = getDb();
   await db.delete(evidence).where(and(eq(evidence.id, recordId), eq(evidence.caseId, caseId)));
+  await touchCaseActivity(caseId);
 }
 
 export async function createWitness(user: AppUser, caseId: string, payload: unknown) {
@@ -504,6 +456,7 @@ export async function deleteWitness(user: AppUser, caseId: string, recordId: str
 
   const db = getDb();
   await db.delete(witnesses).where(and(eq(witnesses.id, recordId), eq(witnesses.caseId, caseId)));
+  await touchCaseActivity(caseId);
 }
 
 export async function createConsultant(user: AppUser, caseId: string, payload: unknown) {
@@ -592,6 +545,7 @@ export async function deleteConsultant(user: AppUser, caseId: string, recordId: 
 
   const db = getDb();
   await db.delete(consultants).where(and(eq(consultants.id, recordId), eq(consultants.caseId, caseId)));
+  await touchCaseActivity(caseId);
 }
 
 export async function resendWitnessInvitation(user: AppUser, caseId: string, witnessId: string) {
@@ -725,6 +679,7 @@ export async function deleteExpertise(user: AppUser, caseId: string, recordId: s
   await db
     .delete(expertiseRequests)
     .where(and(eq(expertiseRequests.id, recordId), eq(expertiseRequests.caseId, caseId)));
+  await touchCaseActivity(caseId);
 }
 
 type CommentableKind = "evidence" | "witnesses" | "expertise";

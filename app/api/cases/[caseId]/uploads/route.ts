@@ -1,6 +1,6 @@
 import { fail, ok } from "@/server/api/responses";
 import { ensureAppUser } from "@/server/auth/provision";
-import { getAuthorizedCase } from "@/server/cases/mutations";
+import { getAuthorizedCase } from "@/server/cases/access";
 import { sanitizeFileName, uploadBlob } from "@/server/blob/service";
 
 type RouteProps = {

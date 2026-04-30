@@ -1,6 +1,6 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { ensureAppUser } from "@/server/auth/provision";
-import { getAuthorizedCase } from "@/server/cases/mutations";
+import { getAuthorizedCase } from "@/server/cases/access";
 import { sanitizeFileName } from "@/server/blob/service";
 
 type RouteProps = {

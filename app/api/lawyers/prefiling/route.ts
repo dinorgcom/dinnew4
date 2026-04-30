@@ -1,4 +1,5 @@
 import { fail, ok } from "@/server/api/responses";
+import { ensureAppUser } from "@/server/auth/provision";
 import { generatePlainText, isAiConfigured } from "@/server/ai/service";
 
 type Payload = {
@@ -11,6 +12,11 @@ type Payload = {
 
 export async function POST(request: Request) {
   try {
+    const user = await ensureAppUser();
+    if (!user) {
+      return fail("PREFILING_UNAUTHORIZED", "Unauthorized", 401);
+    }
+
     if (!isAiConfigured()) {
       return ok({
         reply:

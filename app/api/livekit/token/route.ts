@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AccessToken } from 'livekit-server-sdk';
+import { ensureAppUser } from '@/server/auth/provision';
 
 // In production, these should be environment variables
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
@@ -8,6 +9,11 @@ const LIVEKIT_URL = process.env.LIVEKIT_URL;
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await ensureAppUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const roomName = searchParams.get('roomName');
     const participantName = searchParams.get('participantName') || 'user';

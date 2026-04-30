@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStoredTokens } from '@/lib/google-oauth';
+import { ensureAppUser } from '@/server/auth/provision';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = 'default-user'; // In production, get from auth system
-    const tokens = await getStoredTokens(userId);
+    const user = await ensureAppUser();
+    if (!user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const tokens = await getStoredTokens(user.id);
     
     return NextResponse.json({
       connected: !!tokens,

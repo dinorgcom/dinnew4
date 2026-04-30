@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDb } from "@/db/client";
 import { cases, witnessQuestions, witnesses } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
-import { getAuthorizedCase } from "@/server/cases/mutations";
+import { getAuthorizedCase } from "@/server/cases/access";
 import { generateStructuredObject, isAiConfigured } from "@/server/ai/service";
 
 type AppUser = ProvisionedAppUser | null;

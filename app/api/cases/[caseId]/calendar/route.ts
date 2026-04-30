@@ -4,6 +4,7 @@ import { getCaseDetail } from '@/server/cases/queries';
 import { createCalendarEvent, GoogleCalendarError } from '@/lib/google-calendar';
 import { getDb } from '@/db/client';
 import { hearings } from '@/db/schema';
+import { touchCaseActivity } from '@/server/cases/status';
 import { eq } from 'drizzle-orm';
 
 export async function POST(
@@ -95,6 +96,7 @@ export async function POST(
       
       [hearing] = await db.insert(hearings).values(hearingData).returning();
     }
+    await touchCaseActivity(caseId);
 
     return NextResponse.json({
       success: true,

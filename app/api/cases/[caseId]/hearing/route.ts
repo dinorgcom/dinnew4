@@ -1,10 +1,13 @@
 import { fail, ok } from "@/server/api/responses";
 import { ensureAppUser } from "@/server/auth/provision";
 import { scheduleHearing } from "@/server/cases/mutations";
+import { getCaseAccess } from "@/server/cases/access";
+import { touchCaseActivity } from "@/server/cases/status";
 import { getDb } from "@/db/client";
 import { cases, hearings, hearingParticipants } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { activeSessions } from "@/api/anam/session-store";
 
 type RouteProps = {
   params: Promise<{ caseId: string }>;
@@ -14,6 +17,10 @@ export async function GET(request: Request, { params }: RouteProps) {
   try {
     const { caseId } = await params;
     const user = await ensureAppUser();
+    const access = await getCaseAccess(user, caseId);
+    if (!access) {
+      return fail("HEARINGS_FORBIDDEN", "Forbidden", 403);
+    }
     const db = getDb();
     
     // Get all hearings for this case, ordered by scheduled start time
@@ -37,6 +44,10 @@ export async function POST(request: Request, { params }: RouteProps) {
   try {
     const { caseId } = await params;
     const user = await ensureAppUser();
+    const access = await getCaseAccess(user, caseId);
+    if (!access || !access.capabilities.canScheduleHearing) {
+      return fail("HEARING_UPDATE_FORBIDDEN", "Forbidden", 403);
+    }
     const body = await request.json();
     return ok(await scheduleHearing(user, caseId, body));
   } catch (error) {
@@ -111,20 +122,12 @@ export async function PATCH(request: Request, { params }: RouteProps) {
           // Stop all active AI agents
           for (const participant of activeParticipants) {
             if (participant.anamSessionToken) {
-              try {
-                // Terminate Anam session
-                const terminateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/anam/session?sessionToken=${participant.anamSessionToken}`, {
-                  method: 'DELETE',
-                  signal: AbortSignal.timeout(30000)
-                });
-                
-                if (terminateResponse.ok) {
-                  console.log(`✅ Terminated Anam session for ${participant.displayName}`);
-                } else {
-                  console.log(`⚠️ Failed to terminate Anam session for ${participant.displayName}: ${terminateResponse.status}`);
-                }
-              } catch (error) {
-                console.log(`❌ Error terminating Anam session for ${participant.displayName}:`, error);
+              const session = activeSessions.get(participant.anamSessionToken);
+              if (session) {
+                session.status = 'closed';
+                session.lastActivity = Date.now();
+                activeSessions.delete(participant.anamSessionToken);
+                console.log(`Terminated Anam session for ${participant.displayName}`);
               }
 
               // Mark participant as inactive
@@ -149,6 +152,7 @@ export async function PATCH(request: Request, { params }: RouteProps) {
           // Don't fail the cancellation if cleanup fails
         }
       }
+      await touchCaseActivity(caseId);
       
       return ok({ 
         success: true, 
@@ -177,6 +181,7 @@ export async function PATCH(request: Request, { params }: RouteProps) {
       await db.update(cases)
         .set({
           status: 'hearing_scheduled',
+          lastActivityAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(cases.id, caseId));

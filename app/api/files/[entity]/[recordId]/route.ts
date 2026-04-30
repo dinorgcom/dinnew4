@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { caseMessages, consultants, evidence, expertiseRequests, witnesses } from "@/db/schema";
 import { env } from "@/lib/env";
 import { ensureAppUser } from "@/server/auth/provision";
-import { getAuthorizedCase } from "@/server/cases/mutations";
+import { getAuthorizedCase } from "@/server/cases/access";
 
 type RouteProps = {
   params: Promise<{ entity: string; recordId: string }>;
