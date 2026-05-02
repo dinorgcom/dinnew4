@@ -1,7 +1,7 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Resend } from "resend";
 import { getDb } from "@/db/client";
-import { cases, consultants, lawyers, users } from "@/db/schema";
+import { caseParties, cases, consultants, lawyers, users } from "@/db/schema";
 import { env } from "@/lib/env";
 import { escapeHtml } from "@/server/email/html";
 
@@ -78,11 +78,20 @@ async function loadRecipientEmails(caseId: string): Promise<string[]> {
     .from(lawyers)
     .where(eq(lawyers.caseId, caseId));
 
+  // Multi-party: include any co-claimants / co-respondents that have
+  // joined the case via the multi-party flow. We deliberately exclude
+  // pending_approval / pending_acceptance / declined / removed.
+  const additionalPartyRows = await db
+    .select({ email: caseParties.email })
+    .from(caseParties)
+    .where(and(eq(caseParties.caseId, caseId), eq(caseParties.status, "active")));
+
   return uniqueEmails([
     caseRow?.claimantEmail,
     caseRow?.respondentEmail,
     ...consultantRows.map((row) => row.email),
     ...lawyerRows.map((row) => row.email),
+    ...additionalPartyRows.map((row) => row.email),
   ]);
 }
 

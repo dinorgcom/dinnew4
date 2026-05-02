@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, lawyers, tokenLedger, users, witnesses, hearings, caseAudits } from "@/db/schema";
+import { caseActivities, caseMessages, caseParties, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, lawyers, tokenLedger, users, witnesses, hearings, caseAudits } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { isDatabaseConfigured } from "@/server/runtime";
 import { buildCaseAccessCondition, getCaseAccess, resolveCaseRole } from "@/server/cases/access";
@@ -27,8 +27,18 @@ function toRoleLabel(role: string | null) {
   }
 }
 
-function toCaseListItem(caseItem: typeof cases.$inferSelect, user: NonNullable<AppUser>) {
-  const role = resolveCaseRole(caseItem, user);
+function toCaseListItem(
+  caseItem: typeof cases.$inferSelect,
+  user: NonNullable<AppUser>,
+  additionalPartySides: Map<string, "claimant" | "respondent"> = new Map(),
+) {
+  const additional = additionalPartySides.get(caseItem.id);
+  const role = resolveCaseRole(
+    caseItem,
+    user,
+    null,
+    additional ? { side: additional } : null,
+  );
 
   return {
     ...caseItem,
@@ -84,9 +94,31 @@ export async function getCaseList(user: AppUser, filters: CaseFilters = {}) {
 
   const rows = clauses.length > 0 ? await query.where(and(...clauses)) : await query;
 
+  // Bulk-load any additional-party memberships for this user across all
+  // returned cases so co-claimants / co-respondents get the right role
+  // label without an N+1 query.
+  const additionalPartySides = new Map<string, "claimant" | "respondent">();
+  const userEmail = (user.email || "").trim().toLowerCase();
+  if (userEmail && rows.length > 0) {
+    const ids = rows.map((row) => row.id);
+    const partyRows = await db
+      .select({ caseId: caseParties.caseId, side: caseParties.side })
+      .from(caseParties)
+      .where(
+        and(
+          inArray(caseParties.caseId, ids),
+          eq(caseParties.status, "active"),
+          sql`lower(${caseParties.email}) = ${userEmail}`,
+        ),
+      );
+    for (const row of partyRows) {
+      additionalPartySides.set(row.caseId, row.side);
+    }
+  }
+
   return {
     databaseReady: true,
-    cases: rows.map((caseItem) => toCaseListItem(caseItem, user)),
+    cases: rows.map((caseItem) => toCaseListItem(caseItem, user, additionalPartySides)),
   };
 }
 
@@ -212,7 +244,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
   const role = access.caseRole;
   const impersonation = access.impersonation;
 
-  const [activityRows, evidenceRows, witnessRows, consultantRows, lawyerRows, expertiseRows, messageRows, conversations, auditRows, notificationCheck, claimantKycRows, respondentKycRows] = await Promise.all([
+  const [activityRows, evidenceRows, witnessRows, consultantRows, lawyerRows, partyRows, expertiseRows, messageRows, conversations, auditRows, notificationCheck, claimantKycRows, respondentKycRows] = await Promise.all([
     db
       .select()
       .from(caseActivities)
@@ -223,6 +255,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     db.select({ witness: witnesses, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(witnesses).leftJoin(kycVerifications, eq(witnesses.kycVerificationId, kycVerifications.id)).where(eq(witnesses.caseId, caseId)).orderBy(desc(witnesses.createdAt)),
     db.select({ consultant: consultants, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(consultants).leftJoin(kycVerifications, eq(consultants.kycVerificationId, kycVerifications.id)).where(eq(consultants.caseId, caseId)).orderBy(desc(consultants.createdAt)),
     db.select({ lawyer: lawyers, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(lawyers).leftJoin(kycVerifications, eq(lawyers.kycVerificationId, kycVerifications.id)).where(eq(lawyers.caseId, caseId)).orderBy(desc(lawyers.createdAt)),
+    db.select({ party: caseParties, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(caseParties).leftJoin(kycVerifications, eq(caseParties.kycVerificationId, kycVerifications.id)).where(eq(caseParties.caseId, caseId)).orderBy(desc(caseParties.createdAt)),
     db.select().from(expertiseRequests).where(eq(expertiseRequests.caseId, caseId)).orderBy(desc(expertiseRequests.createdAt)),
     db.select().from(caseMessages).where(eq(caseMessages.caseId, caseId)).orderBy(desc(caseMessages.createdAt)).limit(20),
     (() => {
@@ -291,6 +324,14 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
   const flatWitnesses = witnessRows.map((row) => ({ ...row.witness, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
   const flatConsultants = consultantRows.map((row) => ({ ...row.consultant, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
   const flatLawyers = lawyerRows.map((row) => ({ ...row.lawyer, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
+  const flatParties = partyRows.map((row) => ({ ...row.party, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
+  const viewerEmailLower = (user.email || "").trim().toLowerCase();
+  const viewerPartyId =
+    flatParties.find(
+      (party) =>
+        party.status === "active" &&
+        (party.email || "").trim().toLowerCase() === viewerEmailLower,
+    )?.id ?? null;
 
   // Aggregate token spend for this case grouped by user, then map to claimant/respondent.
   const ledgerRows = await db
@@ -339,6 +380,8 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     witnesses: flatWitnesses,
     consultants: flatConsultants,
     lawyers: flatLawyers,
+    parties: flatParties,
+    viewerPartyId,
     expertiseRequests: expertiseRows,
     messages: messageRows,
     conversation: conversations[0] ?? null,

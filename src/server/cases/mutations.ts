@@ -3,6 +3,7 @@ import { getDb } from "@/db/client";
 import {
   caseActivities,
   caseMessages,
+  caseParties,
   cases,
   consultants,
   evidence,
@@ -29,6 +30,8 @@ import {
   caseContactsUpdateSchema,
   lawyerCreateSchema,
   messageCreateSchema,
+  partyInviteSchema,
+  partyVoteSchema,
   recordCommentCreateSchema,
   witnessCreateSchema,
 } from "@/contracts/cases";
@@ -42,7 +45,13 @@ import { spendForAction } from "@/server/billing/service";
 import { assertAppUserActive } from "@/server/auth/provision";
 import { isUserKycVerified } from "@/server/identity/service";
 import { sendRespondentNotifyEmail } from "@/server/email/respondent-notify";
-import { sendWitnessInvitationEmail, sendConsultantInvitationEmail, sendLawyerInvitationEmail } from "@/server/email/witness-notify";
+import {
+  sendWitnessInvitationEmail,
+  sendConsultantInvitationEmail,
+  sendLawyerInvitationEmail,
+  sendPartyInvitationEmail,
+  sendPartyApprovalRequestEmail,
+} from "@/server/email/witness-notify";
 import { randomUUID } from "crypto";
 import { nanoid } from "nanoid";
 
@@ -1831,4 +1840,355 @@ export async function reviewParticipant(
   }
 
   throw new Error("Unsupported action");
+}
+
+// ============================================================================
+// Multi-party support
+// ============================================================================
+
+const PARTY_APPROVAL_DEADLINE_DAYS = 7;
+const PARTY_INVITATION_TOKEN_DAYS = 7;
+
+async function loadInvitingParty(
+  caseId: string,
+  user: AppUser,
+): Promise<typeof caseParties.$inferSelect | null> {
+  const email = (user?.email || "").trim().toLowerCase();
+  if (!email) return null;
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(caseParties)
+    .where(
+      and(
+        eq(caseParties.caseId, caseId),
+        eq(caseParties.status, "active"),
+        sql`lower(${caseParties.email}) = ${email}`,
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+async function activeCaseParties(caseId: string) {
+  const db = getDb();
+  return db
+    .select()
+    .from(caseParties)
+    .where(and(eq(caseParties.caseId, caseId), eq(caseParties.status, "active")));
+}
+
+export async function inviteAdditionalParty(user: AppUser, caseId: string, payload: unknown) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized || authorized.role === "moderator") {
+    throw new Error("Only an active party on the case can invite additional parties");
+  }
+
+  const parsed = partyInviteSchema.parse(payload);
+  const db = getDb();
+
+  // Find the inviting party row. If not present (case was created before
+  // multi-party migration backfill ran), fall through using email match on
+  // the original cases.* fields.
+  const invitingPartyRow = await loadInvitingParty(caseId, user);
+  const allActive = await activeCaseParties(caseId);
+
+  // Reject duplicate invites for the same email + side.
+  const normalizedEmail = parsed.email.trim().toLowerCase();
+  const dupRows = await db
+    .select({ id: caseParties.id })
+    .from(caseParties)
+    .where(
+      and(
+        eq(caseParties.caseId, caseId),
+        eq(caseParties.side, parsed.side),
+        sql`lower(${caseParties.email}) = ${normalizedEmail}`,
+      ),
+    )
+    .limit(1);
+  if (dupRows.length > 0) {
+    throw new Error("This person is already a party on this side");
+  }
+
+  const token = nanoid(22);
+  const tokenExpires = new Date(Date.now() + PARTY_INVITATION_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+  const approvalDeadline = new Date(Date.now() + PARTY_APPROVAL_DEADLINE_DAYS * 24 * 60 * 60 * 1000);
+
+  // Inviter auto-approves their own proposal.
+  const initialVotes: Record<string, "approve" | "reject"> = {};
+  if (invitingPartyRow) {
+    initialVotes[invitingPartyRow.id] = "approve";
+  }
+
+  const inserted = await db
+    .insert(caseParties)
+    .values({
+      caseId,
+      side: parsed.side,
+      fullName: parsed.fullName,
+      email: parsed.email,
+      phone: parsed.phone || null,
+      address: parsed.address || null,
+      city: parsed.city || null,
+      postalCode: parsed.postalCode || null,
+      country: parsed.country || null,
+      notes: parsed.notes || null,
+      isOriginal: false,
+      status: "pending_approval",
+      invitationToken: token,
+      invitationTokenExpiresAt: tokenExpires,
+      invitedByPartyId: invitingPartyRow?.id ?? null,
+      approvalDeadline,
+      approvalVotesJson: initialVotes,
+    })
+    .returning();
+  const newParty = inserted[0];
+
+  await createCaseActivity(
+    caseId,
+    "note",
+    `Additional ${parsed.side} proposed`,
+    parsed.fullName,
+    { user, impersonation: authorized.impersonation },
+  );
+
+  // Notify all OTHER active parties so they can vote.
+  const inviterName = invitingPartyRow?.fullName || user?.fullName || user?.email || authorized.role;
+  const caseRow = authorized.case;
+  const recipients = allActive.filter(
+    (p) => (invitingPartyRow ? p.id !== invitingPartyRow.id : true),
+  );
+  for (const voter of recipients) {
+    try {
+      await sendPartyApprovalRequestEmail(voter.email, {
+        voterName: voter.fullName,
+        proposedPartyName: parsed.fullName,
+        proposedSide: parsed.side,
+        invitedByPartyName: inviterName,
+        caseNumber: caseRow.caseNumber,
+        caseTitle: caseRow.title,
+        deadline: approvalDeadline,
+      });
+    } catch (err) {
+      console.error("Failed to send party approval request email:", err);
+    }
+  }
+
+  // If this is a single-party case (only the inviter is active), the proposal
+  // is approved immediately; advance straight to the invitation step.
+  await maybeFinalizePartyApproval(caseId, newParty.id);
+
+  return newParty;
+}
+
+async function maybeFinalizePartyApproval(caseId: string, partyId: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(caseParties)
+    .where(eq(caseParties.id, partyId))
+    .limit(1);
+  const party = rows[0];
+  if (!party || party.status !== "pending_approval") return;
+
+  const allActive = await activeCaseParties(caseId);
+  const votes = (party.approvalVotesJson || {}) as Record<string, "approve" | "reject">;
+  const now = new Date();
+  const deadlinePassed = party.approvalDeadline ? now > party.approvalDeadline : false;
+
+  // Reject takes priority — any single rejection kills the proposal.
+  const anyReject = Object.values(votes).some((v) => v === "reject");
+  if (anyReject) {
+    await db
+      .update(caseParties)
+      .set({ status: "declined", declinedAt: now, updatedAt: now })
+      .where(eq(caseParties.id, partyId));
+    await createCaseActivity(
+      caseId,
+      "note",
+      `Additional ${party.side} declined`,
+      `${party.fullName} was rejected by an existing party.`,
+      SYSTEM_ACTOR,
+    );
+    return;
+  }
+
+  // All active parties approved -> advance.
+  const allApproved = allActive.every((p) => votes[p.id] === "approve");
+  if (allApproved || deadlinePassed) {
+    await db
+      .update(caseParties)
+      .set({ status: "pending_acceptance", updatedAt: now })
+      .where(eq(caseParties.id, partyId));
+
+    // Send the actual invitation email to the new party.
+    const caseRow = (
+      await db.select().from(cases).where(eq(cases.id, caseId)).limit(1)
+    )[0];
+    const inviter = party.invitedByPartyId
+      ? (await db
+          .select()
+          .from(caseParties)
+          .where(eq(caseParties.id, party.invitedByPartyId))
+          .limit(1))[0]
+      : null;
+    if (caseRow && party.invitationToken) {
+      try {
+        await sendPartyInvitationEmail(party.email, {
+          partyName: party.fullName,
+          side: party.side,
+          invitedByPartyName: inviter?.fullName || "an existing party",
+          caseNumber: caseRow.caseNumber,
+          caseTitle: caseRow.title,
+          token: party.invitationToken,
+        });
+      } catch (err) {
+        console.error("Failed to send party invitation email:", err);
+      }
+    }
+    await createCaseActivity(
+      caseId,
+      "note",
+      `Additional ${party.side} approved — invitation sent`,
+      party.fullName,
+      SYSTEM_ACTOR,
+    );
+
+    await notifyCaseEvent(caseId, "party_added", {
+      title: party.fullName,
+      body: `Added as additional ${party.side}.`,
+    });
+  }
+}
+
+export async function voteOnPartyAddition(
+  user: AppUser,
+  caseId: string,
+  partyId: string,
+  payload: unknown,
+) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized || authorized.role === "moderator") {
+    throw new Error("Only an active party on the case can vote on additional parties");
+  }
+
+  const parsed = partyVoteSchema.parse(payload);
+  const voter = await loadInvitingParty(caseId, user);
+  if (!voter) {
+    throw new Error("You are not an active party on this case");
+  }
+
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(caseParties)
+    .where(and(eq(caseParties.id, partyId), eq(caseParties.caseId, caseId)))
+    .limit(1);
+  const proposed = rows[0];
+  if (!proposed) {
+    throw new Error("Party not found");
+  }
+  if (proposed.status !== "pending_approval") {
+    throw new Error("This proposal is no longer open for voting");
+  }
+
+  const votes = { ...(proposed.approvalVotesJson || {}) } as Record<string, "approve" | "reject">;
+  votes[voter.id] = parsed.vote;
+  const now = new Date();
+
+  await db
+    .update(caseParties)
+    .set({ approvalVotesJson: votes, updatedAt: now })
+    .where(eq(caseParties.id, partyId));
+
+  await maybeFinalizePartyApproval(caseId, partyId);
+  return { success: true };
+}
+
+export async function autoFinalizeOpenPartyProposals(caseId: string) {
+  const db = getDb();
+  const open = await db
+    .select({ id: caseParties.id })
+    .from(caseParties)
+    .where(
+      and(
+        eq(caseParties.caseId, caseId),
+        eq(caseParties.status, "pending_approval"),
+        sql`${caseParties.approvalDeadline} IS NOT NULL AND ${caseParties.approvalDeadline} < NOW()`,
+      ),
+    );
+  for (const row of open) {
+    await maybeFinalizePartyApproval(caseId, row.id);
+  }
+}
+
+export async function acceptPartyInvitation(token: string, user: AppUser) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(caseParties)
+    .where(
+      and(
+        eq(caseParties.invitationToken, token),
+        eq(caseParties.status, "pending_acceptance"),
+      ),
+    )
+    .limit(1);
+  const party = rows[0];
+  if (!party) {
+    throw new Error("Invitation not found or already used");
+  }
+  if (party.invitationTokenExpiresAt && new Date() > party.invitationTokenExpiresAt) {
+    throw new Error("Invitation link expired");
+  }
+
+  const now = new Date();
+  await db
+    .update(caseParties)
+    .set({
+      status: "active",
+      joinedAt: now,
+      userId: user?.id ?? null,
+      updatedAt: now,
+      invitationToken: null,
+    })
+    .where(eq(caseParties.id, party.id));
+
+  await createCaseActivity(
+    party.caseId,
+    "note",
+    `${party.fullName} joined as additional ${party.side}`,
+    party.email,
+    user ? { user, impersonation: null } : SYSTEM_ACTOR,
+  );
+
+  return { success: true };
+}
+
+export async function declinePartyInvitation(token: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(caseParties)
+    .where(eq(caseParties.invitationToken, token))
+    .limit(1);
+  const party = rows[0];
+  if (!party) {
+    throw new Error("Invitation not found");
+  }
+  const now = new Date();
+  await db
+    .update(caseParties)
+    .set({ status: "declined", declinedAt: now, updatedAt: now, invitationToken: null })
+    .where(eq(caseParties.id, party.id));
+
+  await createCaseActivity(
+    party.caseId,
+    "note",
+    `${party.fullName} declined to join`,
+    party.email,
+    SYSTEM_ACTOR,
+  );
+
+  return { success: true };
 }

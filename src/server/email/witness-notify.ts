@@ -68,6 +68,88 @@ export async function sendConsultantInvitationEmail(
   }
 }
 
+export async function sendPartyInvitationEmail(
+  to: string,
+  data: {
+    partyName: string;
+    side: "claimant" | "respondent";
+    invitedByPartyName: string;
+    caseNumber: string;
+    caseTitle: string;
+    token: string;
+  },
+) {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+    throw new Error(
+      "Email is not configured. Set RESEND_API_KEY and EMAIL_FROM (verified sender in Resend).",
+    );
+  }
+
+  const base = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  const acceptUrl = `${base}/party/${data.token}`;
+  const sideLabel = data.side === "claimant" ? "co-claimant" : "co-respondent";
+
+  const resend = new Resend(env.RESEND_API_KEY);
+  const { error } = await resend.emails.send({
+    from: env.EMAIL_FROM,
+    to: [to],
+    subject: `You have been invited to join case ${data.caseNumber} as a ${sideLabel}`,
+    html: [
+      `<p>Hello ${escapeHtml(data.partyName)},</p>`,
+      `<p>You have been invited by <strong>${escapeHtml(data.invitedByPartyName)}</strong> to join the arbitration case <strong>${escapeHtml(data.caseNumber)}</strong> — ${escapeHtml(data.caseTitle)} as an additional ${escapeHtml(sideLabel)}.</p>`,
+      `<p>Joining the case gives you access to all evidence, witnesses, lawyers and proceedings on your side. You can also add your own evidence, witnesses, consultants and lawyers.</p>`,
+      `<p><a href="${escapeHtml(acceptUrl)}">Review the case &amp; accept the invitation</a></p>`,
+      `<p>This link will expire in 7 days. If it has expired, the party who invited you can resend the invitation.</p>`,
+      `<p>If you do not want to join the case you can simply ignore this email or click decline on the page above.</p>`,
+    ].join("\n"),
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function sendPartyApprovalRequestEmail(
+  to: string,
+  data: {
+    voterName: string;
+    proposedPartyName: string;
+    proposedSide: "claimant" | "respondent";
+    invitedByPartyName: string;
+    caseNumber: string;
+    caseTitle: string;
+    deadline: Date;
+  },
+) {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+    throw new Error(
+      "Email is not configured. Set RESEND_API_KEY and EMAIL_FROM (verified sender in Resend).",
+    );
+  }
+
+  const base = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  const caseUrl = `${base}/cases?tab=parties`;
+  const sideLabel = data.proposedSide === "claimant" ? "co-claimant" : "co-respondent";
+  const deadlineStr = data.deadline.toUTCString();
+
+  const resend = new Resend(env.RESEND_API_KEY);
+  const { error } = await resend.emails.send({
+    from: env.EMAIL_FROM,
+    to: [to],
+    subject: `Approval requested: add ${data.proposedPartyName} to case ${data.caseNumber}`,
+    html: [
+      `<p>Hello ${escapeHtml(data.voterName)},</p>`,
+      `<p><strong>${escapeHtml(data.invitedByPartyName)}</strong> has proposed adding <strong>${escapeHtml(data.proposedPartyName)}</strong> as an additional ${escapeHtml(sideLabel)} on case <strong>${escapeHtml(data.caseNumber)}</strong> — ${escapeHtml(data.caseTitle)}.</p>`,
+      `<p>All current parties on the case must approve before the new party is invited. If no decision is reached by <strong>${escapeHtml(deadlineStr)}</strong>, the addition will go through automatically.</p>`,
+      `<p><a href="${escapeHtml(caseUrl)}">Open the case to review and vote</a></p>`,
+    ].join("\n"),
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function sendLawyerInvitationEmail(
   to: string,
   data: { lawyerName: string; calledByPartyName: string; token: string; firmName?: string | null },

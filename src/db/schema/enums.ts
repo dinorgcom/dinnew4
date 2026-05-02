@@ -79,3 +79,11 @@ export const kycStatusEnum = pgEnum("kyc_status", [
   "requires_input",
   "canceled",
 ]);
+export const partySideEnum = pgEnum("party_side", ["claimant", "respondent"]);
+export const partyStatusEnum = pgEnum("party_status", [
+  "pending_approval",
+  "pending_acceptance",
+  "active",
+  "declined",
+  "removed",
+]);

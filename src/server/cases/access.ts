@@ -1,7 +1,7 @@
-import { eq, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { cases } from "@/db/schema";
+import { caseParties, cases } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { assertAppUserActive } from "@/server/auth/provision";
 import { getImpersonationContext, type ImpersonationContext } from "@/server/auth/impersonation";
@@ -62,6 +62,7 @@ export function resolveCaseRole(
   caseItem: CaseRoleInput,
   user: ProvisionedAppUser,
   impersonation: ImpersonationContext | null = null,
+  additionalParty: { side: "claimant" | "respondent" } | null = null,
 ): CaseRole | null {
   if (impersonation && impersonation.caseId === caseItem.id) {
     return impersonation.role;
@@ -73,6 +74,10 @@ export function resolveCaseRole(
   }
   if (normalizeEmail(caseItem.respondentEmail) === userEmail) {
     return "respondent";
+  }
+  // Co-claimants / co-respondents added via the multi-party flow.
+  if (additionalParty) {
+    return additionalParty.side;
   }
   if (
     user.role === "admin" ||
@@ -91,9 +96,17 @@ export function buildCaseAccessCondition(user: ProvisionedAppUser): SQL | undefi
   }
 
   const normalizedEmail = normalizeEmail(user.email);
+  // Match either the original claimant/respondent on the cases table, or any
+  // active co-party in case_parties (multi-party support).
   return or(
     sql`lower(${cases.claimantEmail}) = ${normalizedEmail}`,
     sql`lower(${cases.respondentEmail}) = ${normalizedEmail}`,
+    sql`EXISTS (
+      SELECT 1 FROM ${caseParties}
+      WHERE ${caseParties.caseId} = ${cases.id}
+        AND ${caseParties.status} = 'active'
+        AND lower(${caseParties.email}) = ${normalizedEmail}
+    )`,
     ...(user.id ? [eq(cases.arbitratorAssignedUserId, user.id)] : []),
   );
 }
@@ -139,7 +152,34 @@ export async function getCaseAccess(user: AppUser, caseId: string): Promise<Case
   }
 
   const impersonation = await getImpersonationContext(user, caseId);
-  const caseRole = resolveCaseRole(caseItem, user, impersonation);
+
+  // Look up additional party membership: anyone added later via the
+  // multi-party flow inherits the same role label as the original
+  // claimant/respondent on their side.
+  let additionalParty: { side: "claimant" | "respondent" } | null = null;
+  const userEmail = normalizeEmail(user.email);
+  if (
+    userEmail &&
+    userEmail !== normalizeEmail(caseItem.claimantEmail) &&
+    userEmail !== normalizeEmail(caseItem.respondentEmail)
+  ) {
+    const partyRows = await db
+      .select({ side: caseParties.side })
+      .from(caseParties)
+      .where(
+        and(
+          eq(caseParties.caseId, caseId),
+          eq(caseParties.status, "active"),
+          sql`lower(${caseParties.email}) = ${userEmail}`,
+        ),
+      )
+      .limit(1);
+    if (partyRows[0]) {
+      additionalParty = { side: partyRows[0].side };
+    }
+  }
+
+  const caseRole = resolveCaseRole(caseItem, user, impersonation, additionalParty);
   if (!caseRole) {
     return null;
   }

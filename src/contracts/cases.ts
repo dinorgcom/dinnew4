@@ -197,6 +197,22 @@ export const consultantCreateSchema = z.object({
     .nullable(),
 });
 
+export const partyInviteSchema = z.object({
+  side: z.enum(["claimant", "respondent"]),
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  postalCode: z.string().optional(),
+  country: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export const partyVoteSchema = z.object({
+  vote: z.enum(["approve", "reject"]),
+});
+
 export const lawyerCreateSchema = z.object({
   fullName: z.string().min(1),
   email: z.string().email(),

@@ -1,15 +1,18 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uuid, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { AnyPgColumn, index, integer, jsonb, pgTable, text, timestamp, uuid, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import {
   activityTypeEnum,
   evidenceTypeEnum,
   expertiseStatusEnum,
   messageSenderRoleEnum,
   participantKindEnum,
+  partySideEnum,
+  partyStatusEnum,
   recordStatusEnum,
 } from "./enums";
 import { createdAt, id, updatedAt } from "./common";
 import { cases } from "./cases";
 import { kycVerifications } from "./kyc";
+import { users } from "./users";
 
 export const evidence = pgTable(
   "evidence",
@@ -245,6 +248,42 @@ export const caseMessages = pgTable(
   },
   (table) => ({
     caseIdx: index("case_messages_case_idx").on(table.caseId),
+  }),
+);
+
+export const caseParties = pgTable(
+  "case_parties",
+  {
+    id,
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    side: partySideEnum("side").notNull(),
+    fullName: text("full_name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone"),
+    address: text("address"),
+    city: text("city"),
+    postalCode: text("postal_code"),
+    country: text("country"),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    kycVerificationId: uuid("kyc_verification_id").references(() => kycVerifications.id, { onDelete: "set null" }),
+    nameVerified: text("name_verified"),
+    isOriginal: boolean("is_original").default(false).notNull(),
+    status: partyStatusEnum("status").default("pending_approval").notNull(),
+    invitationToken: text("invitation_token"),
+    invitationTokenExpiresAt: timestamp("invitation_token_expires_at", { withTimezone: true }),
+    invitedByPartyId: uuid("invited_by_party_id").references((): AnyPgColumn => caseParties.id, { onDelete: "set null" }),
+    approvalDeadline: timestamp("approval_deadline", { withTimezone: true }),
+    approvalVotesJson: jsonb("approval_votes_json").$type<Record<string, "approve" | "reject">>(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }),
+    declinedAt: timestamp("declined_at", { withTimezone: true }),
+    notes: text("notes"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    caseIdx: index("case_parties_case_idx").on(table.caseId),
+    emailIdx: index("case_parties_email_idx").on(table.email),
+    tokenIdx: uniqueIndex("case_parties_invitation_token_idx").on(table.invitationToken),
   }),
 );
 

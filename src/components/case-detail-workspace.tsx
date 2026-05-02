@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import { CaseWorkspace } from "@/components/case-workspace";
 import { LawyersPanel } from "@/components/lawyers-panel";
+import { AdditionalPartiesPanel } from "@/components/additional-parties-panel";
 import { LawyerChatPanel } from "@/components/lawyer-chat-panel";
 import { AuditPanel } from "@/components/audit-panel";
 import { ArbitrationPanel } from "@/components/arbitration-panel";
@@ -91,6 +92,8 @@ type CaseDetailWorkspaceProps = {
     witnesses: WorkspaceRecord[];
     consultants: WorkspaceRecord[];
     lawyers: WorkspaceRecord[];
+    parties: WorkspaceRecord[];
+    viewerPartyId?: string | null;
     expertiseRequests: WorkspaceRecord[];
     messages: WorkspaceRecord[];
     activities: WorkspaceRecord[];
@@ -137,6 +140,7 @@ const tabs = [
   { key: "progress", label: "Progress" },
   { key: "claimant", label: "Claimant" },
   { key: "respondent", label: "Respondent" },
+  { key: "parties", label: "Parties" },
   { key: "activity", label: "Audit trail" },
   { key: "todo", label: "To do" },
   { key: "claims", label: "Claims" },
@@ -161,6 +165,7 @@ const VISIBLE_TAB_KEYS = new Set([
   "progress",
   "claimant",
   "respondent",
+  "parties",
   "activity",
   "todo",
   "claims",
@@ -351,6 +356,18 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const witnessesNeedAttention = hasPendingReview(detail.witnesses, "calledBy");
   const consultantsNeedAttention = hasPendingReview(detail.consultants, "calledBy");
   const lawyersNeedAttention = hasPendingReview(detail.lawyers, "calledBy");
+  // "Parties" tab needs attention when the viewer (an active party) still
+  // has to vote on at least one pending_approval proposal.
+  const viewerPartyId = detail.viewerPartyId ?? null;
+  const partiesNeedAttention =
+    isParty &&
+    !!viewerPartyId &&
+    detail.parties.some((p) => {
+      const status = String((p as any).status || "");
+      if (status !== "pending_approval") return false;
+      const votes = ((p as any).approvalVotesJson || {}) as Record<string, string>;
+      return !votes[viewerPartyId];
+    });
   const expertiseNeedsAttention =
     isParty &&
     detail.expertiseRequests.some((r) => String((r as any).status || "").toLowerCase() === "ready");
@@ -403,6 +420,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     witnessesNeedAttention ||
     consultantsNeedAttention ||
     lawyersNeedAttention ||
+    partiesNeedAttention ||
     expertiseNeedsAttention ||
     respondentTabNeedsAttention ||
     settlementNeedsAttention ||
@@ -414,6 +432,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     witnesses: witnessesNeedAttention,
     consultants: consultantsNeedAttention,
     lawyers: lawyersNeedAttention,
+    parties: partiesNeedAttention,
     expertise: expertiseNeedsAttention,
     respondent: respondentTabNeedsAttention,
     hearing: hearingNeedsAttention,
@@ -1419,6 +1438,17 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             caseRole={detail.role}
             canContribute={detail.role !== "moderator" && detail.role !== "admin"}
             lawyers={detail.lawyers as any}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === "parties" ? (
+        <div id="panel-parties" role="tabpanel" aria-labelledby="tab-parties">
+          <AdditionalPartiesPanel
+            caseId={detail.case.id}
+            caseRole={detail.role}
+            parties={detail.parties as any}
+            viewerPartyId={detail.viewerPartyId ?? null}
           />
         </div>
       ) : null}
