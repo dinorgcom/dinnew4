@@ -39,6 +39,9 @@ import {
   EVIDENCE_REVIEW_EXTENSION_COSTS,
   EVIDENCE_REVIEW_EXTENSION_DAYS,
   EVIDENCE_REVIEW_MAX_EXTENSIONS,
+  PARTY_APPROVAL_EXTENSION_COSTS,
+  PARTY_APPROVAL_EXTENSION_DAYS,
+  PARTY_APPROVAL_MAX_EXTENSIONS,
 } from "@/server/billing/config";
 import { notifyCaseEvent } from "@/server/notifications/service";
 import { spendForAction } from "@/server/billing/service";
@@ -2163,6 +2166,77 @@ export async function acceptPartyInvitation(token: string, user: AppUser) {
   );
 
   return { success: true };
+}
+
+export async function extendPartyApprovalDeadline(
+  user: AppUser,
+  caseId: string,
+  partyId: string,
+) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized || authorized.role === "moderator") {
+    throw new Error("Only an active party on the case can extend approval deadlines");
+  }
+
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(caseParties)
+    .where(and(eq(caseParties.id, partyId), eq(caseParties.caseId, caseId)))
+    .limit(1);
+  const party = rows[0];
+  if (!party) {
+    throw new Error("Party not found");
+  }
+  if (party.status !== "pending_approval") {
+    throw new Error("This proposal is no longer open for extensions");
+  }
+
+  const used = party.approvalExtensions ?? 0;
+  if (used >= PARTY_APPROVAL_MAX_EXTENSIONS) {
+    throw new Error("No more extensions available; the proposal will be auto-approved at the deadline.");
+  }
+  const next = used + 1;
+  const actionCode = (`party_approval_extend_${next}` as
+    | "party_approval_extend_1"
+    | "party_approval_extend_2"
+    | "party_approval_extend_3");
+  const spend = await spendForAction(user, {
+    actionCode,
+    caseId,
+    idempotencyKey: `party_approval_extend:${partyId}:${next}`,
+    metadata: { partyId, extension: next },
+  });
+  if (!spend.success) {
+    throw new Error(spend.error || "Insufficient tokens");
+  }
+
+  const now = new Date();
+  const baseDeadline =
+    party.approvalDeadline && party.approvalDeadline > now ? party.approvalDeadline : now;
+  const newDeadline = new Date(
+    baseDeadline.getTime() + PARTY_APPROVAL_EXTENSION_DAYS * 24 * 60 * 60 * 1000,
+  );
+
+  const updated = await db
+    .update(caseParties)
+    .set({
+      approvalExtensions: next,
+      approvalDeadline: newDeadline,
+      updatedAt: now,
+    })
+    .where(eq(caseParties.id, partyId))
+    .returning();
+
+  await createCaseActivity(
+    caseId,
+    "note",
+    `Party approval extended (#${next})`,
+    `${party.fullName}: cost ${PARTY_APPROVAL_EXTENSION_COSTS[next - 1]} tokens`,
+    { user, impersonation: authorized.impersonation },
+  );
+
+  return updated[0];
 }
 
 export async function declinePartyInvitation(token: string) {

@@ -34,6 +34,9 @@ export const ACTION_COSTS = {
   evidence_review_extend_1: 50,
   evidence_review_extend_2: 100,
   evidence_review_extend_3: 200,
+  party_approval_extend_1: 50,
+  party_approval_extend_2: 100,
+  party_approval_extend_3: 200,
 } as const;
 
 export const ACTION_LABELS: Record<keyof typeof ACTION_COSTS, string> = {
@@ -48,12 +51,22 @@ export const ACTION_LABELS: Record<keyof typeof ACTION_COSTS, string> = {
   evidence_review_extend_1: "Evidence review +14d (1st)",
   evidence_review_extend_2: "Evidence review +14d (2nd)",
   evidence_review_extend_3: "Evidence review +14d (3rd)",
+  party_approval_extend_1: "Party approval +7d (1st)",
+  party_approval_extend_2: "Party approval +7d (2nd)",
+  party_approval_extend_3: "Party approval +7d (3rd)",
 };
 
 export const EVIDENCE_REVIEW_EXTENSION_COSTS = [50, 100, 200] as const;
 export const EVIDENCE_REVIEW_MAX_EXTENSIONS = EVIDENCE_REVIEW_EXTENSION_COSTS.length;
 export const EVIDENCE_REVIEW_INITIAL_DAYS = 14;
 export const EVIDENCE_REVIEW_EXTENSION_DAYS = 14;
+
+// Party approval (multi-party) deadlines: same 3-step ladder as evidence
+// review extensions, but 7 days each since the base window is 7 days.
+export const PARTY_APPROVAL_EXTENSION_COSTS = [50, 100, 200] as const;
+export const PARTY_APPROVAL_MAX_EXTENSIONS = PARTY_APPROVAL_EXTENSION_COSTS.length;
+export const PARTY_APPROVAL_INITIAL_DAYS = 7;
+export const PARTY_APPROVAL_EXTENSION_DAYS = 7;
 
 export type ActionCode = keyof typeof ACTION_COSTS;
 

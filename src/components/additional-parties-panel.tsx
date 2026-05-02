@@ -2,6 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import {
+  PARTY_APPROVAL_EXTENSION_COSTS,
+  PARTY_APPROVAL_MAX_EXTENSIONS,
+} from "@/server/billing/config";
 
 type PartyRecord = {
   id: string;
@@ -18,6 +22,7 @@ type PartyRecord = {
   isOriginal: boolean;
   invitedByPartyId?: string | null;
   approvalDeadline?: string | Date | null;
+  approvalExtensions?: number | null;
   approvalVotesJson?: Record<string, "approve" | "reject"> | null;
   joinedAt?: string | Date | null;
   notes?: string | null;
@@ -47,6 +52,7 @@ export function AdditionalPartiesPanel({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [voteSubmitting, setVoteSubmitting] = useState<string | null>(null);
+  const [extendingId, setExtendingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     side: "claimant" as "claimant" | "respondent",
     fullName: "",
@@ -100,6 +106,24 @@ export function AdditionalPartiesPanel({
       reset();
       router.refresh();
     });
+  }
+
+  async function handleExtend(partyId: string) {
+    setError(null);
+    setExtendingId(partyId);
+    try {
+      const response = await fetch(`/api/cases/${caseId}/parties/${partyId}/extend`, {
+        method: "POST",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(body?.error?.message || "Failed to extend deadline");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setExtendingId(null);
+    }
   }
 
   async function handleVote(partyId: string, vote: "approve" | "reject") {
@@ -241,8 +265,34 @@ export function AdditionalPartiesPanel({
                           <div className="mt-1 text-xs text-slate-400">
                             Approval deadline:{" "}
                             {new Date(party.approvalDeadline as string).toLocaleString()}
+                            {party.approvalExtensions
+                              ? ` (extended ${party.approvalExtensions}×)`
+                              : null}
                           </div>
                         ) : null}
+                        {party.status === "pending_approval" && isParty ? (() => {
+                          const used = party.approvalExtensions ?? 0;
+                          if (used >= PARTY_APPROVAL_MAX_EXTENSIONS) {
+                            return (
+                              <div className="mt-1 text-xs text-slate-400">
+                                No more extensions available — auto-approves at deadline.
+                              </div>
+                            );
+                          }
+                          const cost = PARTY_APPROVAL_EXTENSION_COSTS[used];
+                          return (
+                            <button
+                              type="button"
+                              disabled={extendingId === party.id}
+                              onClick={() => void handleExtend(party.id)}
+                              className="mt-2 rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
+                            >
+                              {extendingId === party.id
+                                ? "Extending..."
+                                : `Extend by 7 days (${cost} tokens)`}
+                            </button>
+                          );
+                        })() : null}
                       </div>
                       {canVote ? (
                         <div className="flex shrink-0 items-center gap-2">

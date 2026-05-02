@@ -273,6 +273,7 @@ export const caseParties = pgTable(
     invitationTokenExpiresAt: timestamp("invitation_token_expires_at", { withTimezone: true }),
     invitedByPartyId: uuid("invited_by_party_id").references((): AnyPgColumn => caseParties.id, { onDelete: "set null" }),
     approvalDeadline: timestamp("approval_deadline", { withTimezone: true }),
+    approvalExtensions: integer("approval_extensions").default(0).notNull(),
     approvalVotesJson: jsonb("approval_votes_json").$type<Record<string, "approve" | "reject">>(),
     joinedAt: timestamp("joined_at", { withTimezone: true }),
     declinedAt: timestamp("declined_at", { withTimezone: true }),
@@ -302,5 +303,30 @@ export const caseActivities = pgTable(
   },
   (table) => ({
     caseIdx: index("case_activities_case_idx").on(table.caseId),
+  }),
+);
+
+// Dedup ledger for deadline reminder emails. The cron walks all open
+// deadlines daily and inserts one row per (entity, threshold) the first
+// time it sends a reminder, so subsequent runs skip the entity. The row
+// gets removed (cascade) when the parent case is deleted.
+export const deadlineRemindersSent = pgTable(
+  "deadline_reminders_sent",
+  {
+    id,
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    threshold: text("threshold").notNull(),
+    deadlineAt: timestamp("deadline_at", { withTimezone: true }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    caseIdx: index("deadline_reminders_case_idx").on(table.caseId),
+    uniqueEntity: uniqueIndex("deadline_reminders_unique_idx").on(
+      table.entityType,
+      table.entityId,
+      table.threshold,
+    ),
   }),
 );
