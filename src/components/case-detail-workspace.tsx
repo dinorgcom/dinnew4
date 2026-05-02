@@ -1550,9 +1550,9 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               />
             ) : (
               <div className="flex h-full flex-col bg-ink p-6 text-white">
-                <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Lawyer chat</div>
+                <div className="text-xs uppercase tracking-[0.2em] text-slate-400">DIN.ORG Guide</div>
                 <p className="mt-3 text-sm text-slate-300">
-                  Select a lawyer to start chatting from this case.
+                  Pick a counsel persona to enable the DIN.ORG Guide.
                 </p>
                 <Link
                   href={`/cases/${detail.case.id}/select-lawyer` as Route}

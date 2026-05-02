@@ -17,6 +17,7 @@ export const users = pgTable(
     suspendedByUserId: text("suspended_by_user_id"),
     kycVerificationId: uuid("kyc_verification_id").references(() => kycVerifications.id, { onDelete: "set null" }),
     metadataJson: text("metadata_json"),
+    notificationPref: text("notification_pref").default("all").notNull(),
     createdAt,
     updatedAt,
   },

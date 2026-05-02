@@ -94,7 +94,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
   if (!canUseChat) {
     return (
       <section className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">
-        Lawyer chat is only available to the claimant or respondent on this case.
+        DIN.ORG Guide is only available to the claimant or respondent on this case.
       </section>
     );
   }
@@ -104,7 +104,7 @@ export function LawyerChatPanel({ caseId, canUseChat, lawyerName, initialConvers
       <section className="flex h-full flex-col overflow-hidden bg-ink text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
         <div className="border-b border-white/10 px-5 py-3">
           <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
-            {lawyerName || "Lawyer chat"}
+            DIN.ORG Guide
           </div>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto p-4">

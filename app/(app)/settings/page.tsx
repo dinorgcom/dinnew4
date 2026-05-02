@@ -1,8 +1,12 @@
 import Link from "next/link";
 import type { Route } from "next";
+import { eq } from "drizzle-orm";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getTokenBalance } from "@/server/billing/service";
 import { isDatabaseConfigured } from "@/server/runtime";
+import { getDb } from "@/db/client";
+import { users } from "@/db/schema";
+import { NotificationsPrefForm } from "@/components/notifications-pref-form";
 
 const PLACEHOLDER_INVOICES: Array<{
   id: string;
@@ -29,6 +33,17 @@ const PLACEHOLDER_PAYMENT_METHODS: Array<{
 export default async function SettingsPage() {
   const appUser = await ensureAppUser();
   const balance = appUser?.id && isDatabaseConfigured() ? await getTokenBalance(appUser.id) : 0;
+  let notificationPref: "all" | "necessary_only" = "all";
+  if (appUser?.id && isDatabaseConfigured()) {
+    const db = getDb();
+    const rows = await db
+      .select({ pref: users.notificationPref })
+      .from(users)
+      .where(eq(users.id, appUser.id))
+      .limit(1);
+    const value = rows[0]?.pref;
+    if (value === "necessary_only") notificationPref = "necessary_only";
+  }
 
   return (
     <div className="space-y-8 lg:py-6">
@@ -210,23 +225,12 @@ export default async function SettingsPage() {
         <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Notifications</div>
         <h2 className="mt-2 text-xl font-semibold text-ink">Email alerts</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Choose which case events trigger an email. (Toggles ship in a follow-up.)
+          Pick how often DIN.ORG should email you about case events. The
+          choice applies to every case you're a participant in.
         </p>
-        <ul className="mt-4 space-y-2 text-sm text-slate-700">
-          {[
-            "Respondent joined a case",
-            "Evidence submitted by the opposing party",
-            "Hearing slot voting opened",
-            "Arbitration proposal generated",
-            "Judgement issued",
-            "Token balance below 50",
-          ].map((item) => (
-            <li key={item} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2">
-              <span>{item}</span>
-              <span className="text-xs text-slate-500">on (default)</span>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-4">
+          <NotificationsPrefForm initialPref={notificationPref} />
+        </div>
       </section>
 
       <section className="rounded-md border border-slate-200 bg-white p-6">
