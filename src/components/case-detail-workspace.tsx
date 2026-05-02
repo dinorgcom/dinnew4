@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import { CaseWorkspace } from "@/components/case-workspace";
+import { LawyersPanel } from "@/components/lawyers-panel";
 import { LawyerChatPanel } from "@/components/lawyer-chat-panel";
 import { AuditPanel } from "@/components/audit-panel";
 import { ArbitrationPanel } from "@/components/arbitration-panel";
@@ -89,6 +90,7 @@ type CaseDetailWorkspaceProps = {
     evidence: WorkspaceRecord[];
     witnesses: WorkspaceRecord[];
     consultants: WorkspaceRecord[];
+    lawyers: WorkspaceRecord[];
     expertiseRequests: WorkspaceRecord[];
     messages: WorkspaceRecord[];
     activities: WorkspaceRecord[];
@@ -141,6 +143,7 @@ const tabs = [
   { key: "evidence", label: "Evidence" },
   { key: "witnesses", label: "Witnesses" },
   { key: "consultants", label: "Consultants" },
+  { key: "lawyers", label: "Lawyers" },
   { key: "expertise", label: "Expertise" },
   { key: "hearing", label: "Hearing" },
   { key: "audit", label: "Summary" },
@@ -164,6 +167,7 @@ const VISIBLE_TAB_KEYS = new Set([
   "evidence",
   "witnesses",
   "consultants",
+  "lawyers",
   "expertise",
   "hearing",
   "audit",
@@ -319,6 +323,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     evidence: detail.evidence.length,
     witnesses: detail.witnesses.length,
     consultants: detail.consultants.length,
+    lawyers: detail.lawyers.length,
     expertise: detail.expertiseRequests.length
   };
 
@@ -345,6 +350,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const evidenceNeedsAttention = hasPendingReview(detail.evidence, "submittedBy");
   const witnessesNeedAttention = hasPendingReview(detail.witnesses, "calledBy");
   const consultantsNeedAttention = hasPendingReview(detail.consultants, "calledBy");
+  const lawyersNeedAttention = hasPendingReview(detail.lawyers, "calledBy");
   const expertiseNeedsAttention =
     isParty &&
     detail.expertiseRequests.some((r) => String((r as any).status || "").toLowerCase() === "ready");
@@ -396,6 +402,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     evidenceNeedsAttention ||
     witnessesNeedAttention ||
     consultantsNeedAttention ||
+    lawyersNeedAttention ||
     expertiseNeedsAttention ||
     respondentTabNeedsAttention ||
     settlementNeedsAttention ||
@@ -406,6 +413,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     evidence: evidenceNeedsAttention,
     witnesses: witnessesNeedAttention,
     consultants: consultantsNeedAttention,
+    lawyers: lawyersNeedAttention,
     expertise: expertiseNeedsAttention,
     respondent: respondentTabNeedsAttention,
     hearing: hearingNeedsAttention,
@@ -1400,6 +1408,17 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             initialSection="consultants"
             hideSectionNav
             userRole={userRole}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === "lawyers" ? (
+        <div id="panel-lawyers" role="tabpanel" aria-labelledby="tab-lawyers">
+          <LawyersPanel
+            caseId={detail.case.id}
+            caseRole={detail.role}
+            canContribute={detail.role !== "moderator" && detail.role !== "admin"}
+            lawyers={detail.lawyers as any}
           />
         </div>
       ) : null}

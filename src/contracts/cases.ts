@@ -197,6 +197,29 @@ export const consultantCreateSchema = z.object({
     .nullable(),
 });
 
+export const lawyerCreateSchema = z.object({
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  postalCode: z.string().optional(),
+  country: z.string().optional(),
+  firmName: z.string().optional(),
+  firmUrl: z.string().url().optional().or(z.literal("")),
+  notes: z.string().optional(),
+  proof: z
+    .object({
+      url: z.string().url(),
+      pathname: z.string(),
+      fileName: z.string(),
+      contentType: z.string().optional().nullable(),
+      size: z.number().optional().nullable(),
+    })
+    .optional()
+    .nullable(),
+});
+
 export const expertiseCreateSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),

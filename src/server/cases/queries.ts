@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, tokenLedger, users, witnesses, hearings, caseAudits } from "@/db/schema";
+import { caseActivities, caseMessages, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, lawyers, tokenLedger, users, witnesses, hearings, caseAudits } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { isDatabaseConfigured } from "@/server/runtime";
 import { buildCaseAccessCondition, getCaseAccess, resolveCaseRole } from "@/server/cases/access";
@@ -212,7 +212,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
   const role = access.caseRole;
   const impersonation = access.impersonation;
 
-  const [activityRows, evidenceRows, witnessRows, consultantRows, expertiseRows, messageRows, conversations, auditRows, notificationCheck, claimantKycRows, respondentKycRows] = await Promise.all([
+  const [activityRows, evidenceRows, witnessRows, consultantRows, lawyerRows, expertiseRows, messageRows, conversations, auditRows, notificationCheck, claimantKycRows, respondentKycRows] = await Promise.all([
     db
       .select()
       .from(caseActivities)
@@ -222,6 +222,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     db.select().from(evidence).where(eq(evidence.caseId, caseId)).orderBy(desc(evidence.createdAt)),
     db.select({ witness: witnesses, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(witnesses).leftJoin(kycVerifications, eq(witnesses.kycVerificationId, kycVerifications.id)).where(eq(witnesses.caseId, caseId)).orderBy(desc(witnesses.createdAt)),
     db.select({ consultant: consultants, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(consultants).leftJoin(kycVerifications, eq(consultants.kycVerificationId, kycVerifications.id)).where(eq(consultants.caseId, caseId)).orderBy(desc(consultants.createdAt)),
+    db.select({ lawyer: lawyers, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(lawyers).leftJoin(kycVerifications, eq(lawyers.kycVerificationId, kycVerifications.id)).where(eq(lawyers.caseId, caseId)).orderBy(desc(lawyers.createdAt)),
     db.select().from(expertiseRequests).where(eq(expertiseRequests.caseId, caseId)).orderBy(desc(expertiseRequests.createdAt)),
     db.select().from(caseMessages).where(eq(caseMessages.caseId, caseId)).orderBy(desc(caseMessages.createdAt)).limit(20),
     (() => {
@@ -286,9 +287,10 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     { key: "decision", label: "Decision phase", active: ["in_arbitration", "awaiting_decision", "resolved"].includes(caseItem.status) },
   ];
 
-  // Flatten joined witness/consultant results to include kycStatus
+  // Flatten joined witness/consultant/lawyer results to include kycStatus
   const flatWitnesses = witnessRows.map((row) => ({ ...row.witness, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
   const flatConsultants = consultantRows.map((row) => ({ ...row.consultant, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
+  const flatLawyers = lawyerRows.map((row) => ({ ...row.lawyer, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
 
   // Aggregate token spend for this case grouped by user, then map to claimant/respondent.
   const ledgerRows = await db
@@ -336,6 +338,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     evidence: evidenceRows,
     witnesses: flatWitnesses,
     consultants: flatConsultants,
+    lawyers: flatLawyers,
     expertiseRequests: expertiseRows,
     messages: messageRows,
     conversation: conversations[0] ?? null,
@@ -350,6 +353,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
       { label: "Evidence", value: evidenceRows.length },
       { label: "Witnesses", value: flatWitnesses.length },
       { label: "Consultants", value: flatConsultants.length },
+      { label: "Lawyers", value: flatLawyers.length },
       { label: "Expertise", value: expertiseRows.length },
     ],
     tokenCosts,

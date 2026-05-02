@@ -141,6 +141,50 @@ export const consultants = pgTable(
   }),
 );
 
+export const lawyers = pgTable(
+  "lawyers",
+  {
+    id,
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    fullName: text("full_name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone"),
+    address: text("address"),
+    city: text("city"),
+    postalCode: text("postal_code"),
+    country: text("country"),
+    firmName: text("firm_name"),
+    firmUrl: text("firm_url"),
+    proofFileUrl: text("proof_file_url"),
+    proofFilePathname: text("proof_file_pathname"),
+    proofFileName: text("proof_file_name"),
+    calledBy: participantKindEnum("called_by").notNull(),
+    notes: text("notes"),
+    status: recordStatusEnum("status").default("pending").notNull(),
+    discussion: jsonb("discussion").$type<Record<string, unknown>[]>(),
+    discussionDeadline: timestamp("discussion_deadline", { withTimezone: true }),
+    rejectedBy: text("rejected_by"),
+    invitationToken: text("invitation_token"),
+    invitationTokenExpiresAt: timestamp("invitation_token_expires_at", { withTimezone: true }),
+    kycVerificationId: uuid("kyc_verification_id").references(() => kycVerifications.id, { onDelete: "set null" }),
+    originalFullName: text("original_full_name"),
+    nameUpdatedAt: timestamp("name_updated_at", { withTimezone: true }),
+    reviewState: text("review_state").default("pending"),
+    reviewExtensions: integer("review_extensions").default(0).notNull(),
+    reviewDismissalReason: text("review_dismissal_reason"),
+    reviewDismissalFileUrl: text("review_dismissal_file_url"),
+    reviewDismissalFilePathname: text("review_dismissal_file_pathname"),
+    reviewDismissalFileName: text("review_dismissal_file_name"),
+    reviewExpertiseRequestId: uuid("review_expertise_request_id"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    caseIdx: index("lawyers_case_idx").on(table.caseId),
+    tokenIdx: uniqueIndex("lawyers_invitation_token_idx").on(table.invitationToken),
+  }),
+);
+
 export const expertiseRequests = pgTable(
   "expertise_requests",
   {

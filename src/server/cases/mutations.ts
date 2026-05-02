@@ -8,6 +8,7 @@ import {
   evidence,
   expertiseRequests,
   kycVerifications,
+  lawyers,
   users,
   witnesses,
   hearings,
@@ -26,6 +27,7 @@ import {
   expertiseCreateSchema,
   hearingScheduleSchema,
   caseContactsUpdateSchema,
+  lawyerCreateSchema,
   messageCreateSchema,
   recordCommentCreateSchema,
   witnessCreateSchema,
@@ -40,7 +42,7 @@ import { spendForAction } from "@/server/billing/service";
 import { assertAppUserActive } from "@/server/auth/provision";
 import { isUserKycVerified } from "@/server/identity/service";
 import { sendRespondentNotifyEmail } from "@/server/email/respondent-notify";
-import { sendWitnessInvitationEmail, sendConsultantInvitationEmail } from "@/server/email/witness-notify";
+import { sendWitnessInvitationEmail, sendConsultantInvitationEmail, sendLawyerInvitationEmail } from "@/server/email/witness-notify";
 import { randomUUID } from "crypto";
 import { nanoid } from "nanoid";
 
@@ -636,6 +638,143 @@ export async function resendConsultantInvitation(user: AppUser, caseId: string, 
     consultantName: consultant.fullName,
     calledByPartyName,
     token,
+  });
+
+  return { success: true };
+}
+
+export async function createLawyer(user: AppUser, caseId: string, payload: unknown) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized || authorized.role === "moderator") {
+    throw new Error("Forbidden");
+  }
+
+  const parsed = lawyerCreateSchema.parse(payload);
+  const db = getDb();
+  const spendResult = await spendForAction(user, {
+    actionCode: "lawyer_create",
+    caseId,
+    idempotencyKey: `lawyer:${caseId}:${parsed.fullName}:${parsed.email}`,
+    metadata: { fullName: parsed.fullName },
+  });
+  if (!spendResult.success) {
+    throw new Error(spendResult.error);
+  }
+
+  const token = nanoid(22);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const reviewDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const firmUrl = parsed.firmUrl && parsed.firmUrl.length > 0 ? parsed.firmUrl : null;
+
+  const inserted = await db
+    .insert(lawyers)
+    .values({
+      caseId,
+      fullName: parsed.fullName,
+      email: parsed.email,
+      phone: parsed.phone || null,
+      address: parsed.address || null,
+      city: parsed.city || null,
+      postalCode: parsed.postalCode || null,
+      country: parsed.country || null,
+      firmName: parsed.firmName || null,
+      firmUrl,
+      proofFileUrl: parsed.proof?.url ?? null,
+      proofFilePathname: parsed.proof?.pathname ?? null,
+      proofFileName: parsed.proof?.fileName ?? null,
+      calledBy: authorized.role,
+      notes: parsed.notes || null,
+      status: "pending",
+      invitationToken: token,
+      invitationTokenExpiresAt: expiresAt,
+      discussionDeadline: reviewDeadline,
+      reviewState: "pending",
+      reviewExtensions: 0,
+    })
+    .returning();
+
+  await createCaseActivity(
+    caseId,
+    "note",
+    "Lawyer added",
+    parsed.fullName,
+    { user, impersonation: authorized.impersonation },
+  );
+
+  await notifyCaseEvent(caseId, "lawyer_added", {
+    title: parsed.fullName,
+    body: parsed.firmName ?? undefined,
+    actor: user?.fullName || user?.email || authorized.role,
+  });
+
+  // Send invitation email
+  const calledByPartyName =
+    authorized.role === "claimant"
+      ? authorized.case.claimantName || "the claimant"
+      : authorized.case.respondentName || "the respondent";
+
+  try {
+    await sendLawyerInvitationEmail(parsed.email, {
+      lawyerName: parsed.fullName,
+      calledByPartyName,
+      token,
+      firmName: parsed.firmName ?? null,
+    });
+  } catch (err) {
+    console.error("Failed to send lawyer invitation email:", err);
+  }
+
+  return inserted[0];
+}
+
+export async function deleteLawyer(user: AppUser, caseId: string, recordId: string) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+
+  const db = getDb();
+  await db.delete(lawyers).where(and(eq(lawyers.id, recordId), eq(lawyers.caseId, caseId)));
+  await touchCaseActivity(caseId);
+}
+
+export async function resendLawyerInvitation(user: AppUser, caseId: string, lawyerId: string) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized || authorized.role === "moderator") {
+    throw new Error("Forbidden");
+  }
+
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(lawyers)
+    .where(and(eq(lawyers.id, lawyerId), eq(lawyers.caseId, caseId)))
+    .limit(1);
+  const lawyer = rows[0];
+  if (!lawyer) {
+    throw new Error("Lawyer not found");
+  }
+
+  const token = nanoid(22);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  await db
+    .update(lawyers)
+    .set({ invitationToken: token, invitationTokenExpiresAt: expiresAt })
+    .where(eq(lawyers.id, lawyerId));
+
+  const calledByPartyName =
+    lawyer.calledBy === "claimant"
+      ? authorized.case.claimantName || "the claimant"
+      : lawyer.calledBy === "respondent"
+        ? authorized.case.respondentName || "the respondent"
+        : "the arbitrator";
+
+  await sendLawyerInvitationEmail(lawyer.email, {
+    lawyerName: lawyer.fullName,
+    calledByPartyName,
+    token,
+    firmName: lawyer.firmName ?? null,
   });
 
   return { success: true };
@@ -1469,7 +1608,7 @@ export async function runExpertiseWorkflow(
   throw new Error("Unsupported expertise action");
 }
 
-type ReviewableKind = "witnesses" | "consultants";
+type ReviewableKind = "witnesses" | "consultants" | "lawyers";
 
 export async function reviewParticipant(
   user: AppUser,
@@ -1490,7 +1629,7 @@ export async function reviewParticipant(
   const parsed = evidenceReviewActionSchema.parse(payload);
   const db = getDb();
 
-  const tableMap = { witnesses, consultants } as const;
+  const tableMap = { witnesses, consultants, lawyers } as const;
   const table = tableMap[kind];
 
   const rows = await db
@@ -1501,19 +1640,22 @@ export async function reviewParticipant(
   const record = rows[0] as
     | (typeof witnesses.$inferSelect & { fullName: string; calledBy: string })
     | (typeof consultants.$inferSelect & { fullName: string; calledBy: string })
+    | (typeof lawyers.$inferSelect & { fullName: string; calledBy: string })
     | undefined;
+  const singularLabel =
+    kind === "witnesses" ? "witness" : kind === "consultants" ? "consultant" : "lawyer";
   if (!record) {
-    throw new Error(`${kind === "witnesses" ? "Witness" : "Consultant"} not found`);
+    throw new Error(`${singularLabel.charAt(0).toUpperCase()}${singularLabel.slice(1)} not found`);
   }
   if (!isOpposingRole(reviewerRole, record.calledBy)) {
-    throw new Error(`Only the opposing party can review this ${kind === "witnesses" ? "witness" : "consultant"}`);
+    throw new Error(`Only the opposing party can review this ${singularLabel}`);
   }
 
   const now = new Date();
   const expired = record.discussionDeadline ? now > record.discussionDeadline : false;
   const currentState = record.reviewState || "pending";
   const isOpen = currentState === "pending" && !expired;
-  const label = kind === "witnesses" ? "Witness" : "Consultant";
+  const label = singularLabel.charAt(0).toUpperCase() + singularLabel.slice(1);
 
   if (parsed.action === "accept") {
     if (!isOpen) throw new Error("Review window is closed");
@@ -1533,9 +1675,14 @@ export async function reviewParticipant(
       record.fullName,
       { user, impersonation: authorized.impersonation },
       {
-        eventKey: kind === "witnesses" ? "witness_accepted" : "consultant_accepted",
+        eventKey:
+          kind === "witnesses"
+            ? "witness_accepted"
+            : kind === "consultants"
+              ? "consultant_accepted"
+              : "lawyer_accepted",
         actorRole: reviewerRole,
-        entityType: kind === "witnesses" ? "witness" : "consultant",
+        entityType: singularLabel,
         entityId: record.id,
         entityTitle: record.fullName,
         outcome: "accepted",
@@ -1567,9 +1714,14 @@ export async function reviewParticipant(
       `${record.fullName}: ${parsed.reason}`,
       { user, impersonation: authorized.impersonation },
       {
-        eventKey: kind === "witnesses" ? "witness_dismissed" : "consultant_dismissed",
+        eventKey:
+          kind === "witnesses"
+            ? "witness_dismissed"
+            : kind === "consultants"
+              ? "consultant_dismissed"
+              : "lawyer_dismissed",
         actorRole: reviewerRole,
-        entityType: kind === "witnesses" ? "witness" : "consultant",
+        entityType: singularLabel,
         entityId: record.id,
         entityTitle: record.fullName,
         outcome: "dismissed",
@@ -1641,7 +1793,7 @@ export async function reviewParticipant(
       .values({
         caseId,
         requestedBy: reviewerRole,
-        title: parsed.title || `AI expertise on ${kind === "witnesses" ? "witness" : "consultant"}: ${record.fullName}`,
+        title: parsed.title || `AI expertise on ${singularLabel}: ${record.fullName}`,
         description:
           parsed.description ||
           `Requested by ${reviewerRole} during ${label.toLowerCase()} review window. Record id: ${recordId}.`,
@@ -1671,7 +1823,7 @@ export async function reviewParticipant(
         entityType: "expertise",
         entityId: expertise[0].id,
         entityTitle: expertise[0].title,
-        sourceEntityType: kind === "witnesses" ? "witness" : "consultant",
+        sourceEntityType: singularLabel,
         sourceEntityId: record.id,
       },
     );

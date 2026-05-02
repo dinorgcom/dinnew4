@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { Resend } from "resend";
 import { getDb } from "@/db/client";
-import { cases, consultants, users } from "@/db/schema";
+import { cases, consultants, lawyers, users } from "@/db/schema";
 import { env } from "@/lib/env";
 import { escapeHtml } from "@/server/email/html";
 
@@ -73,10 +73,16 @@ async function loadRecipientEmails(caseId: string): Promise<string[]> {
     .from(consultants)
     .where(eq(consultants.caseId, caseId));
 
+  const lawyerRows = await db
+    .select({ email: lawyers.email })
+    .from(lawyers)
+    .where(eq(lawyers.caseId, caseId));
+
   return uniqueEmails([
     caseRow?.claimantEmail,
     caseRow?.respondentEmail,
     ...consultantRows.map((row) => row.email),
+    ...lawyerRows.map((row) => row.email),
   ]);
 }
 

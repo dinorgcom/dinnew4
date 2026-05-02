@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { cases, caseAudits, users, caseMessages, consultants, evidence, expertiseRequests, witnesses, adminUserActions, caseActivities, lawyerConversations, processedStripeEvents, tokenLedger, hearings, hearingParticipants, hearingTranscripts } from "./schema";
+import { cases, caseAudits, users, caseMessages, consultants, evidence, expertiseRequests, lawyers, witnesses, adminUserActions, caseActivities, lawyerConversations, processedStripeEvents, tokenLedger, hearings, hearingParticipants, hearingTranscripts } from "./schema";
 
 export const caseAuditsRelations = relations(caseAudits, ({one}) => ({
 	case: one(cases, {
@@ -18,6 +18,7 @@ export const casesRelations = relations(cases, ({many}) => ({
 	consultants: many(consultants),
 	evidences: many(evidence),
 	expertiseRequests: many(expertiseRequests),
+	lawyers: many(lawyers),
 	witnesses: many(witnesses),
 	caseActivities: many(caseActivities),
 	lawyerConversations: many(lawyerConversations),
@@ -69,6 +70,13 @@ export const expertiseRequestsRelations = relations(expertiseRequests, ({one}) =
 export const witnessesRelations = relations(witnesses, ({one}) => ({
 	case: one(cases, {
 		fields: [witnesses.caseId],
+		references: [cases.id]
+	}),
+}));
+
+export const lawyersRelations = relations(lawyers, ({one}) => ({
+	case: one(cases, {
+		fields: [lawyers.caseId],
 		references: [cases.id]
 	}),
 }));

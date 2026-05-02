@@ -67,3 +67,37 @@ export async function sendConsultantInvitationEmail(
     throw new Error(error.message);
   }
 }
+
+export async function sendLawyerInvitationEmail(
+  to: string,
+  data: { lawyerName: string; calledByPartyName: string; token: string; firmName?: string | null },
+) {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+    throw new Error(
+      "Email is not configured. Set RESEND_API_KEY and EMAIL_FROM (verified sender in Resend).",
+    );
+  }
+
+  const base = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  const verifyUrl = `${base}/lawyer/${data.token}`;
+  const firm = data.firmName ? ` of <strong>${escapeHtml(data.firmName)}</strong>` : "";
+
+  const resend = new Resend(env.RESEND_API_KEY);
+  const { error } = await resend.emails.send({
+    from: env.EMAIL_FROM,
+    to: [to],
+    subject: "You have been retained as a lawyer",
+    html: [
+      `<p>Hello ${escapeHtml(data.lawyerName)}${firm},</p>`,
+      `<p>You have been added as legal representative by <strong>${escapeHtml(data.calledByPartyName)}</strong> in an arbitration case on DIN.ORG.</p>`,
+      `<p>Please review the case details and verify your identity:</p>`,
+      `<p><a href="${escapeHtml(verifyUrl)}">Review case &amp; verify identity</a></p>`,
+      `<p>This link will expire in 7 days. If it has expired, the party who added you can resend the invitation.</p>`,
+      `<p>This message was sent by the arbitration platform. If you were not expecting it, you can ignore it.</p>`,
+    ].join("\n"),
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}

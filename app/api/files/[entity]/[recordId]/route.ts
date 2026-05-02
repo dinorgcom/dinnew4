@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { get } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { caseMessages, consultants, evidence, expertiseRequests, witnesses } from "@/db/schema";
+import { caseMessages, consultants, evidence, expertiseRequests, lawyers, witnesses } from "@/db/schema";
 import { env } from "@/lib/env";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getAuthorizedCase } from "@/server/cases/access";
@@ -92,6 +92,19 @@ export async function GET(request: Request, { params }: RouteProps) {
       return new Response("Forbidden", { status: 403 });
     }
     return serveBlob(record.reportFileUrl, { download, fileName: record.fullName ?? null });
+  }
+
+  if (entity === "lawyers") {
+    const rows = await db.select().from(lawyers).where(eq(lawyers.id, recordId)).limit(1);
+    const record = rows[0];
+    if (!record?.proofFileUrl) {
+      return new Response("Not found", { status: 404 });
+    }
+    const authorized = await getAuthorizedCase(user, record.caseId);
+    if (!authorized) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return serveBlob(record.proofFileUrl, { download, fileName: record.proofFileName ?? record.fullName ?? null });
   }
 
   if (entity === "messages") {
