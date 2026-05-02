@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getTokenBalance } from "@/server/billing/service";
 import { isDatabaseConfigured } from "@/server/runtime";
 import { getDb } from "@/db/client";
-import { users } from "@/db/schema";
+import { serviceTokens, users } from "@/db/schema";
 import { NotificationsPrefForm } from "@/components/notifications-pref-form";
+import { ApiTokensForm } from "@/components/api-tokens-form";
 
 const PLACEHOLDER_INVOICES: Array<{
   id: string;
@@ -34,6 +35,13 @@ export default async function SettingsPage() {
   const appUser = await ensureAppUser();
   const balance = appUser?.id && isDatabaseConfigured() ? await getTokenBalance(appUser.id) : 0;
   let notificationPref: "all" | "necessary_only" = "all";
+  let apiTokens: Array<{
+    id: string;
+    label: string;
+    tokenPrefix: string;
+    lastUsedAt: Date | null;
+    createdAt: Date;
+  }> = [];
   if (appUser?.id && isDatabaseConfigured()) {
     const db = getDb();
     const rows = await db
@@ -43,6 +51,18 @@ export default async function SettingsPage() {
       .limit(1);
     const value = rows[0]?.pref;
     if (value === "necessary_only") notificationPref = "necessary_only";
+
+    apiTokens = await db
+      .select({
+        id: serviceTokens.id,
+        label: serviceTokens.label,
+        tokenPrefix: serviceTokens.tokenPrefix,
+        lastUsedAt: serviceTokens.lastUsedAt,
+        createdAt: serviceTokens.createdAt,
+      })
+      .from(serviceTokens)
+      .where(and(eq(serviceTokens.userId, appUser.id), isNull(serviceTokens.revokedAt)))
+      .orderBy(desc(serviceTokens.createdAt));
   }
 
   return (
@@ -110,26 +130,31 @@ export default async function SettingsPage() {
       </section>
 
       <section className="rounded-md border border-slate-200 bg-white p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">API access</div>
-            <h2 className="mt-2 text-xl font-semibold text-ink">Personal access tokens</h2>
-            <p className="mt-2 max-w-xl text-sm text-slate-600">
-              Generate a personal access token to integrate DIN.ORG with your own tools. Tokens
-              authenticate REST calls under your account.
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled
-            className="rounded-md border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-500"
-            title="API issuance ships in a follow-up"
-          >
-            Generate token (soon)
-          </button>
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-400">API access</div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">Personal access tokens</h2>
+          <p className="mt-2 max-w-xl text-sm text-slate-600">
+            Generate a personal access token to act on the case API as yourself
+            from scripts, automations, or LLM agents. Every token-based call is
+            tagged in the audit trail as <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">via API</code>{" "}
+            so the audit trail still tells human and machine actions apart.
+          </p>
+          <p className="mt-2 max-w-xl text-xs text-slate-500">
+            <Link href={"/docs/api" as Route} className="text-rose-700 underline">
+              Read the API reference →
+            </Link>
+          </p>
         </div>
-        <div className="mt-4 rounded-md bg-slate-50 p-4 text-xs text-slate-600">
-          No API tokens have been issued yet.
+        <div className="mt-4">
+          <ApiTokensForm
+            initialTokens={apiTokens.map((t) => ({
+              id: t.id,
+              label: t.label,
+              tokenPrefix: t.tokenPrefix,
+              lastUsedAt: t.lastUsedAt,
+              createdAt: t.createdAt,
+            }))}
+          />
         </div>
       </section>
 

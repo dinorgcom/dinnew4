@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { accountStatusEnum, appRoleEnum } from "./enums";
 import { createdAt, id, updatedAt } from "./common";
 import { kycVerifications } from "./kyc";
@@ -24,5 +24,29 @@ export const users = pgTable(
   (table) => ({
     clerkUserIdIdx: uniqueIndex("users_clerk_user_id_idx").on(table.clerkUserId),
     emailIdx: uniqueIndex("users_email_idx").on(table.email),
+  }),
+);
+
+// Personal access tokens for the API. Plain token format is
+// `din_pat_<32 hex>`. Only the SHA-256 hash is stored; the prefix
+// (first 12 chars of the plain token) is kept separately for UI display
+// so users can identify a token in the list without having access to
+// the secret.
+export const serviceTokens = pgTable(
+  "service_tokens",
+  {
+    id,
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    tokenPrefix: text("token_prefix").notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    userIdx: index("service_tokens_user_idx").on(table.userId),
+    hashIdx: uniqueIndex("service_tokens_hash_idx").on(table.tokenHash),
   }),
 );

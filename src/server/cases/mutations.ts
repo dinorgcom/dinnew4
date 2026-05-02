@@ -107,13 +107,20 @@ export async function createCaseActivity(
   const db = getDb();
   const now = new Date();
 
+  // Always record the auth source (web vs api) so an admin browsing the
+  // audit trail can tell programmatic actions apart from human ones.
+  const enrichedMetadata: Record<string, unknown> = {
+    ...(metadataJson ?? {}),
+    authSource: actor.user?.authSource ?? "system",
+  };
+
   await db.insert(caseActivities).values({
     caseId,
     type,
     title,
     description,
     performedBy: formatPerformedBy(actor.user, actor.impersonation),
-    metadataJson: metadataJson ?? null,
+    metadataJson: enrichedMetadata,
     createdAt: now,
   });
   await touchCaseActivity(caseId, now);

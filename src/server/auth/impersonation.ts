@@ -145,8 +145,12 @@ export function formatPerformedBy(
     return "system";
   }
   const base = user?.fullName || user?.email || fallback;
+  // Tag API-originated actions in the audit trail so a reader can tell at
+  // a glance whether something came from the browser or from an automated
+  // client / LLM agent using a personal access token.
+  const apiSuffix = user?.authSource === "api" ? " (via API)" : "";
   if (context) {
-    return `[Admin:${user?.email ?? "unknown"} as ${context.role}] ${base}`;
+    return `[Admin:${user?.email ?? "unknown"} as ${context.role}] ${base}${apiSuffix}`;
   }
-  return base;
+  return `${base}${apiSuffix}`;
 }

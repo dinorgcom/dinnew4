@@ -11,6 +11,7 @@ function user(overrides: Partial<ProvisionedAppUser>): ProvisionedAppUser {
     role: "user",
     accountStatus: "active",
     kycVerified: false,
+    authSource: "web",
     ...overrides,
   };
 }
