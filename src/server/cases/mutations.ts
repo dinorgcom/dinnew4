@@ -35,6 +35,7 @@ import {
   EVIDENCE_REVIEW_EXTENSION_DAYS,
   EVIDENCE_REVIEW_MAX_EXTENSIONS,
 } from "@/server/billing/config";
+import { notifyCaseEvent } from "@/server/notifications/service";
 import { spendForAction } from "@/server/billing/service";
 import { assertAppUserActive } from "@/server/auth/provision";
 import { isUserKycVerified } from "@/server/identity/service";
@@ -349,6 +350,12 @@ export async function createEvidence(user: AppUser, caseId: string, payload: unk
     },
   );
 
+  await notifyCaseEvent(caseId, "evidence_added", {
+    title: parsed.title,
+    body: parsed.description ?? undefined,
+    actor: user?.fullName || user?.email || authorized.role,
+  });
+
   return inserted[0];
 }
 
@@ -428,6 +435,12 @@ export async function createWitness(user: AppUser, caseId: string, payload: unkn
       entityTitle: parsed.fullName,
     },
   );
+
+  await notifyCaseEvent(caseId, "witness_added", {
+    title: parsed.fullName,
+    body: parsed.statement ?? undefined,
+    actor: user?.fullName || user?.email || authorized.role,
+  });
 
   // Send invitation email
   const calledByPartyName =
@@ -517,6 +530,12 @@ export async function createConsultant(user: AppUser, caseId: string, payload: u
     parsed.fullName,
     { user, impersonation: authorized.impersonation },
   );
+
+  await notifyCaseEvent(caseId, "consultant_added", {
+    title: parsed.fullName,
+    body: parsed.expertise ?? undefined,
+    actor: user?.fullName || user?.email || authorized.role,
+  });
 
   // Send invitation email
   const calledByPartyName =
@@ -665,6 +684,12 @@ export async function createExpertise(user: AppUser, caseId: string, payload: un
       entityTitle: parsed.title,
     },
   );
+
+  await notifyCaseEvent(caseId, "expertise_added", {
+    title: parsed.title,
+    body: parsed.description ?? undefined,
+    actor: user?.fullName || user?.email || authorized.role,
+  });
 
   return inserted[0];
 }

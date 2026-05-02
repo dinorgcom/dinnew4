@@ -8,6 +8,7 @@ import { generateStructuredObject, isAiConfigured } from "@/server/ai/service";
 import { getAuthorizedCase, createCaseActivity, recordCaseAuditEvent } from "@/server/cases/mutations";
 import { getCaseDetail } from "@/server/cases/queries";
 import { spendForAction } from "@/server/billing/service";
+import { notifyCaseEvent } from "@/server/notifications/service";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -476,6 +477,12 @@ export async function generateArbitrationProposal(
     },
   );
 
+  await notifyCaseEvent(caseId, "settlement_proposed", {
+    title: "A settlement offer has been proposed",
+    body: summary,
+    actor: user?.fullName || user?.email || authorized.role,
+  });
+
   return updated[0];
 }
 
@@ -547,6 +554,12 @@ export async function acceptArbitrationProposal(
     },
   );
 
+  await notifyCaseEvent(caseId, "settlement_decided", {
+    title: "Settlement offer accepted",
+    body: summary,
+    actor: user?.fullName || user?.email || userRole,
+  });
+
   return updated[0];
 }
 
@@ -612,6 +625,12 @@ export async function rejectArbitrationProposal(
       note: note || null,
     },
   );
+
+  await notifyCaseEvent(caseId, "settlement_decided", {
+    title: "Settlement offer rejected",
+    body: note || `${userRole} rejected the proposal. The case will continue.`,
+    actor: user?.fullName || user?.email || userRole,
+  });
 
   return updated[0];
 }
@@ -772,6 +791,12 @@ export async function generateJudgement(user: AppUser, caseId: string, clearSimu
       outcome: clearSimulationData ? "single_ai_judgement_generated" : "judgement_generated",
     },
   );
+
+  await notifyCaseEvent(caseId, "judgement_issued", {
+    title: "A judgement has been issued",
+    body: summarizeJudgement(judgement),
+    actor: user?.fullName || user?.email || authorized.role,
+  });
 
   return updated[0];
 }

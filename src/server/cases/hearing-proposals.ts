@@ -12,6 +12,7 @@ import {
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { getAuthorizedCase } from "@/server/cases/access";
 import { touchCaseActivity } from "@/server/cases/status";
+import { notifyCaseEvent } from "@/server/notifications/service";
 
 type AppUser = ProvisionedAppUser | null;
 
@@ -304,6 +305,11 @@ export async function autoFinalizeHearingProposalIfDue(caseId: string) {
     .set({ status: "hearing_scheduled", lastActivityAt: new Date(), updatedAt: new Date() })
     .where(eq(cases.id, caseId));
 
+  await notifyCaseEvent(caseId, "hearing_scheduled", {
+    title: "Hearing slot auto-confirmed",
+    body: `The voting deadline closed and the slot with the most yes votes was selected: ${slotIso}.`,
+  });
+
   return { hearing: inserted[0], proposalId: proposal.id, slotIndex: winner.index };
 }
 
@@ -401,6 +407,12 @@ export async function confirmHearingSlot(user: AppUser, caseId: string, payload:
     .update(cases)
     .set({ status: "hearing_scheduled", lastActivityAt: new Date(), updatedAt: new Date() })
     .where(eq(cases.id, caseId));
+
+  await notifyCaseEvent(caseId, "hearing_scheduled", {
+    title: "Hearing slot confirmed",
+    body: `Slot scheduled for ${slotIso}.`,
+    actor: user?.fullName || user?.email || authorized.role,
+  });
 
   return { hearing: inserted[0], proposalId: parsed.proposalId, slotIndex: parsed.slotIndex };
 }
