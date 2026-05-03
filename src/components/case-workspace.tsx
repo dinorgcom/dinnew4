@@ -122,9 +122,15 @@ function EvidenceThumbnail({ record, fileLink }: { record: RecordSummary; fileLi
   }
 
   if (isImage) {
+    // Use a plain <img> instead of next/image: <Image src> would route the
+    // request through Next's /_next/image optimizer, which fetches the
+    // proxy URL server-side WITHOUT the browser's Clerk cookie, so our
+    // file proxy can't authenticate it and returns 404. The browser
+    // fetching directly carries cookies and works.
     return (
       <a href={fileLink} target="_blank" rel="noopener noreferrer" className={`${baseClasses} relative block bg-slate-50`}>
-        <Image src={fileLink} alt={record.title || "Evidence"} fill sizes="64px" className="object-cover" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={fileLink} alt={record.title || "Evidence"} className="h-full w-full object-cover" />
       </a>
     );
   }
@@ -453,9 +459,12 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
 function WitnessAvatar({ record, photoUrl }: { record: RecordSummary; photoUrl: string | null }) {
   const baseClasses = "h-16 w-16 shrink-0 overflow-hidden rounded-md border border-slate-200";
   if (photoUrl) {
+    // Plain <img> here too — Next/Image optimizer fetches server-side
+    // without Clerk cookies and our file proxy 404s those requests.
     return (
       <div className={`${baseClasses} relative`}>
-        <Image src={photoUrl} alt={record.fullName || "Witness"} fill sizes="64px" className="object-cover" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={photoUrl} alt={record.fullName || "Witness"} className="h-full w-full object-cover" />
       </div>
     );
   }
@@ -1474,7 +1483,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               />
               <div className="md:col-span-2 flex items-center gap-3">
                 {forms.witness.photo ? (
-                  <Image
+                  // Plain <img> — the upload URL points directly at the
+                  // blob store and may live on the private host which
+                  // isn't in our next.config remotePatterns whitelist.
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
                     src={forms.witness.photo.url}
                     alt="Witness preview"
                     width={48}
