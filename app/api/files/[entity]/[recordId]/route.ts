@@ -1,4 +1,4 @@
-import { head } from "@vercel/blob";
+import { get, head } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { caseMessages, consultants, evidence, expertiseRequests, lawyers, witnesses } from "@/db/schema";
@@ -15,35 +15,72 @@ async function serveBlob(url: string, opts: { download?: boolean; fileName?: str
     return new Response("Blob token not configured", { status: 500 });
   }
 
-  // Resolve metadata + a fetchable URL via head(). For private blobs the
-  // returned `url` is signed and stable for ~24h; for public blobs it's
-  // the CDN URL. Either way we fetch it directly without needing to
-  // re-derive the access type from the stored URL pattern (which was
-  // brittle and broke whenever the project's blob store defaults flipped).
-  let meta;
-  try {
-    meta = await head(url, { token: env.BLOB_READ_WRITE_TOKEN });
-  } catch (err) {
+  const token = env.BLOB_READ_WRITE_TOKEN;
+
+  // Try get() with both access types. The store default occasionally flips
+  // and old rows may carry a URL whose host doesn't match the current
+  // setting, so brute-forcing both is the most reliable path.
+  async function tryGet(access: "private" | "public") {
+    try {
+      return await get(url, { access, token });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[files] get(access=${access}) threw`, { url, err: String(err) });
+      return null;
+    }
+  }
+
+  let blob = await tryGet("private");
+  if (!blob || !blob.stream) {
+    blob = await tryGet("public");
+  }
+
+  // Last-resort fallback: head() to verify the blob exists, then fetch the
+  // returned URL with the token as Authorization header.
+  if (!blob || !blob.stream) {
+    try {
+      const meta = await head(url, { token });
+      const upstream = await fetch(meta.url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (upstream.ok && upstream.body) {
+        let disposition = meta.contentDisposition;
+        if (opts.download) {
+          const safeName = (opts.fileName || "download").replace(/"/g, "");
+          disposition = `attachment; filename="${safeName}"`;
+        }
+        return new Response(upstream.body, {
+          headers: {
+            "content-type": meta.contentType,
+            "content-disposition": disposition,
+            "cache-control": meta.cacheControl,
+          },
+        });
+      }
+      // eslint-disable-next-line no-console
+      console.error(`[files] fetch(meta.url) failed`, {
+        url,
+        metaUrl: meta.url,
+        upstreamStatus: upstream.status,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[files] head() threw`, { url, err: String(err) });
+    }
     return new Response("Not found", { status: 404 });
   }
 
-  const fetchUrl = opts.download ? meta.downloadUrl : meta.url;
-  const upstream = await fetch(fetchUrl);
-  if (!upstream.ok || !upstream.body) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  let disposition = meta.contentDisposition;
+  let disposition = blob.blob.contentDisposition;
   if (opts.download) {
     const safeName = (opts.fileName || "download").replace(/"/g, "");
     disposition = `attachment; filename="${safeName}"`;
   }
 
-  return new Response(upstream.body, {
+  return new Response(blob.stream, {
     headers: {
-      "content-type": meta.contentType,
+      "content-type": blob.blob.contentType,
       "content-disposition": disposition,
-      "cache-control": meta.cacheControl,
+      "cache-control": blob.blob.cacheControl,
     },
   });
 }
