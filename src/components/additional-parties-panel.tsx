@@ -29,32 +29,31 @@ type PartyRecord = {
   kycStatus?: string | null;
 };
 
-type AdditionalPartiesPanelProps = {
+type AdditionalPartiesSectionProps = {
   caseId: string;
   caseRole: string | null;
+  // Limits this section to one side: when rendered inside the Claimant
+  // tab we only show co-claimants and the propose-form is locked to
+  // side="claimant". The Respondent tab uses side="respondent".
+  side: "claimant" | "respondent";
   parties: PartyRecord[];
   // The party-id of the viewer (if they have an active row in case_parties)
   viewerPartyId: string | null;
 };
 
-const SIDES: Array<{ value: "claimant" | "respondent"; label: string }> = [
-  { value: "claimant", label: "Co-claimant" },
-  { value: "respondent", label: "Co-respondent" },
-];
-
-export function AdditionalPartiesPanel({
+export function AdditionalPartiesSection({
   caseId,
   caseRole,
+  side,
   parties,
   viewerPartyId,
-}: AdditionalPartiesPanelProps) {
+}: AdditionalPartiesSectionProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [voteSubmitting, setVoteSubmitting] = useState<string | null>(null);
   const [extendingId, setExtendingId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    side: "claimant" as "claimant" | "respondent",
     fullName: "",
     email: "",
     phone: "",
@@ -66,10 +65,11 @@ export function AdditionalPartiesPanel({
   });
 
   const isParty = caseRole === "claimant" || caseRole === "respondent";
+  const sideLabel = side === "claimant" ? "co-claimant" : "co-respondent";
+  const visible = parties.filter((p) => p.side === side);
 
   function reset() {
     setForm({
-      side: "claimant",
       fullName: "",
       email: "",
       phone: "",
@@ -96,7 +96,7 @@ export function AdditionalPartiesPanel({
       const response = await fetch(`/api/cases/${caseId}/parties`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ side, ...form }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -190,168 +190,132 @@ export function AdditionalPartiesPanel({
     }
   }
 
-  const grouped = {
-    claimant: parties.filter((p) => p.side === "claimant"),
-    respondent: parties.filter((p) => p.side === "respondent"),
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+          Additional {side === "claimant" ? "claimants" : "respondents"}
+        </div>
+        <p className="mt-1 text-xs text-slate-500">
+          Add another person to this side. <strong>All current parties on the case must
+          approve</strong> the addition or the 7-day deadline expires (after which the
+          addition goes through automatically). Once approved, the invitee receives
+          an email link to join. Witnesses are not parties — add them on the
+          Witnesses tab.
+        </p>
+      </div>
+
       {error ? (
         <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
-      <div className="rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-700">
-        <p>
-          You can add more people to either side of the case. <strong>All current
-          parties must approve</strong> the addition or the deadline expires (after
-          which the addition is automatically allowed). Once approved, the new
-          person receives an invitation by email and can join the case.
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Witnesses are not parties — they are added on the Witnesses tab and
-          do not require approval or login.
-        </p>
-      </div>
-
-      {(["claimant", "respondent"] as const).map((side) => (
-        <section key={side} className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-            {side === "claimant" ? "Claimant side" : "Respondent side"}
-            <span className="ml-2 text-xs font-normal text-slate-400">
-              ({grouped[side].length})
-            </span>
-          </h3>
-
-          {grouped[side].length === 0 ? (
-            <div className="rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              No parties on this side yet.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {grouped[side].map((party) => {
-                const votes = party.approvalVotesJson || {};
-                const viewerVote = viewerPartyId ? votes[viewerPartyId] : null;
-                const canVote =
-                  isParty &&
-                  !party.isOriginal &&
-                  party.status === "pending_approval" &&
-                  viewerPartyId &&
-                  party.invitedByPartyId !== viewerPartyId &&
-                  !viewerVote;
-                return (
-                  <div
-                    key={party.id}
-                    className="rounded-md border border-slate-200 bg-white px-4 py-3"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-                          {party.fullName}
-                          {statusLabel(party.status, party.isOriginal)}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {party.email}
-                          {party.phone ? ` · ${party.phone}` : ""}
-                        </div>
-                        {party.notes ? (
-                          <div className="mt-1 text-xs text-slate-500">
-                            {party.notes}
-                          </div>
-                        ) : null}
-                        {party.status === "pending_approval" && party.approvalDeadline ? (
-                          <div className="mt-1 text-xs text-slate-400">
-                            Approval deadline:{" "}
-                            {new Date(party.approvalDeadline as string).toLocaleString()}
-                            {party.approvalExtensions
-                              ? ` (extended ${party.approvalExtensions}×)`
-                              : null}
-                          </div>
-                        ) : null}
-                        {party.status === "pending_approval" && isParty ? (() => {
-                          const used = party.approvalExtensions ?? 0;
-                          if (used >= PARTY_APPROVAL_MAX_EXTENSIONS) {
-                            return (
-                              <div className="mt-1 text-xs text-slate-400">
-                                No more extensions available — auto-approves at deadline.
-                              </div>
-                            );
-                          }
-                          const cost = PARTY_APPROVAL_EXTENSION_COSTS[used];
-                          return (
-                            <button
-                              type="button"
-                              disabled={extendingId === party.id}
-                              onClick={() => void handleExtend(party.id)}
-                              className="mt-2 rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
-                            >
-                              {extendingId === party.id
-                                ? "Extending..."
-                                : `Extend by 7 days (${cost} tokens)`}
-                            </button>
-                          );
-                        })() : null}
-                      </div>
-                      {canVote ? (
-                        <div className="flex shrink-0 items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={voteSubmitting !== null}
-                            onClick={() => void handleVote(party.id, "approve")}
-                            className="rounded-md border border-emerald-300 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:border-emerald-400 disabled:opacity-60"
-                          >
-                            {voteSubmitting === `${party.id}:approve`
-                              ? "Approving..."
-                              : "Approve"}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={voteSubmitting !== null}
-                            onClick={() => void handleVote(party.id, "reject")}
-                            className="rounded-md border border-rose-300 px-3 py-1 text-xs font-medium text-rose-700 transition hover:border-rose-400 disabled:opacity-60"
-                          >
-                            {voteSubmitting === `${party.id}:reject`
-                              ? "Rejecting..."
-                              : "Reject"}
-                          </button>
-                        </div>
-                      ) : viewerVote ? (
-                        <div className="text-xs text-slate-500">
-                          Your vote: <strong className="text-slate-700">{viewerVote}</strong>
-                        </div>
-                      ) : null}
+      {visible.length > 0 ? (
+        <div className="space-y-2">
+          {visible.map((party) => {
+            const votes = party.approvalVotesJson || {};
+            const viewerVote = viewerPartyId ? votes[viewerPartyId] : null;
+            const canVote =
+              isParty &&
+              !party.isOriginal &&
+              party.status === "pending_approval" &&
+              viewerPartyId &&
+              party.invitedByPartyId !== viewerPartyId &&
+              !viewerVote;
+            return (
+              <div
+                key={party.id}
+                className="rounded-md border border-slate-200 bg-white px-4 py-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                      {party.fullName}
+                      {statusLabel(party.status, party.isOriginal)}
                     </div>
+                    <div className="text-xs text-slate-500">
+                      {party.email}
+                      {party.phone ? ` · ${party.phone}` : ""}
+                    </div>
+                    {party.notes ? (
+                      <div className="mt-1 text-xs text-slate-500">
+                        {party.notes}
+                      </div>
+                    ) : null}
+                    {party.status === "pending_approval" && party.approvalDeadline ? (
+                      <div className="mt-1 text-xs text-slate-400">
+                        Approval deadline:{" "}
+                        {new Date(party.approvalDeadline as string).toLocaleString()}
+                        {party.approvalExtensions
+                          ? ` (extended ${party.approvalExtensions}×)`
+                          : null}
+                      </div>
+                    ) : null}
+                    {party.status === "pending_approval" && isParty ? (() => {
+                      const used = party.approvalExtensions ?? 0;
+                      if (used >= PARTY_APPROVAL_MAX_EXTENSIONS) {
+                        return (
+                          <div className="mt-1 text-xs text-slate-400">
+                            No more extensions available — auto-approves at deadline.
+                          </div>
+                        );
+                      }
+                      const cost = PARTY_APPROVAL_EXTENSION_COSTS[used];
+                      return (
+                        <button
+                          type="button"
+                          disabled={extendingId === party.id}
+                          onClick={() => void handleExtend(party.id)}
+                          className="mt-2 rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
+                        >
+                          {extendingId === party.id
+                            ? "Extending..."
+                            : `Extend by 7 days (${cost} tokens)`}
+                        </button>
+                      );
+                    })() : null}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      ))}
+                  {canVote ? (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={voteSubmitting !== null}
+                        onClick={() => void handleVote(party.id, "approve")}
+                        className="rounded-md border border-emerald-300 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:border-emerald-400 disabled:opacity-60"
+                      >
+                        {voteSubmitting === `${party.id}:approve`
+                          ? "Approving..."
+                          : "Approve"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={voteSubmitting !== null}
+                        onClick={() => void handleVote(party.id, "reject")}
+                        className="rounded-md border border-rose-300 px-3 py-1 text-xs font-medium text-rose-700 transition hover:border-rose-400 disabled:opacity-60"
+                      >
+                        {voteSubmitting === `${party.id}:reject`
+                          ? "Rejecting..."
+                          : "Reject"}
+                      </button>
+                    </div>
+                  ) : viewerVote ? (
+                    <div className="text-xs text-slate-500">
+                      Your vote: <strong className="text-slate-700">{viewerVote}</strong>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       {isParty ? (
         <form className="grid gap-3 rounded-md bg-slate-50 p-4 md:grid-cols-2" onSubmit={handleSubmit}>
           <h3 className="text-sm font-semibold text-slate-700 md:col-span-2">
-            Propose an additional party
+            Propose a {sideLabel}
           </h3>
-          <select
-            value={form.side}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                side: event.target.value as "claimant" | "respondent",
-              }))
-            }
-            className="rounded-md border border-slate-300 px-4 py-3 text-sm md:col-span-2"
-          >
-            {SIDES.map((option) => (
-              <option key={option.value} value={option.value}>
-                Add as {option.label}
-              </option>
-            ))}
-          </select>
           {[
             { key: "fullName", label: "Full name" },
             { key: "email", label: "Email" },
@@ -385,13 +349,8 @@ export function AdditionalPartiesPanel({
             disabled={isPending}
             className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
           >
-            {isPending ? "Proposing..." : "Propose addition"}
+            {isPending ? "Proposing..." : `Propose ${sideLabel}`}
           </button>
-          <p className="text-xs text-slate-500 md:col-span-2">
-            All current parties on the case must approve. If no decision is made
-            in 7 days, the addition goes through automatically and the invitee
-            receives an email link to join.
-          </p>
         </form>
       ) : null}
     </div>
