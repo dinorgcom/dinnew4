@@ -52,17 +52,27 @@ export default async function SettingsPage() {
     const value = rows[0]?.pref;
     if (value === "necessary_only") notificationPref = "necessary_only";
 
-    apiTokens = await db
-      .select({
-        id: serviceTokens.id,
-        label: serviceTokens.label,
-        tokenPrefix: serviceTokens.tokenPrefix,
-        lastUsedAt: serviceTokens.lastUsedAt,
-        createdAt: serviceTokens.createdAt,
-      })
-      .from(serviceTokens)
-      .where(and(eq(serviceTokens.userId, appUser.id), isNull(serviceTokens.revokedAt)))
-      .orderBy(desc(serviceTokens.createdAt));
+    // Tolerate the service_tokens table not existing yet (migration 0018
+    // may not have been applied on this environment). Failing the whole
+    // Settings page over a missing tokens list would block the language,
+    // notifications and other sections that work without it.
+    try {
+      apiTokens = await db
+        .select({
+          id: serviceTokens.id,
+          label: serviceTokens.label,
+          tokenPrefix: serviceTokens.tokenPrefix,
+          lastUsedAt: serviceTokens.lastUsedAt,
+          createdAt: serviceTokens.createdAt,
+        })
+        .from(serviceTokens)
+        .where(and(eq(serviceTokens.userId, appUser.id), isNull(serviceTokens.revokedAt)))
+        .orderBy(desc(serviceTokens.createdAt));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("settings: service_tokens query failed (migration not applied?)", err);
+      apiTokens = [];
+    }
   }
 
   return (
