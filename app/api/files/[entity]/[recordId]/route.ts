@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import { get } from "@vercel/blob";
+import { head } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { caseMessages, consultants, evidence, expertiseRequests, lawyers, witnesses } from "@/db/schema";
@@ -16,28 +15,35 @@ async function serveBlob(url: string, opts: { download?: boolean; fileName?: str
     return new Response("Blob token not configured", { status: 500 });
   }
 
-  const access = url.includes(".private.blob.vercel-storage.com/") ? "private" : "public";
-  const blob = await get(url, {
-    access,
-    token: env.BLOB_READ_WRITE_TOKEN,
-  });
-
-  if (!blob || !blob.stream) {
+  // Resolve metadata + a fetchable URL via head(). For private blobs the
+  // returned `url` is signed and stable for ~24h; for public blobs it's
+  // the CDN URL. Either way we fetch it directly without needing to
+  // re-derive the access type from the stored URL pattern (which was
+  // brittle and broke whenever the project's blob store defaults flipped).
+  let meta;
+  try {
+    meta = await head(url, { token: env.BLOB_READ_WRITE_TOKEN });
+  } catch (err) {
     return new Response("Not found", { status: 404 });
   }
 
-  let disposition = blob.blob.contentDisposition;
+  const fetchUrl = opts.download ? meta.downloadUrl : meta.url;
+  const upstream = await fetch(fetchUrl);
+  if (!upstream.ok || !upstream.body) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  let disposition = meta.contentDisposition;
   if (opts.download) {
     const safeName = (opts.fileName || "download").replace(/"/g, "");
     disposition = `attachment; filename="${safeName}"`;
   }
 
-  return new Response(blob.stream, {
+  return new Response(upstream.body, {
     headers: {
-      "content-type": blob.blob.contentType,
+      "content-type": meta.contentType,
       "content-disposition": disposition,
-      "cache-control": blob.blob.cacheControl,
-      etag: blob.blob.etag,
+      "cache-control": meta.cacheControl,
     },
   });
 }
