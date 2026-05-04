@@ -345,6 +345,7 @@ export async function createEvidence(user: AppUser, caseId: string, payload: unk
       status: "pending",
       submittedBy: authorized.role === "moderator" ? "arbitrator" : authorized.role,
       notes: parsed.notes || null,
+      contextJson: parsed.context ?? null,
       fileUrl: parsed.attachment?.url ?? null,
       filePathname: parsed.attachment?.pathname ?? null,
       fileName: parsed.attachment?.fileName ?? null,

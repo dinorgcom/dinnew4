@@ -40,6 +40,7 @@ type RecordSummary = {
   fileReferences?: Record<string, unknown>[] | null;
   submittedBy?: string | null;
   evidenceNumber?: number | null;
+  contextJson?: EvidenceContext | null;
   // Witness-specific fields
   email?: string | null;
   phone?: string | null;
@@ -77,6 +78,54 @@ type RecordSummary = {
   aiAnalysis?: string | null;
   isPublished?: boolean | null;
 };
+
+type EvidenceContext = {
+  whatThisEvidenceIs?: string | null;
+  whatThisEvidenceShows?: string | null;
+  importantDatesOrEvents?: string | null;
+  relatedClaimOrDefense?: string | null;
+  peopleOrCompaniesInvolved?: string | null;
+  authenticityOrCompleteness?: string | null;
+  conclusionForJudge?: string | null;
+};
+
+const evidenceContextFields: Array<{ key: keyof EvidenceContext; label: string; help: string }> = [
+  {
+    key: "whatThisEvidenceIs",
+    label: "What this evidence is",
+    help: "Briefly describe the document, message, photo, receipt, recording, or other item.",
+  },
+  {
+    key: "whatThisEvidenceShows",
+    label: "What this evidence shows",
+    help: "Explain the fact or event you believe this evidence proves.",
+  },
+  {
+    key: "importantDatesOrEvents",
+    label: "Important dates or events",
+    help: "List any dates, deadlines, payments, meetings, deliveries, messages, or events connected to this evidence.",
+  },
+  {
+    key: "relatedClaimOrDefense",
+    label: "Related claim or defense",
+    help: "Explain which part of your claim, defense, or response this evidence supports.",
+  },
+  {
+    key: "peopleOrCompaniesInvolved",
+    label: "People or companies involved",
+    help: "Name anyone shown, mentioned, copied, paid, contacted, or otherwise involved.",
+  },
+  {
+    key: "authenticityOrCompleteness",
+    label: "Authenticity or completeness",
+    help: "State whether this is original, copied, complete, excerpted, translated, edited, or otherwise limited.",
+  },
+  {
+    key: "conclusionForJudge",
+    label: "Conclusion you want the judge to consider",
+    help: "Explain what conclusion you think the judge should draw from this evidence.",
+  },
+];
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -798,7 +847,22 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const expertiseFileRef = useRef<HTMLInputElement | null>(null);
   const messageFileRef = useRef<HTMLInputElement | null>(null);
   const [forms, setForms] = useState({
-    evidence: { title: "", description: "", type: "document", notes: "", attachment: null as FileReference | null },
+    evidence: {
+      title: "",
+      description: "",
+      type: "document",
+      notes: "",
+      context: {
+        whatThisEvidenceIs: "",
+        whatThisEvidenceShows: "",
+        importantDatesOrEvents: "",
+        relatedClaimOrDefense: "",
+        peopleOrCompaniesInvolved: "",
+        authenticityOrCompleteness: "",
+        conclusionForJudge: "",
+      } as EvidenceContext,
+      attachment: null as FileReference | null,
+    },
     witness: {
       fullName: "",
       email: "",
@@ -1047,6 +1111,20 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   {kind === "evidence" && record.submittedBy ? (
                     <div className="text-xs uppercase tracking-[0.15em] text-slate-400">
                       Submitted by {record.submittedBy}
+                    </div>
+                  ) : null}
+                  {kind === "evidence" && record.contextJson ? (
+                    <div className="mt-3 grid gap-2 rounded-md bg-slate-50 p-3 md:grid-cols-2">
+                      {evidenceContextFields.map((field) => {
+                        const value = record.contextJson?.[field.key];
+                        if (!value) return null;
+                        return (
+                          <div key={field.key} className="text-xs leading-5 text-slate-600">
+                            <div className="font-semibold text-slate-800">{field.label}</div>
+                            <div className="whitespace-pre-wrap">{value}</div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : null}
                   {renderFiles(record, kind)}
@@ -1301,7 +1379,22 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   if (success) {
                     setForms((current) => ({
                       ...current,
-                      evidence: { title: "", description: "", type: "document", notes: "", attachment: null },
+                      evidence: {
+                        title: "",
+                        description: "",
+                        type: "document",
+                        notes: "",
+                        context: {
+                          whatThisEvidenceIs: "",
+                          whatThisEvidenceShows: "",
+                          importantDatesOrEvents: "",
+                          relatedClaimOrDefense: "",
+                          peopleOrCompaniesInvolved: "",
+                          authenticityOrCompleteness: "",
+                          conclusionForJudge: "",
+                        },
+                        attachment: null,
+                      },
                     }));
                   }
                 });
@@ -1346,6 +1439,37 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 rows={3}
                 className="rounded-md border border-slate-300 px-4 py-3 text-sm md:col-span-2"
               />
+              <div className="md:col-span-2 grid gap-3 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <div className="text-sm font-semibold text-slate-900">Evidence context for the judge</div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    These fields help the judge understand what the evidence means and when to surface it during the hearing.
+                  </p>
+                </div>
+                {evidenceContextFields.map((field) => (
+                  <label key={field.key} className="space-y-1">
+                    <span className="text-sm font-medium text-slate-700">{field.label}</span>
+                    <span className="block text-xs leading-5 text-slate-500">{field.help}</span>
+                    <textarea
+                      value={forms.evidence.context[field.key] || ""}
+                      onChange={(event) =>
+                        setForms((current) => ({
+                          ...current,
+                          evidence: {
+                            ...current.evidence,
+                            context: {
+                              ...current.evidence.context,
+                              [field.key]: event.target.value,
+                            },
+                          },
+                        }))
+                      }
+                      rows={3}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                ))}
+              </div>
               {attachmentBadge(forms.evidence.attachment)}
               <div className="md:col-span-2">
                 <input ref={evidenceFileRef} type="file" className="hidden" onChange={(event) => {

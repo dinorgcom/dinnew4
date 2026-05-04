@@ -12,6 +12,7 @@ import { AuditPanel } from "@/components/audit-panel";
 import { ArbitrationPanel } from "@/components/arbitration-panel";
 import { HearingScheduler } from "@/components/hearing-scheduler";
 import { HearingProposalPanel } from "@/components/hearing-proposal-panel";
+import { ScriptedHearingPanel } from "@/components/scripted-hearing-panel";
 import { AppealPanel } from "@/components/appeal-panel";
 import { AuditTrailPanel } from "@/components/audit-trail-panel";
 import { ACTION_COSTS } from "@/server/billing/config";
@@ -1548,6 +1549,8 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "hearing" ? (
         <div id="panel-hearing" role="tabpanel" aria-labelledby="tab-hearing" className="space-y-6">
+          <ScriptedHearingPanel caseId={detail.case.id} caseRole={detail.role} />
+
           {/* Discovery-gated AI 5-slot proposal + voting */}
           <HearingProposalPanel caseId={detail.case.id} caseRole={detail.role} />
 

@@ -36,6 +36,15 @@ export const evidence = pgTable(
     rejectedBy: text("rejected_by"),
     originalEvidenceId: uuid("original_evidence_id"),
     notes: text("notes"),
+    contextJson: jsonb("context_json").$type<{
+      whatThisEvidenceIs?: string | null;
+      whatThisEvidenceShows?: string | null;
+      importantDatesOrEvents?: string | null;
+      relatedClaimOrDefense?: string | null;
+      peopleOrCompaniesInvolved?: string | null;
+      authenticityOrCompleteness?: string | null;
+      conclusionForJudge?: string | null;
+    } | null>(),
     reviewState: text("review_state").default("pending"),
     reviewExtensions: integer("review_extensions").default(0).notNull(),
     reviewDismissalReason: text("review_dismissal_reason"),

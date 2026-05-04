@@ -104,6 +104,18 @@ export const evidenceCreateSchema = z.object({
     "other",
   ]),
   notes: z.string().optional().nullable(),
+  context: z
+    .object({
+      whatThisEvidenceIs: z.string().trim().max(2000).optional().nullable(),
+      whatThisEvidenceShows: z.string().trim().max(2000).optional().nullable(),
+      importantDatesOrEvents: z.string().trim().max(2000).optional().nullable(),
+      relatedClaimOrDefense: z.string().trim().max(2000).optional().nullable(),
+      peopleOrCompaniesInvolved: z.string().trim().max(2000).optional().nullable(),
+      authenticityOrCompleteness: z.string().trim().max(2000).optional().nullable(),
+      conclusionForJudge: z.string().trim().max(2000).optional().nullable(),
+    })
+    .optional()
+    .nullable(),
   attachment: z
     .object({
       url: z.string().url(),

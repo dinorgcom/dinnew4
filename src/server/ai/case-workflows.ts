@@ -8,6 +8,10 @@ import { generateStructuredObject, isAiConfigured } from "@/server/ai/service";
 import { getAuthorizedCase, createCaseActivity, recordCaseAuditEvent } from "@/server/cases/mutations";
 import { getCaseDetail } from "@/server/cases/queries";
 import { spendForAction } from "@/server/billing/service";
+import {
+  assertRequiredPartyHearingsComplete,
+  getCompletedHearingContextForArbitration,
+} from "@/server/cases/scripted-hearings";
 import { notifyCaseEvent } from "@/server/notifications/service";
 
 type AppUser = ProvisionedAppUser | null;
@@ -372,6 +376,8 @@ export async function generateArbitrationProposal(
 ) {
   ensureAiReady();
   const { authorized, detail, impersonation } = await getAiContext(user, caseId);
+  await assertRequiredPartyHearingsComplete(caseId);
+  const hearingContext = await getCompletedHearingContextForArbitration(caseId);
   const db = getDb();
 
   const prompt = [
@@ -441,7 +447,10 @@ export async function generateArbitrationProposal(
     "- If critical information is missing, still produce the best-supported range from the record and explain the uncertainty in RATIONALE.",
     "",
     "Case context:",
-    toJsonSafe(compactCaseContext(detail)),
+    toJsonSafe({
+      ...compactCaseContext(detail),
+      scriptedHearing: hearingContext,
+    }),
   ].join("\n");
 
   const proposal = await generateStructuredObject(prompt, arbitrationOutputSchema);

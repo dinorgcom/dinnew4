@@ -154,3 +154,89 @@ export const hearingProposals = pgTable(
     statusIdx: index("hearing_proposals_status_idx").on(table.status),
   }),
 );
+
+export type HearingScriptItem = {
+  id: string;
+  kind: "narrative" | "issue" | "witness";
+  participantRole: "claimant" | "respondent" | "witness";
+  issueId?: string | null;
+  primaryQuestion: string;
+  allowedFollowUpObjective?: string | null;
+  relatedEvidenceIds: string[];
+  evidenceDisplayInstructions?: string | null;
+  resolutionCriteria?: string | null;
+  maxFollowUps: number;
+};
+
+export const hearingPreparations = pgTable(
+  "hearing_preparations",
+  {
+    id,
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    status: text("status").default("draft").notNull(),
+    caseMapJson: jsonb("case_map_json").$type<Record<string, unknown> | null>(),
+    disputedIssuesJson: jsonb("disputed_issues_json").$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    evidenceBriefsJson: jsonb("evidence_briefs_json").$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    claimantScriptJson: jsonb("claimant_script_json").$type<HearingScriptItem[]>().default([]).notNull(),
+    respondentScriptJson: jsonb("respondent_script_json").$type<HearingScriptItem[]>().default([]).notNull(),
+    reconciliationMemoJson: jsonb("reconciliation_memo_json").$type<Record<string, unknown> | null>(),
+    witnessScriptsJson: jsonb("witness_scripts_json").$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    finalFactFindingMemoJson: jsonb("final_fact_finding_memo_json").$type<Record<string, unknown> | null>(),
+    generatedByUserId: uuid("generated_by_user_id"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    caseIdx: index("hearing_preparations_case_idx").on(table.caseId),
+    statusIdx: index("hearing_preparations_status_idx").on(table.status),
+  }),
+);
+
+export const hearingSessions = pgTable(
+  "hearing_sessions",
+  {
+    id,
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    preparationId: uuid("preparation_id").notNull().references(() => hearingPreparations.id, { onDelete: "cascade" }),
+    participantRole: text("participant_role").notNull(),
+    participantName: text("participant_name"),
+    witnessId: uuid("witness_id"),
+    status: text("status").default("not_started").notNull(),
+    scriptJson: jsonb("script_json").$type<HearingScriptItem[]>().default([]).notNull(),
+    currentScriptItemId: text("current_script_item_id"),
+    completedScriptItemIds: jsonb("completed_script_item_ids").$type<string[]>().default([]).notNull(),
+    followUpCountsJson: jsonb("follow_up_counts_json").$type<Record<string, number>>().default({}).notNull(),
+    transcriptSummaryJson: jsonb("transcript_summary_json").$type<Record<string, unknown> | null>(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    caseIdx: index("hearing_sessions_case_idx").on(table.caseId),
+    preparationIdx: index("hearing_sessions_preparation_idx").on(table.preparationId),
+    statusIdx: index("hearing_sessions_status_idx").on(table.status),
+    participantRoleIdx: index("hearing_sessions_participant_role_idx").on(table.participantRole),
+  }),
+);
+
+export const hearingMessages = pgTable(
+  "hearing_messages",
+  {
+    id,
+    sessionId: uuid("session_id").notNull().references(() => hearingSessions.id, { onDelete: "cascade" }),
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    senderRole: text("sender_role").notNull(),
+    content: text("content").notNull(),
+    scriptItemId: text("script_item_id"),
+    referencedEvidenceIds: jsonb("referenced_evidence_ids").$type<string[]>().default([]).notNull(),
+    messageType: text("message_type").default("statement").notNull(),
+    aiAnalysisJson: jsonb("ai_analysis_json").$type<Record<string, unknown> | null>(),
+    createdAt,
+  },
+  (table) => ({
+    sessionIdx: index("hearing_messages_session_idx").on(table.sessionId),
+    caseIdx: index("hearing_messages_case_idx").on(table.caseId),
+    scriptItemIdx: index("hearing_messages_script_item_idx").on(table.scriptItemId),
+  }),
+);
