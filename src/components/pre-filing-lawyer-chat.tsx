@@ -63,10 +63,11 @@ export function PreFilingLawyerChat({ lawyerKey, draftCaseData }: PreFilingLawye
   return (
     <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
       <div>
-        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Pre-filing lawyer</div>
+        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">DIN.ORG Guide</div>
         <h2 className="mt-2 text-2xl font-semibold text-ink">{lawyer.name}</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Ask for help tightening the summary, claims, and missing facts before filing.
+          Ask the Guide for help — sharpening the summary, naming the right party, framing claims,
+          deciding what to do next.
         </p>
       </div>
 

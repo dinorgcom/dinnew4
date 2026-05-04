@@ -1,24 +1,31 @@
-import { CaseEditor } from "@/components/case-editor";
+import { CaseCreationWizard } from "@/components/case-creation-wizard";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getVerificationStatus } from "@/server/identity/service";
 
 export default async function NewCasePage() {
   const user = await ensureAppUser();
-  let claimantPrefill: { name: string; locked: boolean } | null = null;
+
+  // If KYC is complete the verified name comes from Stripe Identity and is
+  // locked. Otherwise we let the user type their own name in the wizard.
+  let filerName = user?.fullName ?? "";
+  let filerNameLocked = false;
   if (user?.id && user.kycVerified) {
     const status = await getVerificationStatus(user.id);
     if ("verifiedFirstName" in status) {
-      const name = `${status.verifiedFirstName ?? ""} ${status.verifiedLastName ?? ""}`.trim();
-      if (name) {
-        claimantPrefill = { name, locked: true };
+      const verified = `${status.verifiedFirstName ?? ""} ${status.verifiedLastName ?? ""}`.trim();
+      if (verified) {
+        filerName = verified;
+        filerNameLocked = true;
       }
     }
   }
+
   return (
-    <CaseEditor
-      mode="create"
+    <CaseCreationWizard
       kycVerified={user?.kycVerified ?? false}
-      claimantPrefill={claimantPrefill}
+      filerName={filerName}
+      filerEmail={user?.email ?? ""}
+      filerNameLocked={filerNameLocked}
     />
   );
 }

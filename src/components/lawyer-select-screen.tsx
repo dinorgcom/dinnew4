@@ -59,9 +59,10 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
         <div className="inline-flex rounded-md bg-ink px-4 py-2 text-sm font-medium text-white">
           {partyRole === "claimant" ? "Filing a claim" : "Responding to a claim"}
         </div>
-        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-ink">Choose your virtual lawyer</h1>
+        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-ink">Choose your DIN.ORG Guide</h1>
         <p className="max-w-3xl text-sm leading-7 text-[color:var(--ink-soft)]">
-          This choice drives the drafting and strategic guidance experience for the case.
+          The Guide is your AI counsel for this case — it drafts, asks questions, and walks you
+          through the next step. Pick the style that fits you.
         </p>
       </div>
 
@@ -108,16 +109,16 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
         <aside className="rounded-md border border-[color:var(--line-soft)] bg-[color:var(--bg-panel)] p-6 lg:sticky lg:top-6 lg:self-start">
           <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Selection notes</div>
           <div className="mt-4 space-y-4 text-sm leading-7 text-[color:var(--ink-soft)]">
-            <p>Choose the counsel style that matches the tone of your case record and the kind of drafting support you want.</p>
+            <p>Pick the Guide style that matches how you want your case framed and what kind of drafting support you want.</p>
             <p>Claimants usually benefit from decisive framing. Respondents often prefer a more forensic or skeptical posture.</p>
           </div>
           <div className="mt-6 rounded-md bg-slate-950 px-5 py-4 text-white">
             <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Current choice</div>
             <div className="mt-3 text-lg font-semibold">
-              {lawyers.find((item) => item.id === selected)?.name || "No lawyer selected"}
+              {lawyers.find((item) => item.id === selected)?.name || "No Guide selected"}
             </div>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              {lawyers.find((item) => item.id === selected)?.tagline || "Pick a lawyer to unlock drafting and guidance for this case."}
+              {lawyers.find((item) => item.id === selected)?.tagline || "Pick a Guide to unlock drafting and guidance for this case."}
             </p>
           </div>
         </aside>
@@ -130,7 +131,7 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
           onClick={() => void confirm()}
           className="rounded-md bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-50"
         >
-          {saving ? "Saving..." : "Confirm lawyer"}
+          {saving ? "Saving..." : "Confirm Guide"}
         </button>
       </div>
       <div className="hidden justify-start lg:flex">
@@ -140,7 +141,7 @@ export function LawyerSelectScreen({ partyRole, caseId, onSelect }: LawyerSelect
           onClick={() => void confirm()}
           className="rounded-md bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-50"
         >
-          {saving ? "Saving..." : "Confirm lawyer"}
+          {saving ? "Saving..." : "Confirm Guide"}
         </button>
       </div>
     </div>
