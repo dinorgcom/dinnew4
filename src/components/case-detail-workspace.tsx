@@ -1549,7 +1549,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "hearing" ? (
         <div id="panel-hearing" role="tabpanel" aria-labelledby="tab-hearing" className="space-y-6">
-          <ScriptedHearingPanel caseId={detail.case.id} caseRole={detail.role} />
+          <ScriptedHearingPanel
+            caseId={detail.case.id}
+            caseRole={detail.role}
+            viewerKycVerified={Boolean(user?.kycVerified)}
+            claimantKycVerified={detail.claimantKyc?.status === "verified"}
+            respondentKycVerified={detail.respondentKyc?.status === "verified"}
+          />
 
           {/* Discovery-gated AI 5-slot proposal + voting */}
           <HearingProposalPanel caseId={detail.case.id} caseRole={detail.role} />

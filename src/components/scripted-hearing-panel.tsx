@@ -46,6 +46,9 @@ type HearingFlow = {
 type ScriptedHearingPanelProps = {
   caseId: string;
   caseRole: string;
+  viewerKycVerified: boolean;
+  claimantKycVerified: boolean;
+  respondentKycVerified: boolean;
 };
 
 function evidenceDownloadHref(id: string) {
@@ -57,7 +60,13 @@ function evidenceLabel(item: EvidenceCallout) {
   return `${number}: ${item.title}`;
 }
 
-export function ScriptedHearingPanel({ caseId, caseRole }: ScriptedHearingPanelProps) {
+export function ScriptedHearingPanel({
+  caseId,
+  caseRole,
+  viewerKycVerified,
+  claimantKycVerified,
+  respondentKycVerified,
+}: ScriptedHearingPanelProps) {
   const router = useRouter();
   const [flow, setFlow] = useState<HearingFlow | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +153,15 @@ export function ScriptedHearingPanel({ caseId, caseRole }: ScriptedHearingPanelP
     });
   }
 
+  const returnTo = `/cases/${caseId}?tab=hearing`;
+  const verifyHref = `/verify/start?returnTo=${encodeURIComponent(returnTo)}` as Route;
+  const isParty = caseRole === "claimant" || caseRole === "respondent";
+  const bothPartiesKycVerified = claimantKycVerified && respondentKycVerified;
+  const currentPartyNeedsKyc = isParty && !viewerKycVerified;
+  const otherPartyNeedsKyc =
+    (caseRole === "claimant" && !respondentKycVerified) ||
+    (caseRole === "respondent" && !claimantKycVerified);
+
   return (
     <section className="rounded-md border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -167,6 +185,39 @@ export function ScriptedHearingPanel({ caseId, caseRole }: ScriptedHearingPanelP
       {error ? (
         <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
+        </div>
+      ) : null}
+
+      {!bothPartiesKycVerified ? (
+        <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-amber-950">Identity verification required</div>
+              <p className="mt-1 text-sm leading-6 text-amber-800">
+                Scripted hearings can be prepared after both the claimant and respondent have completed KYC.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                <span className={`rounded-md px-2 py-1 ${claimantKycVerified ? "bg-emerald-100 text-emerald-800" : "bg-white text-amber-800"}`}>
+                  Claimant {claimantKycVerified ? "verified" : "not verified"}
+                </span>
+                <span className={`rounded-md px-2 py-1 ${respondentKycVerified ? "bg-emerald-100 text-emerald-800" : "bg-white text-amber-800"}`}>
+                  Respondent {respondentKycVerified ? "verified" : "not verified"}
+                </span>
+              </div>
+            </div>
+            {currentPartyNeedsKyc ? (
+              <a
+                href={verifyHref}
+                className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Verify your identity
+              </a>
+            ) : otherPartyNeedsKyc ? (
+              <div className="rounded-md bg-white px-3 py-2 text-sm font-medium text-amber-800">
+                Waiting for the other party
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
