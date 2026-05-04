@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { Route } from "next";
 
 type EvidenceCallout = {
@@ -166,6 +167,27 @@ export function ScriptedHearingPanel({
     (caseRole === "claimant" && !respondentKycVerified) ||
     (caseRole === "respondent" && !claimantKycVerified);
 
+  function renderKycBadge(role: "claimant" | "respondent", verified: boolean) {
+    const label = role === "claimant" ? "Claimant" : "Respondent";
+    const isCurrentParty = caseRole === role;
+    if (!verified && isCurrentParty) {
+      return (
+        <Link
+          href={verifyHref}
+          className="rounded-md bg-ink px-2 py-1 text-xs font-semibold text-white transition hover:bg-slate-800"
+        >
+          Verify your identity
+        </Link>
+      );
+    }
+
+    return (
+      <span className={`rounded-md px-2 py-1 ${verified ? "bg-emerald-100 text-emerald-800" : "bg-white text-amber-800"}`}>
+        {label} {verified ? "verified" : "not verified"}
+      </span>
+    );
+  }
+
   return (
     <section className="rounded-md border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -201,22 +223,11 @@ export function ScriptedHearingPanel({
                 Scripted hearings can be prepared after both the claimant and respondent have completed KYC.
               </p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                <span className={`rounded-md px-2 py-1 ${claimantKycVerified ? "bg-emerald-100 text-emerald-800" : "bg-white text-amber-800"}`}>
-                  Claimant {claimantKycVerified ? "verified" : "not verified"}
-                </span>
-                <span className={`rounded-md px-2 py-1 ${respondentKycVerified ? "bg-emerald-100 text-emerald-800" : "bg-white text-amber-800"}`}>
-                  Respondent {respondentKycVerified ? "verified" : "not verified"}
-                </span>
+                {renderKycBadge("claimant", claimantKycVerified)}
+                {renderKycBadge("respondent", respondentKycVerified)}
               </div>
             </div>
-            {currentPartyNeedsKyc ? (
-              <a
-                href={verifyHref}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Verify your identity
-              </a>
-            ) : otherPartyNeedsKyc ? (
+            {!currentPartyNeedsKyc && otherPartyNeedsKyc ? (
               <div className="rounded-md bg-white px-3 py-2 text-sm font-medium text-amber-800">
                 Waiting for the other party
               </div>
