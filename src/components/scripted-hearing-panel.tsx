@@ -46,7 +46,6 @@ type HearingFlow = {
 type ScriptedHearingPanelProps = {
   caseId: string;
   caseRole: string;
-  viewerKycVerified: boolean;
   claimantKycVerified: boolean;
   respondentKycVerified: boolean;
 };
@@ -63,7 +62,6 @@ function evidenceLabel(item: EvidenceCallout) {
 export function ScriptedHearingPanel({
   caseId,
   caseRole,
-  viewerKycVerified,
   claimantKycVerified,
   respondentKycVerified,
 }: ScriptedHearingPanelProps) {
@@ -157,7 +155,13 @@ export function ScriptedHearingPanel({
   const verifyHref = `/verify/start?returnTo=${encodeURIComponent(returnTo)}` as Route;
   const isParty = caseRole === "claimant" || caseRole === "respondent";
   const bothPartiesKycVerified = claimantKycVerified && respondentKycVerified;
-  const currentPartyNeedsKyc = isParty && !viewerKycVerified;
+  const currentPartyKycVerified =
+    caseRole === "claimant"
+      ? claimantKycVerified
+      : caseRole === "respondent"
+        ? respondentKycVerified
+        : true;
+  const currentPartyNeedsKyc = isParty && !currentPartyKycVerified;
   const otherPartyNeedsKyc =
     (caseRole === "claimant" && !respondentKycVerified) ||
     (caseRole === "respondent" && !claimantKycVerified);

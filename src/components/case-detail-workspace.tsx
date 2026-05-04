@@ -1552,7 +1552,6 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           <ScriptedHearingPanel
             caseId={detail.case.id}
             caseRole={detail.role}
-            viewerKycVerified={Boolean(user?.kycVerified)}
             claimantKycVerified={detail.claimantKyc?.status === "verified"}
             respondentKycVerified={detail.respondentKyc?.status === "verified"}
           />
