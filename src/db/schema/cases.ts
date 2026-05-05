@@ -16,6 +16,10 @@ export const cases = pgTable(
     priority: priorityEnum("priority").default("medium").notNull(),
     claimAmount: numeric("claim_amount", { precision: 12, scale: 2 }),
     currency: text("currency").default("USD").notNull(),
+    // ISO 639-1 lower-case language code. Drives the language for AI
+    // outputs (sanitized statement, judgement, audit), notification
+    // emails, and what document translations are produced into.
+    language: text("language").default("en").notNull(),
     filingDate: timestamp("filing_date", { withTimezone: true }),
     resolutionDeadline: timestamp("resolution_deadline", { withTimezone: true }),
     claimantName: text("claimant_name"),

@@ -77,6 +77,7 @@ type CaseDetailWorkspaceProps = {
       respondentNameAlleged?: string | null;
       respondentNameVerified?: string | null;
       respondentKycVerificationId?: string | null;
+      language?: string | null;
       claimantClaims: Record<string, unknown>[] | null;
       respondentClaims: Record<string, unknown>[] | null;
       claimantStatement?: string | null;
@@ -251,6 +252,8 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     note: string;
   } | null>(null);
   const [arbitrator, setArbitrator] = useState(detail.case.arbitratorAssignedName || "");
+  const [caseLang, setCaseLang] = useState(detail.case.language || "en");
+  const [caseLangSaving, setCaseLangSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contactsError, setContactsError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -745,6 +748,26 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     }
   }
 
+  async function saveCaseLanguage(language: string) {
+    setCaseLangSaving(true);
+    try {
+      const response = await fetch(`/api/cases/${detail.case.id}/language`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        alert(body?.error?.message || "Failed to update language");
+        setCaseLang(detail.case.language || "en");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setCaseLangSaving(false);
+    }
+  }
+
   async function runSanitize() {
     setStatementError(null);
     setSanitizing(true);
@@ -777,6 +800,10 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         removed: data.removed || [],
         note: data.note || "",
       });
+      // Pull the layout's token-balance and audit-trail in line with the
+      // server side state so the user sees the deduction immediately
+      // instead of having to reload the page.
+      router.refresh();
     } catch (err) {
       setStatementError(err instanceof Error ? err.message : "Sanitize failed.");
     } finally {
@@ -1226,6 +1253,43 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                   <div className="mt-2 text-sm font-semibold capitalize text-slate-900">{value}</div>
                 </div>
               ))}
+              <div className="rounded-md bg-slate-50 p-4 md:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">
+                      Case language
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Drives AI outputs, notification emails, and document translations.
+                    </div>
+                  </div>
+                  {detail.role === "claimant" || detail.role === "respondent" ? (
+                    <select
+                      value={caseLang}
+                      disabled={caseLangSaving}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        setCaseLang(next);
+                        void saveCaseLanguage(next);
+                      }}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="en">English</option>
+                      <option value="de">Deutsch</option>
+                      <option value="fr">Français</option>
+                      <option value="es">Español</option>
+                      <option value="it">Italiano</option>
+                      <option value="pt">Português</option>
+                      <option value="nl">Nederlands</option>
+                      <option value="pl">Polski</option>
+                    </select>
+                  ) : (
+                    <span className="text-sm font-semibold uppercase text-slate-900">
+                      {(detail.case.language || "en").toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="rounded-md border border-slate-200 p-5">

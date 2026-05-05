@@ -48,6 +48,7 @@ export const caseMutationSchema = z.object({
   respondentPhone: z.string().optional().nullable(),
   claimAmount: z.coerce.number().nonnegative().optional().nullable(),
   currency: z.string().default("USD"),
+  language: z.string().min(2).max(8).default("en"),
   // New free-form statement fields. Either side's statement is optional
   // at filing time — the claimant can post their statement immediately
   // or wait until after the respondent joins.
@@ -59,6 +60,12 @@ export const caseMutationSchema = z.object({
   respondentClaims: z.array(claimSchema).default([]),
   claimantLawyerKey: z.string().optional().nullable(),
   saveMode: z.enum(["draft", "file"]).default("draft"),
+});
+
+// Update only the case language. Either party can change it after filing
+// (e.g. when both sides realise the case is in German not English).
+export const caseLanguageUpdateSchema = z.object({
+  language: z.string().min(2).max(8),
 });
 
 // Replaces caseClaimsUpdateSchema. The server infers which side the

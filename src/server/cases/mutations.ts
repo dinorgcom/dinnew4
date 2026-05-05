@@ -21,6 +21,7 @@ import { touchCaseActivity } from "@/server/cases/status";
 import {
   caseMutationSchema,
   caseClaimsUpdateSchema,
+  caseLanguageUpdateSchema,
   caseStatementUpdateSchema,
   caseLawyerSelectionSchema,
   consultantCreateSchema,
@@ -198,6 +199,7 @@ export async function createCase(user: AppUser, payload: unknown) {
       respondentEmailAlleged: parsed.respondentEmail,
       claimAmount: parsed.claimAmount?.toString(),
       currency: parsed.currency,
+      language: (parsed.language || "en").toLowerCase(),
       claimantClaims: parsed.claimantClaims,
       respondentClaims: parsed.respondentClaims,
       claimantStatement: parsed.claimantStatement?.trim() || null,
@@ -282,6 +284,7 @@ export async function updateCase(user: AppUser, caseId: string, payload: unknown
       respondentEmailAlleged: authorized.case.respondentEmailAlleged ?? parsed.respondentEmail,
       claimAmount: parsed.claimAmount?.toString(),
       currency: parsed.currency,
+      language: (parsed.language || authorized.case.language || "en").toLowerCase(),
       claimantClaims: parsed.claimantClaims,
       respondentClaims: parsed.respondentClaims,
       claimantStatement:
@@ -1095,26 +1098,33 @@ const sanitizeOutputSchema = z.object({
     .describe("One short paragraph summary for the party — what happened and what to do next."),
 });
 
-const SANITIZE_SYSTEM_PROMPT = `You are a legal assistant for DIN.ORG, an international online arbitration platform that adjudicates civil and commercial disputes between private parties.
+const SANITIZE_SYSTEM_PROMPT = `You are a legal assistant for DIN.ORG, an international online arbitration tribunal that decides civil and commercial disputes between private parties.
 
-DIN.ORG IN SCOPE — keep these:
-- Money damages, contract performance, restitution, refunds
-- Breach of contract, professional negligence (civil), warranty / defect claims
-- Property disputes between private parties (not state/government)
-- Service quality, deliverables, defective goods, late delivery
-- IP licensing disputes between private parties
-- Partnership / shareholder disputes resolvable by money or contractual remedy
+YOUR JOB IS NARROW. By default you keep the entire statement intact, including the full factual narrative, dates, names, amounts, contractual references, and legal arguments. You only remove or rewrite the specific passages that an arbitral tribunal genuinely cannot grant — and you keep everything else untouched.
 
-DIN.ORG OUT OF SCOPE — strip these out:
-- Criminal charges, criminal penalties, fines payable to the state, anything requiring arrest, detention, or police action (Strafanzeige, Strafantrag, Strafrecht)
-- Injunctions and restraining orders that require state enforcement (Einstweilige Verfügung, gerichtliche Anordnung)
-- Family law where state registration is required (divorce decrees, custody orders, marriage / partnership status)
-- Constitutional challenges, administrative review of government acts
-- Tax matters, immigration matters, asylum
-- Anything that requires registration in a state register (land register changes, company-register changes, criminal register entries)
-- Demands that the state or a regulator take action
+WHAT AN ARBITRAL TRIBUNAL CAN DO (KEEP THESE — even if they sound formal or court-flavoured):
+- Order a party to pay money — damages, refund, restitution, agreed price, interest, costs. If the loser does not pay, the winner enforces via the ordinary debt-collection / Mahnklage / exequatur route. This is normal arbitration and stays in.
+- Order a party to perform a contractual obligation, deliver, hand over goods, transfer rights, sign or execute documents, including notarial deeds (Notariatsakte). Keep these.
+- Declare contractual rights and duties between the parties, declare a contract terminated, rescinded, or amended. Keep.
+- Award damages, agreed penalties, contract penalties (Vertragsstrafen), set-offs. Keep.
+- Confidentiality, non-compete and similar inter-party covenants enforceable as contractual obligations. Keep.
+- The full factual statement of what happened, dates, places, evidence references, witness mentions, attachments. Keep verbatim.
+- Legal arguments about contract law, tort, unjust enrichment, warranty, professional liability, IP licensing, partnership. Keep.
+- References to court documents, prior court orders, settlement attempts. Keep — they are context.
 
-Given a statement filed by a party, produce: (1) a sanitized version that keeps only in-scope claims, rephrased in plain language; (2) a list of the passages that were removed or substantially altered with the reason for each; (3) a short note explaining the result. If the entire input is out of scope, return sanitized = "" and explain in note.
+WHAT AN ARBITRAL TRIBUNAL CANNOT DO (REMOVE OR REWRITE ONLY THESE):
+- Preliminary / interim injunctions enforceable against third parties or by state coercion: einstweilige Verfügung, einstweilige Anordnung, Sicherungsverfügung, freezing order, restraining order against a non-party. (An arbitral tribunal can issue interim measures inter partes but not bind the state or third parties; flag these specifically.)
+- Criminal sanctions: convictions, fines payable to the state, imprisonment, criminal records, Strafantrag/Strafanzeige asking the platform to prosecute, custodial orders. Remove.
+- Orders that require a state register entry: changes to the land register, commercial register, civil status register, criminal register. Remove the request to make the entry, but keep the underlying contractual or monetary claim.
+- Public-law and administrative orders against government bodies. Remove.
+- Asylum, immigration, family-status decisions reserved to state courts. Remove.
+
+OUTPUT RULES:
+- "sanitized" = the original text with ONLY the specific passages above stripped out or minimally rewritten (e.g. dropping the words "und beantrage eine einstweilige Verfügung gegen den Beklagten" but keeping the surrounding paragraph). DO NOT shorten, summarize, paraphrase, restructure, or reword anything else. Keep paragraphing, tone, and language intact.
+- "removed" = each specific passage you removed or rewrote, with a one-sentence reason explaining why it is outside arbitral scope. Quote the original text closely.
+- "note" = one short paragraph for the party. If you only removed a small piece, say so explicitly: "Only the request for an interim injunction was removed — everything else is fine for arbitration." If you removed nothing, say so. Do not lecture the party.
+
+If you find yourself removing more than ~10% of the text, stop and reconsider — almost certainly you are being too aggressive. Default = keep.
 `;
 
 async function fetchAttachmentBuffer(
@@ -1200,7 +1210,12 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
     throw new Error(spend.error || "Insufficient tokens");
   }
 
-  const taskInstruction = `The statement was filed by the ${authorized.role}. Output JSON conforming to the schema.`;
+  const language = (authorized.case.language || "en").toLowerCase();
+  const taskInstruction = [
+    `The statement was filed by the ${authorized.role}.`,
+    `Case language: ${language}. Write the sanitized text, removed-passages list, and note in this language.`,
+    "Output JSON conforming to the schema.",
+  ].join(" ");
 
   let result;
   if (hasText) {
@@ -1295,6 +1310,36 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
   );
 
   return result;
+}
+
+// Either active party (claimant or respondent) can change the case
+// language. Free of charge — it's a setting, not an AI action.
+export async function updateCaseLanguage(user: AppUser, caseId: string, payload: unknown) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+  if (authorized.role !== "claimant" && authorized.role !== "respondent") {
+    throw new Error("Only the claimant or respondent can change the case language");
+  }
+  const parsed = caseLanguageUpdateSchema.parse(payload);
+  const language = parsed.language.trim().toLowerCase();
+  const db = getDb();
+  const updated = await db
+    .update(cases)
+    .set({ language })
+    .where(eq(cases.id, caseId))
+    .returning();
+
+  await createCaseActivity(
+    caseId,
+    "note",
+    "Case language changed",
+    `Language set to ${language}.`,
+    { user, impersonation: authorized.impersonation },
+  );
+
+  return updated[0];
 }
 
 // Single side updates their free-form statement. The side is inferred

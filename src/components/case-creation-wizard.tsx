@@ -39,6 +39,7 @@ export function CaseCreationWizard({
   const [filerNameInput, setFilerNameInput] = useState(filerName);
   const [otherParties, setOtherParties] = useState<string[]>([""]);
   const [caseName, setCaseName] = useState("");
+  const [caseLanguage, setCaseLanguage] = useState("en");
   const [includeClaims, setIncludeClaims] = useState(false);
   const [statementText, setStatementText] = useState("");
   const [otherPartyEmail, setOtherPartyEmail] = useState("");
@@ -149,6 +150,7 @@ export function CaseCreationWizard({
       description: caseName || suggestedCaseName,
       category: "commercial",
       priority: "medium",
+      language: caseLanguage,
       claimantName,
       claimantEmail,
       claimantPhone,
@@ -359,6 +361,28 @@ export function CaseCreationWizard({
               />
               <span className="block text-xs text-slate-500">
                 Suggested: <em>{suggestedCaseName}</em>. Leave blank to use it.
+              </span>
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-slate-700">Case language</span>
+              <select
+                value={caseLanguage}
+                onChange={(e) => setCaseLanguage(e.target.value)}
+                className="w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm"
+              >
+                <option value="en">English</option>
+                <option value="de">Deutsch (German)</option>
+                <option value="fr">Français (French)</option>
+                <option value="es">Español (Spanish)</option>
+                <option value="it">Italiano (Italian)</option>
+                <option value="pt">Português (Portuguese)</option>
+                <option value="nl">Nederlands (Dutch)</option>
+                <option value="pl">Polski (Polish)</option>
+              </select>
+              <span className="block text-xs text-slate-500">
+                Drives AI outputs (clean-up, judgement, audit), notification emails, and document
+                translations. Both parties can change it later from the case Overview.
               </span>
             </label>
 
