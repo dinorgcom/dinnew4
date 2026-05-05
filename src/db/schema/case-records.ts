@@ -315,6 +315,44 @@ export const caseActivities = pgTable(
   }),
 );
 
+// Round-based pleading exchange. The classic civil-procedure structure
+// is four ordered slots:
+//   round 1, claimant   → "Claim" (Klageschrift)
+//   round 1, respondent → "Response" (Klagebeantwortung)
+//   round 2, claimant   → "Reply" (Replik)
+//   round 2, respondent → "Rejoinder" (Duplik)
+// Each slot is editable until the side hits "Final submit", which
+// stamps `locked_at`. The next slot in the canonical order only opens
+// once the predecessor is locked. After all four are locked the
+// pleadings phase is complete.
+export const pleadings = pgTable(
+  "pleadings",
+  {
+    id,
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    side: partySideEnum("side").notNull(),
+    round: integer("round").notNull(),
+    text: text("text"),
+    fileUrl: text("file_url"),
+    filePathname: text("file_pathname"),
+    fileName: text("file_name"),
+    translationUrl: text("translation_url"),
+    translationPathname: text("translation_pathname"),
+    translationName: text("translation_name"),
+    translationLang: text("translation_lang"),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    submittedByUserId: uuid("submitted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => ({
+    caseIdx: index("pleadings_case_idx").on(table.caseId),
+    slotIdx: uniqueIndex("pleadings_slot_idx").on(table.caseId, table.side, table.round),
+  }),
+);
+
 // Dedup ledger for deadline reminder emails. The cron walks all open
 // deadlines daily and inserts one row per (entity, threshold) the first
 // time it sends a reminder, so subsequent runs skip the entity. The row

@@ -1,7 +1,7 @@
 import { get, head } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { caseMessages, cases, consultants, evidence, expertiseRequests, lawyers, witnesses } from "@/db/schema";
+import { caseMessages, cases, consultants, evidence, expertiseRequests, lawyers, pleadings, witnesses } from "@/db/schema";
 import { env } from "@/lib/env";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getAuthorizedCase } from "@/server/cases/access";
@@ -176,6 +176,34 @@ export async function GET(request: Request, { params }: RouteProps) {
       return new Response("Forbidden", { status: 403 });
     }
     return serveBlob(selected.url, { download, fileName: selected.fileName ?? null });
+  }
+
+  // Pleading attachments — recordId is the pleadings row id, ?asset
+  // selects original ("file", default) or translated copy ("translation").
+  if (entity === "pleadings") {
+    const rows = await db.select().from(pleadings).where(eq(pleadings.id, recordId)).limit(1);
+    const record = rows[0];
+    if (!record) {
+      return new Response("Not found", { status: 404 });
+    }
+    const authorized = await getAuthorizedCase(user, record.caseId);
+    if (!authorized) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    const asset = requestUrl.searchParams.get("asset") || "file";
+    let sourceUrl: string | null = null;
+    let fileName: string | null = null;
+    if (asset === "translation") {
+      sourceUrl = record.translationUrl ?? null;
+      fileName = record.translationName ?? null;
+    } else {
+      sourceUrl = record.fileUrl ?? null;
+      fileName = record.fileName ?? null;
+    }
+    if (!sourceUrl) {
+      return new Response("Not found", { status: 404 });
+    }
+    return serveBlob(sourceUrl, { download, fileName });
   }
 
   // Case-level assets (currently the per-side statement attachment).

@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { caseActivities, caseMessages, caseParties, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, lawyers, tokenLedger, users, witnesses, hearings, caseAudits } from "@/db/schema";
+import { caseActivities, caseMessages, caseParties, cases, consultants, evidence, expertiseRequests, kycVerifications, lawyerConversations, lawyers, pleadings, tokenLedger, users, witnesses, hearings, caseAudits } from "@/db/schema";
 import type { ProvisionedAppUser } from "@/server/auth/provision";
 import { isDatabaseConfigured } from "@/server/runtime";
 import { buildCaseAccessCondition, getCaseAccess, resolveCaseRole } from "@/server/cases/access";
@@ -244,7 +244,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
   const role = access.caseRole;
   const impersonation = access.impersonation;
 
-  const [activityRows, evidenceRows, witnessRows, consultantRows, lawyerRows, partyRows, expertiseRows, messageRows, conversations, auditRows, notificationCheck, claimantKycRows, respondentKycRows] = await Promise.all([
+  const [activityRows, evidenceRows, witnessRows, consultantRows, lawyerRows, partyRows, pleadingRows, expertiseRows, messageRows, conversations, auditRows, notificationCheck, claimantKycRows, respondentKycRows] = await Promise.all([
     db
       .select()
       .from(caseActivities)
@@ -256,6 +256,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     db.select({ consultant: consultants, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(consultants).leftJoin(kycVerifications, eq(consultants.kycVerificationId, kycVerifications.id)).where(eq(consultants.caseId, caseId)).orderBy(desc(consultants.createdAt)),
     db.select({ lawyer: lawyers, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(lawyers).leftJoin(kycVerifications, eq(lawyers.kycVerificationId, kycVerifications.id)).where(eq(lawyers.caseId, caseId)).orderBy(desc(lawyers.createdAt)),
     db.select({ party: caseParties, kycStatus: kycVerifications.status, kycVerifiedAt: kycVerifications.verifiedAt }).from(caseParties).leftJoin(kycVerifications, eq(caseParties.kycVerificationId, kycVerifications.id)).where(eq(caseParties.caseId, caseId)).orderBy(desc(caseParties.createdAt)),
+    db.select().from(pleadings).where(eq(pleadings.caseId, caseId)),
     db.select().from(expertiseRequests).where(eq(expertiseRequests.caseId, caseId)).orderBy(desc(expertiseRequests.createdAt)),
     db.select().from(caseMessages).where(eq(caseMessages.caseId, caseId)).orderBy(desc(caseMessages.createdAt)).limit(20),
     (() => {
@@ -325,6 +326,46 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
   const flatConsultants = consultantRows.map((row) => ({ ...row.consultant, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
   const flatLawyers = lawyerRows.map((row) => ({ ...row.lawyer, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
   const flatParties = partyRows.map((row) => ({ ...row.party, kycStatus: row.kycStatus, kycVerifiedAt: row.kycVerifiedAt }));
+
+  // Pleadings — return all four canonical slots in order, each with a
+  // `reachable` flag (only true when every predecessor is locked) and a
+  // `lockedAt` so the UI can render the workflow gates.
+  const slotOrder: Array<{ side: "claimant" | "respondent"; round: 1 | 2 }> = [
+    { side: "claimant", round: 1 },
+    { side: "respondent", round: 1 },
+    { side: "claimant", round: 2 },
+    { side: "respondent", round: 2 },
+  ];
+  function slotLabel(side: "claimant" | "respondent", round: 1 | 2) {
+    if (side === "claimant" && round === 1) return "Claim (round 1)";
+    if (side === "respondent" && round === 1) return "Response (round 1)";
+    if (side === "claimant" && round === 2) return "Reply (round 2)";
+    return "Rejoinder (round 2)";
+  }
+  const pleadingsList = slotOrder.map((slot, idx) => {
+    const row = pleadingRows.find((r) => r.side === slot.side && r.round === slot.round);
+    const reachable = slotOrder
+      .slice(0, idx)
+      .every(
+        (prev) => !!pleadingRows.find((r) => r.side === prev.side && r.round === prev.round)?.lockedAt,
+      );
+    return {
+      side: slot.side,
+      round: slot.round,
+      label: slotLabel(slot.side, slot.round),
+      text: row?.text ?? null,
+      fileUrl: row?.fileUrl ?? null,
+      fileName: row?.fileName ?? null,
+      filePathname: row?.filePathname ?? null,
+      translationUrl: row?.translationUrl ?? null,
+      translationName: row?.translationName ?? null,
+      translationLang: row?.translationLang ?? null,
+      lockedAt: row?.lockedAt ?? null,
+      submittedByUserId: row?.submittedByUserId ?? null,
+      reachable,
+      exists: !!row,
+    };
+  });
   const viewerEmailLower = (user.email || "").trim().toLowerCase();
   const viewerPartyId =
     flatParties.find(
@@ -381,6 +422,7 @@ export async function getCaseDetail(user: AppUser, caseId: string) {
     consultants: flatConsultants,
     lawyers: flatLawyers,
     parties: flatParties,
+    pleadings: pleadingsList,
     viewerPartyId,
     expertiseRequests: expertiseRows,
     messages: messageRows,

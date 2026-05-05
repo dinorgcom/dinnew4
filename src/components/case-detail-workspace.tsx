@@ -8,6 +8,7 @@ import { upload as blobUpload } from "@vercel/blob/client";
 import { CaseWorkspace } from "@/components/case-workspace";
 import { LawyersPanel } from "@/components/lawyers-panel";
 import { AdditionalPartiesSection } from "@/components/additional-parties-panel";
+import { PleadingsPanel } from "@/components/pleadings-panel";
 import { LawyerChatPanel } from "@/components/lawyer-chat-panel";
 import { AuditPanel } from "@/components/audit-panel";
 import { ArbitrationPanel } from "@/components/arbitration-panel";
@@ -111,6 +112,21 @@ type CaseDetailWorkspaceProps = {
     lawyers: WorkspaceRecord[];
     parties: WorkspaceRecord[];
     viewerPartyId?: string | null;
+    pleadings?: Array<{
+      side: "claimant" | "respondent";
+      round: 1 | 2;
+      label: string;
+      text: string | null;
+      fileUrl: string | null;
+      fileName: string | null;
+      filePathname: string | null;
+      translationUrl: string | null;
+      translationName: string | null;
+      translationLang: string | null;
+      lockedAt: string | Date | null;
+      reachable: boolean;
+      exists: boolean;
+    }>;
     expertiseRequests: WorkspaceRecord[];
     messages: WorkspaceRecord[];
     activities: WorkspaceRecord[];
@@ -373,16 +389,21 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const firstPendingIndex = progressStages.findIndex((stage) => !stage.completed);
   const activeStageIndex = firstPendingIndex === -1 ? progressStages.length - 1 : firstPendingIndex;
 
-  // Calculate tab counts. The Claims tab shows 0/1/2 based on which sides
-  // have posted their statement (text or attached document).
-  const claimantHasStatement =
-    !!(detail.case.claimantStatement || "").trim() ||
-    !!detail.case.claimantStatementFileUrl;
-  const respondentHasStatement =
-    !!(detail.case.respondentStatement || "").trim() ||
-    !!detail.case.respondentStatementFileUrl;
+  // Calculate tab counts. The Claims tab shows N/4 — number of locked
+  // pleadings out of the four canonical slots.
+  const pleadingsList = detail.pleadings ?? [];
+  const lockedCount = pleadingsList.filter((p) => !!p.lockedAt).length;
+  // Per-side "has anything posted in their open slot" — used for the
+  // attention flag and to keep some legacy code paths around the
+  // discovery-readiness signal.
+  const claimantHasStatement = pleadingsList.some(
+    (p) => p.side === "claimant" && (p.lockedAt || (p.text && p.text.trim()) || p.fileUrl),
+  );
+  const respondentHasStatement = pleadingsList.some(
+    (p) => p.side === "respondent" && (p.lockedAt || (p.text && p.text.trim()) || p.fileUrl),
+  );
   const tabCounts = {
-    claims: (claimantHasStatement ? 1 : 0) + (respondentHasStatement ? 1 : 0),
+    claims: lockedCount,
     evidence: detail.evidence.length,
     witnesses: detail.witnesses.length,
     consultants: detail.consultants.length,
@@ -406,10 +427,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       return submittedBy === opposing && state === "pending" && !expired;
     });
   }
+  // Claims tab needs the viewer's attention if THEIR side has at least
+  // one slot that is currently reachable (predecessor locked) and not
+  // yet finalized.
   const claimsNeedAttention =
     isParty &&
-    ((role === "claimant" && !claimantHasStatement) ||
-      (role === "respondent" && !respondentHasStatement));
+    pleadingsList.some(
+      (p) => p.side === role && p.reachable && !p.lockedAt,
+    );
   const evidenceNeedsAttention = hasPendingReview(detail.evidence, "submittedBy");
   const witnessesNeedAttention = hasPendingReview(detail.witnesses, "calledBy");
   const consultantsNeedAttention = hasPendingReview(detail.consultants, "calledBy");
@@ -1980,7 +2005,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
 
       {activeTab === "claims" ? (
         <div id="panel-claims" role="tabpanel" aria-labelledby="tab-claims" className="space-y-6">
-          {renderClaimsAndDefenses()}
+          <PleadingsPanel
+            caseId={detail.case.id}
+            caseRole={detail.role}
+            caseLanguage={detail.case.language || "en"}
+            claimantName={detail.case.claimantName}
+            respondentName={detail.case.respondentName}
+            pleadings={detail.pleadings ?? []}
+          />
         </div>
       ) : null}
 
