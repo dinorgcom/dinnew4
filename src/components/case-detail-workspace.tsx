@@ -927,6 +927,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               <input
                 ref={statementFileInputRef}
                 type="file"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 className="hidden"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -937,13 +938,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 type="button"
                 disabled={statementSaving || statementUploading}
                 onClick={() => statementFileInputRef.current?.click()}
+                title="Supported formats: PDF, Word DOC/DOCX. The AI clean-up reads PDF + DOCX directly."
                 className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
               >
                 {statementUploading
                   ? "Uploading..."
                   : downloadHref
-                    ? "Replace document"
-                    : "Attach document (PDF/Word)"}
+                    ? "Replace document (PDF / DOC / DOCX)"
+                    : "Attach document (PDF / DOC / DOCX)"}
               </button>
               {(() => {
                 const hasSavedText = original.trim().length > 0;

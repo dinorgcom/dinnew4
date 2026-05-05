@@ -30,7 +30,7 @@ export const ACTION_COSTS = {
   lawyer_create: 95,
   expertise_create: 120,
   audit_request: 10,
-  statement_sanitize: 50,
+  statement_sanitize: 10,
   appeal_request: 250,
   evidence_review_extend_1: 50,
   evidence_review_extend_2: 100,

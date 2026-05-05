@@ -1117,9 +1117,9 @@ DIN.ORG OUT OF SCOPE — strip these out:
 Given a statement filed by a party, produce: (1) a sanitized version that keeps only in-scope claims, rephrased in plain language; (2) a list of the passages that were removed or substantially altered with the reason for each; (3) a short note explaining the result. If the entire input is out of scope, return sanitized = "" and explain in note.
 `;
 
-async function fetchAttachmentAsBase64(
+async function fetchAttachmentBuffer(
   storedUrl: string,
-): Promise<{ base64: string; mediaType: string; bytes: number }> {
+): Promise<{ buffer: Buffer; mediaType: string }> {
   if (!env.BLOB_READ_WRITE_TOKEN) {
     throw new Error("Blob token not configured");
   }
@@ -1131,8 +1131,7 @@ async function fetchAttachmentAsBase64(
     throw new Error("Could not download the attached document.");
   }
   const buffer = Buffer.from(await upstream.arrayBuffer());
-  // Anthropic limits PDFs to ~32 MB per document. Be conservative and reject
-  // anything > 25 MB to leave headroom for base64 expansion.
+  // Anthropic limits documents to ~32 MB. Be conservative.
   const MAX_BYTES = 25 * 1024 * 1024;
   if (buffer.byteLength > MAX_BYTES) {
     throw new Error(
@@ -1140,10 +1139,22 @@ async function fetchAttachmentAsBase64(
     );
   }
   return {
-    base64: buffer.toString("base64"),
+    buffer,
     mediaType: meta.contentType || "application/octet-stream",
-    bytes: buffer.byteLength,
   };
+}
+
+async function extractDocxText(buffer: Buffer): Promise<string> {
+  // mammoth parses .docx (Open Office XML) and returns plain text.
+  // It does NOT understand the older .doc binary format — those are
+  // rejected upstream with a clearer error. The dynamic import keeps
+  // mammoth out of the cold-start path for endpoints that don't need it.
+  // @ts-ignore — package may not be installed in dev, Vercel installs from package.json
+  const mammoth = (await import("mammoth")) as {
+    extractRawText: (input: { buffer: Buffer }) => Promise<{ value?: string }>;
+  };
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value || "";
 }
 
 export async function sanitizeStatementForArbitration(user: AppUser, caseId: string) {
@@ -1193,7 +1204,7 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
 
   let result;
   if (hasText) {
-    // Pure-text path: cheaper and faster.
+    // Pure-text path: cheapest and fastest.
     const prompt = [
       SANITIZE_SYSTEM_PROMPT,
       "",
@@ -1204,44 +1215,75 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
     ].join("\n");
     result = await generateStructuredObject(prompt, sanitizeOutputSchema);
   } else {
-    // Document-only path. Currently we only forward the file to Claude when
-    // it is a PDF; other formats (Word, scanned images, etc.) have less
-    // reliable parsing and we surface a clear error instead of silently
-    // returning nonsense.
-    const downloaded = await fetchAttachmentAsBase64(fileUrl!);
+    // Document-only path. Three variants:
+    //   - PDF → forward to Claude as a file part (Claude reads PDFs natively)
+    //   - DOCX → extract plain text with mammoth, then run text path
+    //   - DOC / scans / other → clear error asking the user to paste text
+    const downloaded = await fetchAttachmentBuffer(fileUrl!);
+    const lowerName = (fileName ?? "").toLowerCase();
     const isPdf =
-      downloaded.mediaType === "application/pdf" ||
-      (fileName ?? "").toLowerCase().endsWith(".pdf");
-    if (!isPdf) {
+      downloaded.mediaType === "application/pdf" || lowerName.endsWith(".pdf");
+    const isDocx =
+      downloaded.mediaType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      lowerName.endsWith(".docx");
+    const isLegacyDoc = lowerName.endsWith(".doc") && !isDocx;
+
+    if (isLegacyDoc) {
       throw new Error(
-        "Only PDF attachments can be read by the AI directly. Please paste the text from the document into the field, save it, and try again.",
+        "Legacy .doc files cannot be parsed automatically. Please save the document as PDF or .docx and re-upload, or paste the text into the field.",
       );
     }
-    result = await generateStructuredObjectFromMessages(
-      [
-        {
-          role: "user",
-          content: [
-            {
-              type: "file",
-              data: downloaded.base64,
-              mimeType: "application/pdf",
-            },
-            {
-              type: "text",
-              text: [
-                SANITIZE_SYSTEM_PROMPT,
-                "",
-                taskInstruction,
-                "",
-                "The statement is in the attached PDF document. Read it and produce the structured output.",
-              ].join("\n"),
-            },
-          ],
-        },
-      ],
-      sanitizeOutputSchema,
-    );
+
+    if (isPdf) {
+      result = await generateStructuredObjectFromMessages(
+        [
+          {
+            role: "user",
+            content: [
+              {
+                type: "file",
+                data: downloaded.buffer.toString("base64"),
+                mimeType: "application/pdf",
+              },
+              {
+                type: "text",
+                text: [
+                  SANITIZE_SYSTEM_PROMPT,
+                  "",
+                  taskInstruction,
+                  "",
+                  "The statement is in the attached PDF document. Read it and produce the structured output.",
+                ].join("\n"),
+              },
+            ],
+          },
+        ],
+        sanitizeOutputSchema,
+      );
+    } else if (isDocx) {
+      const extracted = await extractDocxText(downloaded.buffer);
+      if (!extracted.trim()) {
+        throw new Error(
+          "Could not extract any text from the attached Word document. Please paste the text into the field.",
+        );
+      }
+      const prompt = [
+        SANITIZE_SYSTEM_PROMPT,
+        "",
+        taskInstruction,
+        "",
+        `Source: extracted from a Word document (${fileName ?? "attachment"}).`,
+        "",
+        "STATEMENT:",
+        extracted,
+      ].join("\n");
+      result = await generateStructuredObject(prompt, sanitizeOutputSchema);
+    } else {
+      throw new Error(
+        "The AI can read PDF and Word .docx files. For other formats please paste the text from the document into the field, save it, and try again.",
+      );
+    }
   }
 
   await createCaseActivity(

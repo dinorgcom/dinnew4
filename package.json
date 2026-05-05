@@ -33,6 +33,7 @@
     "livekit-client": "2.18.4",
     "livekit-server-sdk": "^2.15.1",
     "lucide-react": "^0.475.0",
+    "mammoth": "^1.8.0",
     "nanoid": "^5.1.9",
     "next": "^15.1.6",
     "pdfkit": "^0.18.0",
