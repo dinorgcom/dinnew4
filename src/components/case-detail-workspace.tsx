@@ -243,6 +243,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const [statementUploading, setStatementUploading] = useState(false);
   const [statementError, setStatementError] = useState<string | null>(null);
   const statementFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [sanitizing, setSanitizing] = useState(false);
+  const [sanitizeResult, setSanitizeResult] = useState<{
+    side: "claimant" | "respondent";
+    sanitized: string;
+    removed: Array<{ passage: string; reason: string }>;
+    note: string;
+  } | null>(null);
   const [arbitrator, setArbitrator] = useState(detail.case.arbitratorAssignedName || "");
   const [error, setError] = useState<string | null>(null);
   const [contactsError, setContactsError] = useState<string | null>(null);
@@ -738,6 +745,55 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     }
   }
 
+  async function runSanitize() {
+    setStatementError(null);
+    setSanitizing(true);
+    setSanitizeResult(null);
+    try {
+      const isClaimant = detail.role === "claimant";
+      const isRespondent = detail.role === "respondent";
+      if (!isClaimant && !isRespondent) return;
+      const response = await fetch(
+        `/api/cases/${detail.case.id}/statement/sanitize`,
+        { method: "POST" },
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatementError(result?.error?.message || "Sanitize failed.");
+        return;
+      }
+      const data = result?.data as {
+        sanitized: string;
+        removed: Array<{ passage: string; reason: string }>;
+        note: string;
+      } | undefined;
+      if (!data) {
+        setStatementError("Sanitize returned an empty result.");
+        return;
+      }
+      setSanitizeResult({
+        side: isClaimant ? "claimant" : "respondent",
+        sanitized: data.sanitized || "",
+        removed: data.removed || [],
+        note: data.note || "",
+      });
+    } catch (err) {
+      setStatementError(err instanceof Error ? err.message : "Sanitize failed.");
+    } finally {
+      setSanitizing(false);
+    }
+  }
+
+  function applySanitizeResult() {
+    if (!sanitizeResult) return;
+    if (sanitizeResult.side === "claimant") {
+      setClaimantStatement(sanitizeResult.sanitized);
+    } else {
+      setRespondentStatement(sanitizeResult.sanitized);
+    }
+    setSanitizeResult(null);
+  }
+
   async function removeStatementFile() {
     if (!confirm("Remove the attached statement document?")) return;
     setStatementError(null);
@@ -889,6 +945,21 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                     ? "Replace document"
                     : "Attach document (PDF/Word)"}
               </button>
+              <button
+                type="button"
+                disabled={statementSaving || statementUploading || sanitizing || !original.trim()}
+                onClick={() => void runSanitize()}
+                title={
+                  !original.trim()
+                    ? "Save your statement first, then run AI clean-up."
+                    : "Have the AI strip out passages outside DIN.ORG arbitration scope (criminal, injunctions, etc.)."
+                }
+                className="rounded-md border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:border-violet-400 disabled:opacity-60"
+              >
+                {sanitizing
+                  ? "AI cleaning up..."
+                  : `Clean up for arbitration scope (${ACTION_COSTS.statement_sanitize} tokens)`}
+              </button>
               <span className="text-xs text-slate-500">
                 {dirty ? "Unsaved text changes." : "Up to date."}
               </span>
@@ -901,6 +972,83 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             >
               {statementSaving ? "Saving..." : isClaimantSide ? "Save claim" : "Save response"}
             </button>
+          </div>
+        ) : null}
+
+        {canEdit && sanitizeResult && sanitizeResult.side === side ? (
+          <div className="space-y-4 rounded-md border border-violet-200 bg-violet-50/40 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">
+                  AI clean-up suggestion
+                </div>
+                <p className="mt-1 text-xs text-slate-600">
+                  {sanitizeResult.note ||
+                    "The AI removed passages outside DIN.ORG arbitration scope."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSanitizeResult(null)}
+                className="text-xs font-medium text-slate-600 underline hover:text-slate-800"
+              >
+                Discard
+              </button>
+            </div>
+
+            {sanitizeResult.sanitized.trim() ? (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-slate-700">Suggested cleaned text</div>
+                <div className="whitespace-pre-wrap rounded-md border border-violet-200 bg-white p-3 text-sm leading-7 text-slate-800">
+                  {sanitizeResult.sanitized}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                The AI found nothing in scope for DIN.ORG arbitration. Review the removed
+                passages below — you may need to file in a court instead, or rephrase the
+                statement around a civil claim.
+              </div>
+            )}
+
+            {sanitizeResult.removed.length > 0 ? (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-slate-700">
+                  Removed or rewritten ({sanitizeResult.removed.length})
+                </div>
+                <ul className="space-y-2">
+                  {sanitizeResult.removed.map((entry, idx) => (
+                    <li
+                      key={idx}
+                      className="rounded-md border border-slate-200 bg-white p-3 text-xs leading-6"
+                    >
+                      <div className="text-slate-700">
+                        <span className="font-semibold text-rose-700">Removed:</span>{" "}
+                        <em>{entry.passage}</em>
+                      </div>
+                      <div className="mt-1 text-slate-600">
+                        <span className="font-semibold">Reason:</span> {entry.reason}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {sanitizeResult.sanitized.trim() ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={applySanitizeResult}
+                  className="rounded-md bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700"
+                >
+                  Apply to text field
+                </button>
+                <span className="text-xs text-slate-500">
+                  You will still need to click <strong>Save</strong> after applying.
+                </span>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

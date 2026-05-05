@@ -46,6 +46,8 @@ import {
 } from "@/server/billing/config";
 import { notifyCaseEvent } from "@/server/notifications/service";
 import { spendForAction } from "@/server/billing/service";
+import { generateStructuredObject } from "@/server/ai/service";
+import { z } from "zod";
 import { assertAppUserActive } from "@/server/auth/provision";
 import { isUserKycVerified } from "@/server/identity/service";
 import { sendRespondentNotifyEmail } from "@/server/email/respondent-notify";
@@ -1067,6 +1069,101 @@ export async function updateCaseClaims(user: AppUser, caseId: string, payload: u
   );
 
   return updated[0];
+}
+
+// AI rewrites the user-supplied statement keeping only what is in scope
+// for DIN.ORG arbitration. Returns a sanitized version + a list of the
+// passages that were removed and why. Costs `statement_sanitize` tokens.
+const sanitizeOutputSchema = z.object({
+  sanitized: z
+    .string()
+    .describe(
+      "The cleaned-up version of the statement, keeping only matters DIN.ORG arbitration can adjudicate. Empty string if the entire input is out of scope.",
+    ),
+  removed: z
+    .array(
+      z.object({
+        passage: z.string().describe("Verbatim or near-verbatim excerpt of the removed text."),
+        reason: z.string().describe("Plain-language reason why this is out of arbitration scope."),
+      }),
+    )
+    .describe("Each excerpt that was removed or substantially rewritten, with the reason."),
+  note: z
+    .string()
+    .describe("One short paragraph summary for the party — what happened and what to do next."),
+});
+
+const SANITIZE_SYSTEM_PROMPT = `You are a legal assistant for DIN.ORG, an international online arbitration platform that adjudicates civil and commercial disputes between private parties.
+
+DIN.ORG IN SCOPE — keep these:
+- Money damages, contract performance, restitution, refunds
+- Breach of contract, professional negligence (civil), warranty / defect claims
+- Property disputes between private parties (not state/government)
+- Service quality, deliverables, defective goods, late delivery
+- IP licensing disputes between private parties
+- Partnership / shareholder disputes resolvable by money or contractual remedy
+
+DIN.ORG OUT OF SCOPE — strip these out:
+- Criminal charges, criminal penalties, fines payable to the state, anything requiring arrest, detention, or police action (Strafanzeige, Strafantrag, Strafrecht)
+- Injunctions and restraining orders that require state enforcement (Einstweilige Verfügung, gerichtliche Anordnung)
+- Family law where state registration is required (divorce decrees, custody orders, marriage / partnership status)
+- Constitutional challenges, administrative review of government acts
+- Tax matters, immigration matters, asylum
+- Anything that requires registration in a state register (land register changes, company-register changes, criminal register entries)
+- Demands that the state or a regulator take action
+
+Given a statement filed by a party, produce: (1) a sanitized version that keeps only in-scope claims, rephrased in plain language; (2) a list of the passages that were removed or substantially altered with the reason for each; (3) a short note explaining the result. If the entire input is out of scope, return sanitized = "" and explain in note.
+`;
+
+export async function sanitizeStatementForArbitration(user: AppUser, caseId: string) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+  if (authorized.role !== "claimant" && authorized.role !== "respondent") {
+    throw new Error("Only the claimant or respondent can run the sanitize step");
+  }
+
+  const isClaimant = authorized.role === "claimant";
+  const text = (
+    isClaimant ? authorized.case.claimantStatement : authorized.case.respondentStatement
+  ) ?? "";
+  if (!text.trim()) {
+    throw new Error(
+      "Paste your statement text into the field and save it once before running the AI clean-up.",
+    );
+  }
+
+  const spend = await spendForAction(user, {
+    actionCode: "statement_sanitize",
+    caseId,
+    idempotencyKey: `statement_sanitize:${caseId}:${authorized.role}:${Date.now()}`,
+    metadata: { side: authorized.role, length: text.length },
+  });
+  if (!spend.success) {
+    throw new Error(spend.error || "Insufficient tokens");
+  }
+
+  const prompt = [
+    SANITIZE_SYSTEM_PROMPT,
+    "",
+    `The statement was filed by the ${authorized.role}. Output JSON conforming to the schema.`,
+    "",
+    "STATEMENT:",
+    text,
+  ].join("\n");
+
+  const result = await generateStructuredObject(prompt, sanitizeOutputSchema);
+
+  await createCaseActivity(
+    caseId,
+    "note",
+    "AI sanitize ran on statement",
+    `${authorized.role} statement, ${result.removed.length} passage(s) flagged.`,
+    { user, impersonation: authorized.impersonation },
+  );
+
+  return result;
 }
 
 // Single side updates their free-form statement. The side is inferred
