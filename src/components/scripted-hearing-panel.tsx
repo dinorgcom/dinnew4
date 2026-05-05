@@ -153,7 +153,7 @@ export function ScriptedHearingPanel({
   }
 
   const returnTo = `/cases/${caseId}?tab=hearing`;
-  const verifyHref = `/verify/start?returnTo=${encodeURIComponent(returnTo)}` as Route;
+  const verifyHref = `/verify/start?returnTo=${encodeURIComponent(returnTo)}&force=1` as Route;
   const isParty = caseRole === "claimant" || caseRole === "respondent";
   const bothPartiesKycVerified = claimantKycVerified && respondentKycVerified;
   const currentPartyKycVerified =

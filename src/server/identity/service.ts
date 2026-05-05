@@ -18,7 +18,7 @@ function hasExpectedAppOrigin(session: Stripe.Identity.VerificationSession, expe
   return session.metadata?.app_origin === expectedAppOrigin;
 }
 
-export async function createVerificationSession(user: AppUser, requestOrigin?: string) {
+export async function createVerificationSession(user: AppUser, requestOrigin?: string, forceNew = false) {
   assertAppUserActive(user);
   if (!user.id) {
     throw new Error("Unauthorized");
@@ -26,7 +26,7 @@ export async function createVerificationSession(user: AppUser, requestOrigin?: s
 
   // Check if user already has a verified KYC row
   const existing = await getVerificationStatus(user.id);
-  if (existing.status === "verified") {
+  if (!forceNew && existing.status === "verified") {
     return { alreadyVerified: true as const, url: null, sessionId: null };
   }
 
@@ -330,6 +330,53 @@ type RespondentLinkedEmailJob = {
   respondentVerifiedName: string | null;
 };
 
+async function autoLinkClaimantOnKycVerified(
+  userId: string,
+  kycVerificationId: string,
+  verifiedName: string | null,
+) {
+  const db = getDb();
+
+  const userRows = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  const userEmail = userRows[0]?.email?.toLowerCase();
+  if (!userEmail) return;
+
+  const candidates = await db
+    .select()
+    .from(cases)
+    .where(
+      and(
+        sql`lower(${cases.claimantEmail}) = ${userEmail}`,
+        sql`${cases.claimantKycVerificationId} is null`,
+      ),
+    );
+
+  for (const caseRow of candidates) {
+    const linked = await db
+      .update(cases)
+      .set({
+        claimantUserId: userId,
+        claimantKycVerificationId: kycVerificationId,
+        claimantNameVerified: verifiedName,
+        claimantName: verifiedName ?? caseRow.claimantName,
+      })
+      .where(and(eq(cases.id, caseRow.id), sql`${cases.claimantKycVerificationId} is null`))
+      .returning({ id: cases.id });
+
+    if (linked.length === 0) continue;
+
+    await db.insert(caseActivities).values({
+      caseId: caseRow.id,
+      type: "identity_verified",
+      title: "Claimant identity verified",
+      description: verifiedName
+        ? `Claimant linked to verified user ${verifiedName}.`
+        : "Claimant linked to a verified user.",
+      performedBy: "system",
+    });
+  }
+}
+
 async function autoLinkRespondentOnKycVerified(
   userId: string,
   kycVerificationId: string,
@@ -398,6 +445,65 @@ async function autoLinkRespondentOnKycVerified(
   }
 
   return emailJobs;
+}
+
+export async function linkClaimantIfMatching(
+  caseId: string,
+  appUserId: string,
+): Promise<{ linked: boolean }> {
+  const db = getDb();
+
+  const caseRows = await db.select().from(cases).where(eq(cases.id, caseId)).limit(1);
+  const caseRow = caseRows[0];
+  if (!caseRow) return { linked: false };
+  if (caseRow.claimantKycVerificationId) return { linked: false };
+  if (!caseRow.claimantEmail) return { linked: false };
+
+  const userRows = await db
+    .select({ id: users.id, email: users.email, kycId: users.kycVerificationId })
+    .from(users)
+    .where(eq(users.id, appUserId))
+    .limit(1);
+  const user = userRows[0];
+  if (!user) return { linked: false };
+  if ((user.email ?? "").toLowerCase() !== caseRow.claimantEmail.toLowerCase()) return { linked: false };
+  if (!user.kycId) return { linked: false };
+
+  const kycRows = await db
+    .select({
+      status: kycVerifications.status,
+      firstName: kycVerifications.verifiedFirstName,
+      lastName: kycVerifications.verifiedLastName,
+    })
+    .from(kycVerifications)
+    .where(eq(kycVerifications.id, user.kycId))
+    .limit(1);
+  const kyc = kycRows[0];
+  if (!kyc || kyc.status !== "verified") return { linked: false };
+
+  const verifiedName = `${kyc.firstName ?? ""} ${kyc.lastName ?? ""}`.trim() || null;
+
+  await db
+    .update(cases)
+    .set({
+      claimantUserId: user.id,
+      claimantKycVerificationId: user.kycId,
+      claimantNameVerified: verifiedName,
+      claimantName: verifiedName ?? caseRow.claimantName,
+    })
+    .where(eq(cases.id, caseId));
+
+  await db.insert(caseActivities).values({
+    caseId,
+    type: "identity_verified",
+    title: "Claimant identity verified",
+    description: verifiedName
+      ? `Claimant linked to verified user ${verifiedName}.`
+      : "Claimant linked to a verified user.",
+    performedBy: "system",
+  });
+
+  return { linked: true };
 }
 
 export async function linkRespondentIfMatching(
@@ -614,7 +720,7 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
         }
       }
     } else {
-      // Regular user KYC — try to auto-link any case where this user is the respondent.
+      // Regular user KYC — try to auto-link any case where this user is a party.
       const userId = session.metadata?.user_id;
       if (userId) {
         const [currentUser] = await db
@@ -624,6 +730,12 @@ export async function processIdentityWebhookEvent(event: Stripe.Event) {
           .limit(1);
 
         if (currentUser?.kycId === kycRow.id) {
+          try {
+            await autoLinkClaimantOnKycVerified(userId, kycRow.id, verifiedName || null);
+          } catch (err) {
+            console.error("autoLinkClaimantOnKycVerified failed", err);
+          }
+
           try {
             const jobs = await autoLinkRespondentOnKycVerified(userId, kycRow.id, verifiedName || null);
             pendingEmails.push(...jobs);

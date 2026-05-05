@@ -4,7 +4,7 @@ import { getVerificationStatus } from "@/server/identity/service";
 import { VerifyStart } from "@/components/verify-start";
 
 type PageProps = {
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ returnTo?: string; force?: string }>;
 };
 
 export default async function VerifyStartPage({ searchParams }: PageProps) {
@@ -13,14 +13,15 @@ export default async function VerifyStartPage({ searchParams }: PageProps) {
     redirect("/sign-in" as never);
   }
 
-  const { returnTo } = await searchParams;
+  const { returnTo, force } = await searchParams;
+  const forceNew = force === "1";
 
-  if (user.id) {
+  if (user.id && !forceNew) {
     const status = await getVerificationStatus(user.id);
     if (status.status === "verified") {
       redirect((returnTo || "/dashboard") as never);
     }
   }
 
-  return <VerifyStart returnTo={returnTo || null} />;
+  return <VerifyStart returnTo={returnTo || null} forceNew={forceNew} />;
 }

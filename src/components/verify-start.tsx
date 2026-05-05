@@ -4,16 +4,17 @@ import { useState, useTransition } from "react";
 
 type VerifyStartProps = {
   returnTo: string | null;
+  forceNew?: boolean;
 };
 
-export function VerifyStart({ returnTo }: VerifyStartProps) {
+export function VerifyStart({ returnTo, forceNew = false }: VerifyStartProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   function handleStart() {
     setError(null);
     startTransition(async () => {
-      const response = await fetch("/api/identity/create-session", { method: "POST" });
+      const response = await fetch(`/api/identity/create-session${forceNew ? "?force=1" : ""}`, { method: "POST" });
       const result = await response.json();
 
       if (!response.ok) {
