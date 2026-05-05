@@ -47,7 +47,7 @@ import {
 } from "@/server/billing/config";
 import { notifyCaseEvent } from "@/server/notifications/service";
 import { spendForAction } from "@/server/billing/service";
-import { generateStructuredObject, generateStructuredObjectFromMessages } from "@/server/ai/service";
+import { generateStructuredObject, generatePlainTextFromMessages } from "@/server/ai/service";
 import { head } from "@vercel/blob";
 import { env } from "@/lib/env";
 import { z } from "zod";
@@ -1079,22 +1079,34 @@ export async function updateCaseClaims(user: AppUser, caseId: string, payload: u
 // AI rewrites the user-supplied statement keeping only what is in scope
 // for DIN.ORG arbitration. Returns a sanitized version + a list of the
 // passages that were removed and why. Costs `statement_sanitize` tokens.
+// All fields optional with safe defaults — Claude occasionally drops a
+// field on partial outputs (especially with PDF input), and we'd rather
+// surface a usable result than fail the whole call on schema strictness.
 const sanitizeOutputSchema = z.object({
   sanitized: z
     .string()
+    .default("")
     .describe(
       "The cleaned-up version of the statement, keeping only matters DIN.ORG arbitration can adjudicate. Empty string if the entire input is out of scope.",
     ),
   removed: z
     .array(
       z.object({
-        passage: z.string().describe("Verbatim or near-verbatim excerpt of the removed text."),
-        reason: z.string().describe("Plain-language reason why this is out of arbitration scope."),
+        passage: z
+          .string()
+          .default("")
+          .describe("Verbatim or near-verbatim excerpt of the removed text."),
+        reason: z
+          .string()
+          .default("")
+          .describe("Plain-language reason why this is out of arbitration scope."),
       }),
     )
+    .default([])
     .describe("Each excerpt that was removed or substantially rewritten, with the reason."),
   note: z
     .string()
+    .default("")
     .describe("One short paragraph summary for the party — what happened and what to do next."),
 });
 
@@ -1251,31 +1263,48 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
     }
 
     if (isPdf) {
-      result = await generateStructuredObjectFromMessages(
-        [
-          {
-            role: "user",
-            content: [
-              {
-                type: "file",
-                data: downloaded.buffer.toString("base64"),
-                mimeType: "application/pdf",
-              },
-              {
-                type: "text",
-                text: [
-                  SANITIZE_SYSTEM_PROMPT,
-                  "",
-                  taskInstruction,
-                  "",
-                  "The statement is in the attached PDF document. Read it and produce the structured output.",
-                ].join("\n"),
-              },
-            ],
-          },
-        ],
-        sanitizeOutputSchema,
-      );
+      // Two-step PDF flow:
+      //   1. Plain-text extraction call — we ask Claude to dump the full
+      //      verbatim text of the document, no commentary.
+      //   2. Text-only sanitize call on the extracted text.
+      // PDF input + structured output in a single call is unreliable in
+      // practice (Claude often wraps JSON in prose), so we split it.
+      const extractedText = await generatePlainTextFromMessages([
+        {
+          role: "user",
+          content: [
+            {
+              type: "file",
+              data: downloaded.buffer.toString("base64"),
+              mimeType: "application/pdf",
+            },
+            {
+              type: "text",
+              text: [
+                "Output ONLY the verbatim text content of the attached PDF document.",
+                "Preserve paragraph breaks. Do not summarize, comment, translate, or add any framing — just the document's text content as-is.",
+                "If the document has multiple pages, concatenate them.",
+              ].join("\n"),
+            },
+          ],
+        },
+      ]);
+      if (!extractedText.trim()) {
+        throw new Error(
+          "Could not extract any text from the attached PDF. Please paste the text into the field instead.",
+        );
+      }
+      const prompt = [
+        SANITIZE_SYSTEM_PROMPT,
+        "",
+        taskInstruction,
+        "",
+        `Source: extracted from a PDF document (${fileName ?? "attachment"}).`,
+        "",
+        "STATEMENT:",
+        extractedText,
+      ].join("\n");
+      result = await generateStructuredObject(prompt, sanitizeOutputSchema);
     } else if (isDocx) {
       const extracted = await extractDocxText(downloaded.buffer);
       if (!extracted.trim()) {

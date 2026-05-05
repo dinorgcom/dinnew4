@@ -101,3 +101,18 @@ export async function generateStructuredObjectFromMessages<TSchema extends z.Zod
 
   return result.object;
 }
+
+// Plain-text version that accepts multimodal messages — used for steps
+// like "extract verbatim text from this PDF" where we don't want to also
+// constrain Claude to a JSON schema. PDF + structured-output in one call
+// is flaky; doing extraction in plain text first and then a text-only
+// schema'd call is much more reliable.
+export async function generatePlainTextFromMessages(messages: CoreMessage[]) {
+  const model = await getModel();
+  const result = await generateText({
+    model,
+    messages,
+    temperature: undefined,
+  });
+  return result.text;
+}
