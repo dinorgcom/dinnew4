@@ -1,4 +1,4 @@
-import { generateObject, generateText } from "ai";
+import { generateObject, generateText, type CoreMessage } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
@@ -77,6 +77,25 @@ export async function generateStructuredObject<TSchema extends z.ZodTypeAny>(
     prompt,
     schema,
     // Explicitly avoid temperature for Claude 4 compatibility
+    temperature: undefined,
+  });
+
+  return result.object;
+}
+
+// Same as generateStructuredObject but takes a full messages array so the
+// caller can include multimodal content (PDFs, images) alongside text.
+// Anthropic supports {type: "file", mediaType: "application/pdf", data: ...}
+// natively for Claude 3.5+, so no client-side text extraction is needed.
+export async function generateStructuredObjectFromMessages<TSchema extends z.ZodTypeAny>(
+  messages: CoreMessage[],
+  schema: TSchema,
+) {
+  const model = await getModel();
+  const result = await generateObject({
+    model,
+    messages,
+    schema,
     temperature: undefined,
   });
 

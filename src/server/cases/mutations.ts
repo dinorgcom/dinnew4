@@ -46,7 +46,9 @@ import {
 } from "@/server/billing/config";
 import { notifyCaseEvent } from "@/server/notifications/service";
 import { spendForAction } from "@/server/billing/service";
-import { generateStructuredObject } from "@/server/ai/service";
+import { generateStructuredObject, generateStructuredObjectFromMessages } from "@/server/ai/service";
+import { head } from "@vercel/blob";
+import { env } from "@/lib/env";
 import { z } from "zod";
 import { assertAppUserActive } from "@/server/auth/provision";
 import { isUserKycVerified } from "@/server/identity/service";
@@ -1115,6 +1117,35 @@ DIN.ORG OUT OF SCOPE — strip these out:
 Given a statement filed by a party, produce: (1) a sanitized version that keeps only in-scope claims, rephrased in plain language; (2) a list of the passages that were removed or substantially altered with the reason for each; (3) a short note explaining the result. If the entire input is out of scope, return sanitized = "" and explain in note.
 `;
 
+async function fetchAttachmentAsBase64(
+  storedUrl: string,
+): Promise<{ base64: string; mediaType: string; bytes: number }> {
+  if (!env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error("Blob token not configured");
+  }
+  const meta = await head(storedUrl, { token: env.BLOB_READ_WRITE_TOKEN });
+  const upstream = await fetch(meta.url, {
+    headers: { Authorization: `Bearer ${env.BLOB_READ_WRITE_TOKEN}` },
+  });
+  if (!upstream.ok || !upstream.body) {
+    throw new Error("Could not download the attached document.");
+  }
+  const buffer = Buffer.from(await upstream.arrayBuffer());
+  // Anthropic limits PDFs to ~32 MB per document. Be conservative and reject
+  // anything > 25 MB to leave headroom for base64 expansion.
+  const MAX_BYTES = 25 * 1024 * 1024;
+  if (buffer.byteLength > MAX_BYTES) {
+    throw new Error(
+      "Attached document is too large for the AI to read. Please paste the text into the field instead.",
+    );
+  }
+  return {
+    base64: buffer.toString("base64"),
+    mediaType: meta.contentType || "application/octet-stream",
+    bytes: buffer.byteLength,
+  };
+}
+
 export async function sanitizeStatementForArbitration(user: AppUser, caseId: string) {
   const authorized = await getAuthorizedCase(user, caseId);
   if (!authorized) {
@@ -1128,9 +1159,23 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
   const text = (
     isClaimant ? authorized.case.claimantStatement : authorized.case.respondentStatement
   ) ?? "";
-  if (!text.trim()) {
+  const fileUrl = isClaimant
+    ? authorized.case.claimantStatementFileUrl
+    : authorized.case.respondentStatementFileUrl;
+  const fileName = isClaimant
+    ? authorized.case.claimantStatementFileName
+    : authorized.case.respondentStatementFileName;
+
+  // Source preference:
+  //   1. Saved text in the field (cheapest, most direct)
+  //   2. Attached document — Claude reads PDFs natively. For non-PDF
+  //      file types we don't have a reliable extraction path, so error
+  //      with a clear "paste the text" message.
+  const hasText = !!text.trim();
+  const hasFile = !!fileUrl;
+  if (!hasText && !hasFile) {
     throw new Error(
-      "Paste your statement text into the field and save it once before running the AI clean-up.",
+      "Add either text or a document to your statement first, then run the AI clean-up.",
     );
   }
 
@@ -1138,28 +1183,72 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
     actionCode: "statement_sanitize",
     caseId,
     idempotencyKey: `statement_sanitize:${caseId}:${authorized.role}:${Date.now()}`,
-    metadata: { side: authorized.role, length: text.length },
+    metadata: { side: authorized.role, length: text.length, hasFile },
   });
   if (!spend.success) {
     throw new Error(spend.error || "Insufficient tokens");
   }
 
-  const prompt = [
-    SANITIZE_SYSTEM_PROMPT,
-    "",
-    `The statement was filed by the ${authorized.role}. Output JSON conforming to the schema.`,
-    "",
-    "STATEMENT:",
-    text,
-  ].join("\n");
+  const taskInstruction = `The statement was filed by the ${authorized.role}. Output JSON conforming to the schema.`;
 
-  const result = await generateStructuredObject(prompt, sanitizeOutputSchema);
+  let result;
+  if (hasText) {
+    // Pure-text path: cheaper and faster.
+    const prompt = [
+      SANITIZE_SYSTEM_PROMPT,
+      "",
+      taskInstruction,
+      "",
+      "STATEMENT:",
+      text,
+    ].join("\n");
+    result = await generateStructuredObject(prompt, sanitizeOutputSchema);
+  } else {
+    // Document-only path. Currently we only forward the file to Claude when
+    // it is a PDF; other formats (Word, scanned images, etc.) have less
+    // reliable parsing and we surface a clear error instead of silently
+    // returning nonsense.
+    const downloaded = await fetchAttachmentAsBase64(fileUrl!);
+    const isPdf =
+      downloaded.mediaType === "application/pdf" ||
+      (fileName ?? "").toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      throw new Error(
+        "Only PDF attachments can be read by the AI directly. Please paste the text from the document into the field, save it, and try again.",
+      );
+    }
+    result = await generateStructuredObjectFromMessages(
+      [
+        {
+          role: "user",
+          content: [
+            {
+              type: "file",
+              data: downloaded.base64,
+              mimeType: "application/pdf",
+            },
+            {
+              type: "text",
+              text: [
+                SANITIZE_SYSTEM_PROMPT,
+                "",
+                taskInstruction,
+                "",
+                "The statement is in the attached PDF document. Read it and produce the structured output.",
+              ].join("\n"),
+            },
+          ],
+        },
+      ],
+      sanitizeOutputSchema,
+    );
+  }
 
   await createCaseActivity(
     caseId,
     "note",
     "AI sanitize ran on statement",
-    `${authorized.role} statement, ${result.removed.length} passage(s) flagged.`,
+    `${authorized.role} statement (${hasText ? "text" : "PDF"}), ${result.removed.length} passage(s) flagged.`,
     { user, impersonation: authorized.impersonation },
   );
 

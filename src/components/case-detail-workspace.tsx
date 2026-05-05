@@ -945,21 +945,29 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                     ? "Replace document"
                     : "Attach document (PDF/Word)"}
               </button>
-              <button
-                type="button"
-                disabled={statementSaving || statementUploading || sanitizing || !original.trim()}
-                onClick={() => void runSanitize()}
-                title={
-                  !original.trim()
-                    ? "Save your statement first, then run AI clean-up."
-                    : "Have the AI strip out passages outside DIN.ORG arbitration scope (criminal, injunctions, etc.)."
-                }
-                className="rounded-md border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:border-violet-400 disabled:opacity-60"
-              >
-                {sanitizing
-                  ? "AI cleaning up..."
-                  : `Clean up for arbitration scope (${ACTION_COSTS.statement_sanitize} tokens)`}
-              </button>
+              {(() => {
+                const hasSavedText = original.trim().length > 0;
+                const hasAttached = !!fileUrl;
+                const canRun = hasSavedText || hasAttached;
+                const tipText = !canRun
+                  ? "Save your statement (text or document) first, then run AI clean-up."
+                  : !hasSavedText && hasAttached
+                    ? "AI will read the attached document directly. PDFs are supported; for other formats, paste the text into the field instead."
+                    : "AI strips out passages outside DIN.ORG arbitration scope (criminal, injunctions, etc.).";
+                return (
+                  <button
+                    type="button"
+                    disabled={statementSaving || statementUploading || sanitizing || !canRun}
+                    onClick={() => void runSanitize()}
+                    title={tipText}
+                    className="rounded-md border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:border-violet-400 disabled:opacity-60"
+                  >
+                    {sanitizing
+                      ? "AI cleaning up..."
+                      : `Clean up for arbitration scope (${ACTION_COSTS.statement_sanitize} tokens)`}
+                  </button>
+                );
+              })()}
               <span className="text-xs text-slate-500">
                 {dirty ? "Unsaved text changes." : "Up to date."}
               </span>
