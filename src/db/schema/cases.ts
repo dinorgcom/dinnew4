@@ -43,6 +43,12 @@ export const cases = pgTable(
     respondentLinkedAt: timestamp("respondent_linked_at", { withTimezone: true }),
     claimantClaims: jsonb("claimant_claims").$type<Record<string, unknown>[]>(),
     respondentClaims: jsonb("respondent_claims").$type<Record<string, unknown>[]>(),
+    // Plain-text statements that replace the structured claims arrays.
+    // Each side writes a single free-form statement of their position;
+    // the legacy claimant_claims / respondent_claims jsonb columns are
+    // kept for back-compat with old rows but no longer written by the UI.
+    claimantStatement: text("claimant_statement"),
+    respondentStatement: text("respondent_statement"),
     arbitratorAssignedName: text("arbitrator_assigned_name"),
     arbitratorAssignedUserId: text("arbitrator_assigned_user_id"),
     claimantLawyerKey: text("claimant_lawyer_key"),

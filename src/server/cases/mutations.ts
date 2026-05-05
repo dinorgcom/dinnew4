@@ -21,6 +21,7 @@ import { touchCaseActivity } from "@/server/cases/status";
 import {
   caseMutationSchema,
   caseClaimsUpdateSchema,
+  caseStatementUpdateSchema,
   caseLawyerSelectionSchema,
   consultantCreateSchema,
   evidenceCreateSchema,
@@ -195,6 +196,8 @@ export async function createCase(user: AppUser, payload: unknown) {
       currency: parsed.currency,
       claimantClaims: parsed.claimantClaims,
       respondentClaims: parsed.respondentClaims,
+      claimantStatement: parsed.claimantStatement?.trim() || null,
+      respondentStatement: parsed.respondentStatement?.trim() || null,
       claimantLawyerKey: parsed.claimantLawyerKey || null,
     })
     .returning();
@@ -277,6 +280,14 @@ export async function updateCase(user: AppUser, caseId: string, payload: unknown
       currency: parsed.currency,
       claimantClaims: parsed.claimantClaims,
       respondentClaims: parsed.respondentClaims,
+      claimantStatement:
+        parsed.claimantStatement !== undefined
+          ? parsed.claimantStatement?.trim() || null
+          : authorized.case.claimantStatement,
+      respondentStatement:
+        parsed.respondentStatement !== undefined
+          ? parsed.respondentStatement?.trim() || null
+          : authorized.case.respondentStatement,
       claimantLawyerKey: parsed.claimantLawyerKey || authorized.case.claimantLawyerKey,
     })
     .where(eq(cases.id, caseId))
@@ -1052,6 +1063,43 @@ export async function updateCaseClaims(user: AppUser, caseId: string, payload: u
     "note",
     "Claims updated",
     "Claim and response details were updated.",
+    { user, impersonation: authorized.impersonation },
+  );
+
+  return updated[0];
+}
+
+// Single side updates their free-form statement. The side is inferred
+// from the case role so a claimant can never overwrite the respondent's
+// text and vice versa. Replaces updateCaseClaims for the new UI.
+export async function updateCaseStatement(user: AppUser, caseId: string, payload: unknown) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+  if (authorized.role !== "claimant" && authorized.role !== "respondent") {
+    throw new Error("Only the claimant or respondent can edit a statement");
+  }
+
+  const parsed = caseStatementUpdateSchema.parse(payload);
+  const cleaned = parsed.statement.trim() || null;
+  const db = getDb();
+
+  const updated = await db
+    .update(cases)
+    .set(
+      authorized.role === "claimant"
+        ? { claimantStatement: cleaned }
+        : { respondentStatement: cleaned },
+    )
+    .where(eq(cases.id, caseId))
+    .returning();
+
+  await createCaseActivity(
+    caseId,
+    "note",
+    authorized.role === "claimant" ? "Claimant statement updated" : "Respondent statement updated",
+    cleaned ? "Statement saved." : "Statement cleared.",
     { user, impersonation: authorized.impersonation },
   );
 

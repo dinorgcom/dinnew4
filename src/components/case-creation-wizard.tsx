@@ -16,11 +16,6 @@ type WizardStep =
   | "claims"
   | "invitation";
 
-type Claim = {
-  claim: string;
-  details?: string;
-};
-
 type CaseCreationWizardProps = {
   kycVerified: boolean;
   filerName: string;
@@ -45,7 +40,7 @@ export function CaseCreationWizard({
   const [otherParties, setOtherParties] = useState<string[]>([""]);
   const [caseName, setCaseName] = useState("");
   const [includeClaims, setIncludeClaims] = useState(false);
-  const [claims, setClaims] = useState<Claim[]>([{ claim: "", details: "" }]);
+  const [statementText, setStatementText] = useState("");
   const [otherPartyEmail, setOtherPartyEmail] = useState("");
   const [otherPartyPhone, setOtherPartyPhone] = useState("");
 
@@ -66,9 +61,9 @@ export function CaseCreationWizard({
       filerName: filerNameInput,
       otherParties: otherParties.filter(Boolean),
       caseName: caseName || suggestedCaseName,
-      claims: includeClaims ? claims : [],
+      statement: includeClaims ? statementText : "",
     }),
-    [filerRole, filerNameInput, otherParties, caseName, suggestedCaseName, includeClaims, claims],
+    [filerRole, filerNameInput, otherParties, caseName, suggestedCaseName, includeClaims, statementText],
   );
 
   const stepIndex = (() => {
@@ -162,11 +157,13 @@ export function CaseCreationWizard({
       respondentPhone,
       claimAmount: null,
       currency: "USD",
-      claimantClaims:
-        filerRole === "claimant" && includeClaims
-          ? claims.filter((c) => c.claim.trim())
-          : [],
+      claimantClaims: [],
       respondentClaims: [],
+      claimantStatement:
+        filerRole === "claimant" && includeClaims && statementText.trim()
+          ? statementText.trim()
+          : null,
+      respondentStatement: null,
       claimantLawyerKey: filerRole === "claimant" ? selectedGuide?.id ?? null : null,
       saveMode,
     };
@@ -404,54 +401,23 @@ export function CaseCreationWizard({
 
         {/* STEP: CLAIMS (claimant only, optional) */}
         {step === "claims" ? (
-          <section className="space-y-5 rounded-md border border-slate-200 bg-white p-6">
+          <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
             <p className="text-sm text-slate-600">
-              List what you are asking for. Each claim has a short title and supporting detail.
-              You can edit and add more claims after filing.
+              Write your claim against the {otherSideLabel} in plain language. The {otherSideLabel}
+              will see this once they accept the invitation and can post their response below
+              your statement on the case page. You can keep editing this after filing.
             </p>
-            <div className="space-y-4">
-              {claims.map((c, idx) => (
-                <div key={idx} className="grid gap-3 rounded-md bg-slate-50 p-4">
-                  <input
-                    value={c.claim}
-                    onChange={(e) =>
-                      setClaims((cur) =>
-                        cur.map((row, i) => (i === idx ? { ...row, claim: e.target.value } : row)),
-                      )
-                    }
-                    placeholder="Claim title"
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
-                  />
-                  <textarea
-                    value={c.details || ""}
-                    onChange={(e) =>
-                      setClaims((cur) =>
-                        cur.map((row, i) => (i === idx ? { ...row, details: e.target.value } : row)),
-                      )
-                    }
-                    placeholder="Supporting detail"
-                    rows={3}
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
-                  />
-                  {claims.length > 1 ? (
-                    <button
-                      type="button"
-                      onClick={() => setClaims((cur) => cur.filter((_, i) => i !== idx))}
-                      className="self-start text-xs font-medium text-rose-600 hover:text-rose-700"
-                    >
-                      Remove this claim
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setClaims((cur) => [...cur, { claim: "", details: "" }])}
-                className="rounded-md border border-dashed border-slate-300 px-4 py-2 text-xs font-medium text-slate-600 hover:border-slate-400"
-              >
-                + Add another claim
-              </button>
-            </div>
+            <textarea
+              value={statementText}
+              onChange={(e) => setStatementText(e.target.value)}
+              rows={12}
+              placeholder="Describe what happened, what you are asking for, and why."
+              className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm leading-7"
+            />
+            <p className="text-xs text-slate-500">
+              No specific format is required. Be clear about facts, dates, and the relief you are
+              seeking.
+            </p>
           </section>
         ) : null}
 
@@ -495,9 +461,9 @@ export function CaseCreationWizard({
                 <li>
                   Case name: <strong>{caseName || suggestedCaseName}</strong>
                 </li>
-                {filerRole === "claimant" && includeClaims && claims.some((c) => c.claim.trim()) ? (
+                {filerRole === "claimant" && includeClaims && statementText.trim() ? (
                   <li>
-                    Initial claims: <strong>{claims.filter((c) => c.claim.trim()).length}</strong>
+                    Initial statement: <strong>{statementText.trim().length}</strong> characters
                   </li>
                 ) : null}
               </ul>

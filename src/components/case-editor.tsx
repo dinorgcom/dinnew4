@@ -31,6 +31,8 @@ type CaseEditorProps = {
     currency: string;
     claimantClaims: Record<string, unknown>[] | null;
     respondentClaims: Record<string, unknown>[] | null;
+    claimantStatement?: string | null;
+    respondentStatement?: string | null;
     claimantLawyerKey?: string | null;
   };
 };
@@ -86,38 +88,14 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
     currency: initialCase?.currency ?? "USD",
     claimantClaims: asClaims(initialCase?.claimantClaims),
     respondentClaims: asClaims(initialCase?.respondentClaims),
+    claimantStatement: initialCase?.claimantStatement ?? "",
+    respondentStatement: initialCase?.respondentStatement ?? "",
   });
 
   const titlePreview = useMemo(
     () => `${form.claimantName || "Claimant"} vs ${form.respondentName || "Respondent"}`,
     [form.claimantName, form.respondentName],
   );
-
-  function updateClaim(kind: "claimantClaims" | "respondentClaims", index: number, key: keyof Claim, value: string) {
-    setForm((current) => ({
-      ...current,
-      [kind]: current[kind].map((claim, claimIndex) =>
-        claimIndex === index ? { ...claim, [key]: value } : claim,
-      ),
-    }));
-  }
-
-  function addClaim(kind: "claimantClaims" | "respondentClaims") {
-    setForm((current) => ({
-      ...current,
-      [kind]: [...current[kind], { claim: "", details: "" }],
-    }));
-  }
-
-  function removeClaim(kind: "claimantClaims" | "respondentClaims", index: number) {
-    setForm((current) => ({
-      ...current,
-      [kind]:
-        current[kind].length === 1
-          ? current[kind]
-          : current[kind].filter((_, claimIndex) => claimIndex !== index),
-    }));
-  }
 
   async function submit(saveMode: "draft" | "file") {
     setError(null);
@@ -127,6 +105,8 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
       claimAmount: form.claimAmount ? Number(form.claimAmount) : null,
       claimantClaims: form.claimantClaims.filter((claim) => claim.claim.trim()),
       respondentClaims: form.respondentClaims.filter((claim) => claim.claim.trim()),
+      claimantStatement: form.claimantStatement.trim() || null,
+      respondentStatement: form.respondentStatement.trim() || null,
       claimantLawyerKey: initialCase?.claimantLawyerKey || selectedLawyer?.id || null,
       saveMode,
     };
@@ -369,51 +349,41 @@ export function CaseEditor({ mode, initialCase, kycVerified = false, claimantPre
         </div>
       </section>
 
-      {(["claimantClaims", "respondentClaims"] as const).map((kind) => (
-        <section key={kind} className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-ink">
-              {kind === "claimantClaims" ? "Claimant claims" : "Respondent claims"}
-            </h2>
-            <button
-              type="button"
-              onClick={() => addClaim(kind)}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
-            >
-              Add claim
-            </button>
-          </div>
+      <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">Statements</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Each side posts a single free-form statement of their position. Both statements are
+            visible to both parties on the case page.
+          </p>
+        </div>
 
-          <div className="space-y-4">
-            {form[kind].map((claim, index) => (
-              <div key={`${kind}-${index}`} className="grid gap-3 rounded-md bg-slate-50 p-4">
-                <input
-                  value={claim.claim}
-                  onChange={(event) => updateClaim(kind, index, "claim", event.target.value)}
-                  placeholder="Claim title"
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
-                />
-                <textarea
-                  value={claim.details || ""}
-                  onChange={(event) => updateClaim(kind, index, "details", event.target.value)}
-                  placeholder="Supporting detail"
-                  rows={3}
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm text-slate-800 shadow-sm"
-                />
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => removeClaim(kind, index)}
-                    className="text-sm font-medium text-rose-600 hover:text-rose-700"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-rose-700">Claimant statement</span>
+          <textarea
+            value={form.claimantStatement}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, claimantStatement: event.target.value }))
+            }
+            rows={8}
+            placeholder="What the claimant is asking for and why."
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm leading-7"
+          />
+        </label>
+
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-indigo-700">Respondent statement</span>
+          <textarea
+            value={form.respondentStatement}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, respondentStatement: event.target.value }))
+            }
+            rows={8}
+            placeholder="The respondent's response to the claim."
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm leading-7"
+          />
+        </label>
+      </section>
 
       <div className="flex flex-wrap gap-3">
         <button

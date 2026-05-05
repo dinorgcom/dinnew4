@@ -78,6 +78,8 @@ type CaseDetailWorkspaceProps = {
       respondentKycVerificationId?: string | null;
       claimantClaims: Record<string, unknown>[] | null;
       respondentClaims: Record<string, unknown>[] | null;
+      claimantStatement?: string | null;
+      respondentStatement?: string | null;
       claimantLawyerKey: string | null;
       respondentLawyerKey?: string | null;
       respondentLinkedAt?: string | Date | null;
@@ -225,6 +227,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   }, [requestedTab]);
   const [claimantClaims, setClaimantClaims] = useState(asClaims(detail.case.claimantClaims));
   const [respondentClaims, setRespondentClaims] = useState(asClaims(detail.case.respondentClaims));
+  // New free-form per-side statements that replace the structured claim list.
+  const [claimantStatement, setClaimantStatement] = useState(detail.case.claimantStatement ?? "");
+  const [respondentStatement, setRespondentStatement] = useState(
+    detail.case.respondentStatement ?? "",
+  );
+  const [statementSaving, setStatementSaving] = useState(false);
+  const [statementError, setStatementError] = useState<string | null>(null);
   const [arbitrator, setArbitrator] = useState(detail.case.arbitratorAssignedName || "");
   const [error, setError] = useState<string | null>(null);
   const [contactsError, setContactsError] = useState<string | null>(null);
@@ -253,9 +262,15 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ? getLawyerById(detail.case.respondentLawyerKey || detail.conversation?.lawyerPersonality, "respondent")
       : getLawyerById(detail.case.claimantLawyerKey || detail.conversation?.lawyerPersonality, "claimant");
 
+  // Both sides "submitting claims" now just means they've posted their
+  // free-form statement. Legacy structured claims are kept readable
+  // (claimantClaims / respondentClaims arrays) but no longer drive the
+  // progress tracker — the migration backfilled them into the new
+  // statement columns so existing cases stay intact.
   const claimsSubmitted =
-    (detail.case.claimantClaims?.length || 0) + (detail.case.respondentClaims?.length || 0) > 0;
-  const respondentDefenceSubmitted = (detail.case.respondentClaims?.length || 0) > 0;
+    !!(detail.case.claimantStatement || "").trim() ||
+    !!(detail.case.respondentStatement || "").trim();
+  const respondentDefenceSubmitted = !!(detail.case.respondentStatement || "").trim();
   const discoveryStarted =
     detail.evidence.length > 0
     || detail.witnesses.length > 0
@@ -321,9 +336,12 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const firstPendingIndex = progressStages.findIndex((stage) => !stage.completed);
   const activeStageIndex = firstPendingIndex === -1 ? progressStages.length - 1 : firstPendingIndex;
 
-  // Calculate tab counts
+  // Calculate tab counts. The Claims tab shows 0/1/2 based on which sides
+  // have posted their statement.
+  const claimantHasStatement = !!(detail.case.claimantStatement || "").trim();
+  const respondentHasStatement = !!(detail.case.respondentStatement || "").trim();
   const tabCounts = {
-    claims: (detail.case.claimantClaims?.length || 0) + (detail.case.respondentClaims?.length || 0),
+    claims: (claimantHasStatement ? 1 : 0) + (respondentHasStatement ? 1 : 0),
     evidence: detail.evidence.length,
     witnesses: detail.witnesses.length,
     consultants: detail.consultants.length,
@@ -349,8 +367,8 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   }
   const claimsNeedAttention =
     isParty &&
-    ((role === "claimant" && (!detail.case.claimantClaims || detail.case.claimantClaims.length === 0)) ||
-      (role === "respondent" && (!detail.case.respondentClaims || detail.case.respondentClaims.length === 0)));
+    ((role === "claimant" && !claimantHasStatement) ||
+      (role === "respondent" && !respondentHasStatement));
   const evidenceNeedsAttention = hasPendingReview(detail.evidence, "submittedBy");
   const witnessesNeedAttention = hasPendingReview(detail.witnesses, "calledBy");
   const consultantsNeedAttention = hasPendingReview(detail.consultants, "calledBy");
@@ -622,99 +640,113 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     );
   }
 
-  function renderClaimsAndDefenses() {
-    const total = Math.max(claimantClaims.length, respondentClaims.length);
-    const canEditClaimant = detail.role === "claimant";
-    const canEditRespondent = detail.role === "respondent";
+  async function saveStatement() {
+    setStatementError(null);
+    setStatementSaving(true);
+    try {
+      const isClaimant = detail.role === "claimant";
+      const isRespondent = detail.role === "respondent";
+      if (!isClaimant && !isRespondent) return;
+      const text = (isClaimant ? claimantStatement : respondentStatement) ?? "";
+      const response = await fetch(`/api/cases/${detail.case.id}/statement`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statement: text }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatementError(body?.error?.message || "Failed to save statement.");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setStatementSaving(false);
+    }
+  }
+
+  function renderStatementSection(side: "claimant" | "respondent") {
+    const isClaimantSide = side === "claimant";
+    const eyebrow = isClaimantSide ? "Claimant statement" : "Respondent statement";
+    const eyebrowClass = isClaimantSide ? "text-rose-600" : "text-indigo-600";
+    const sideName = isClaimantSide ? detail.case.claimantName : detail.case.respondentName;
+    const value = isClaimantSide ? claimantStatement : respondentStatement;
+    const setValue = isClaimantSide ? setClaimantStatement : setRespondentStatement;
+    const original = (isClaimantSide
+      ? detail.case.claimantStatement
+      : detail.case.respondentStatement) ?? "";
+    const canEdit = detail.role === side;
+    const placeholder = isClaimantSide
+      ? "State the claim against the respondent here. Plain language is fine."
+      : "Write your response to the claimant's statement here.";
+    const dirty = canEdit && (value ?? "") !== original;
 
     return (
       <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-ink">Claims &amp; defenses</h3>
-          <div className="flex gap-2">
-            {canEditClaimant ? (
-              <button
-                type="button"
-                onClick={() =>
-                  setClaimantClaims([
-                    ...claimantClaims,
-                    { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] },
-                  ])
-                }
-                className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-              >
-                + Add claim
-              </button>
-            ) : null}
-            {canEditRespondent ? (
-              <button
-                type="button"
-                onClick={() =>
-                  setRespondentClaims([
-                    ...respondentClaims,
-                    { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] },
-                  ])
-                }
-                className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-              >
-                + Add defense
-              </button>
-            ) : null}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className={`text-xs font-semibold uppercase tracking-[0.18em] ${eyebrowClass}`}>
+              {eyebrow}
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">{sideName || "—"}</div>
           </div>
+          {canEdit ? (
+            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              Editable — this is your side
+            </span>
+          ) : null}
         </div>
-        {total === 0 ? (
-          <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
-            No claims submitted yet.
+
+        {canEdit ? (
+          <textarea
+            value={value ?? ""}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder={placeholder}
+            rows={10}
+            className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm leading-7"
+          />
+        ) : original.trim().length === 0 ? (
+          <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-500">
+            {isClaimantSide
+              ? "The claimant has not posted a statement yet."
+              : "The respondent has not posted a response yet."}
           </div>
         ) : (
-          <ol className="space-y-4">
-            {Array.from({ length: total }).map((_, index) => (
-              <li key={index} className="space-y-3">
-                {claimantClaims[index]
-                  ? renderClaimEntry("claimant", index, claimantClaims[index])
-                  : canEditClaimant ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setClaimantClaims([
-                            ...claimantClaims,
-                            { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] },
-                          ])
-                        }
-                        className="w-full rounded-md border border-dashed border-rose-300 bg-rose-50/40 p-3 text-left text-xs text-rose-700 hover:bg-rose-50"
-                      >
-                        + Add CLAIM {index + 1}
-                      </button>
-                    ) : (
-                      <div className="rounded-md border border-dashed border-slate-200 p-3 text-xs text-slate-400">
-                        No claim {index + 1} from claimant
-                      </div>
-                    )}
-                {respondentClaims[index]
-                  ? renderClaimEntry("respondent", index, respondentClaims[index])
-                  : canEditRespondent ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setRespondentClaims([
-                            ...respondentClaims,
-                            { claim: "", details: "", evidenceIds: [], witnessIds: [], responses: [] },
-                          ])
-                        }
-                        className="ml-6 w-[calc(100%-1.5rem)] rounded-md border border-dashed border-indigo-300 bg-indigo-50/30 p-3 text-left text-xs text-indigo-700 hover:bg-indigo-50/60"
-                      >
-                        + Add DEFENSE {index + 1}
-                      </button>
-                    ) : (
-                      <div className="ml-6 rounded-md border border-dashed border-slate-200 p-3 text-xs text-slate-400">
-                        No defense {index + 1} from respondent
-                      </div>
-                    )}
-              </li>
-            ))}
-          </ol>
+          <div className="whitespace-pre-wrap rounded-md bg-slate-50 p-4 text-sm leading-7 text-slate-700">
+            {original}
+          </div>
         )}
+
+        {canEdit ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-slate-500">
+              {dirty ? "Unsaved changes." : "Up to date."}
+            </div>
+            <button
+              type="button"
+              disabled={statementSaving || !dirty}
+              onClick={() => void saveStatement()}
+              className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            >
+              {statementSaving ? "Saving..." : isClaimantSide ? "Save claim" : "Save response"}
+            </button>
+          </div>
+        ) : null}
+
+        {canEdit && statementError ? (
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            {statementError}
+          </div>
+        ) : null}
       </section>
+    );
+  }
+
+  function renderClaimsAndDefenses() {
+    return (
+      <div className="space-y-6">
+        {renderStatementSection("claimant")}
+        {renderStatementSection("respondent")}
+      </div>
     );
   }
 
@@ -1142,11 +1174,11 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                 href: `/verify/start?returnTo=/cases/${detail.case.id}`,
               });
             }
-            if (role === "claimant" && (!detail.case.claimantClaims || detail.case.claimantClaims.length === 0)) {
-              items.push({ key: "submit-claims", label: "Submit your claims", tab: "claims" });
+            if (role === "claimant" && !claimantHasStatement) {
+              items.push({ key: "submit-claim", label: "Post your claim statement", tab: "claims" });
             }
-            if (role === "respondent" && (!detail.case.respondentClaims || detail.case.respondentClaims.length === 0)) {
-              items.push({ key: "submit-defence", label: "Submit your defence claims", tab: "claims" });
+            if (role === "respondent" && !respondentHasStatement) {
+              items.push({ key: "submit-response", label: "Post your response", tab: "claims" });
             }
             if (role === "claimant" && !detail.respondentNotified) {
               items.push({ key: "notify-respondent", label: "Notify the respondent", tab: "respondent" });
@@ -1375,25 +1407,6 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       {activeTab === "claims" ? (
         <div id="panel-claims" role="tabpanel" aria-labelledby="tab-claims" className="space-y-6">
           {renderClaimsAndDefenses()}
-          {detail.role !== "moderator" && detail.role !== "admin" ? (
-            <div className="sticky bottom-0 flex justify-end rounded-md border border-slate-200 bg-white/95 p-3 backdrop-blur">
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() =>
-                  startTransition(() =>
-                    void patch(`/api/cases/${detail.case.id}/claims`, {
-                      claimantClaims,
-                      respondentClaims,
-                    }),
-                  )
-                }
-                className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {isPending ? "Saving..." : "Save claims"}
-              </button>
-            </div>
-          ) : null}
         </div>
       ) : null}
 

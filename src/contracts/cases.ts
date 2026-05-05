@@ -48,12 +48,26 @@ export const caseMutationSchema = z.object({
   respondentPhone: z.string().optional().nullable(),
   claimAmount: z.coerce.number().nonnegative().optional().nullable(),
   currency: z.string().default("USD"),
+  // New free-form statement fields. Either side's statement is optional
+  // at filing time — the claimant can post their statement immediately
+  // or wait until after the respondent joins.
+  claimantStatement: z.string().trim().optional().nullable(),
+  respondentStatement: z.string().trim().optional().nullable(),
+  // Legacy structured claim arrays — accepted for back-compat but no
+  // longer driven by any UI we ship.
   claimantClaims: z.array(claimSchema).default([]),
   respondentClaims: z.array(claimSchema).default([]),
   claimantLawyerKey: z.string().optional().nullable(),
   saveMode: z.enum(["draft", "file"]).default("draft"),
 });
 
+// Replaces caseClaimsUpdateSchema. The server infers which side the
+// caller is on from their case role; the body just carries the new text.
+export const caseStatementUpdateSchema = z.object({
+  statement: z.string().trim().max(20000),
+});
+
+// Kept for back-compat with the old endpoint, but no UI sends it now.
 export const caseClaimsUpdateSchema = z.object({
   claimantClaims: z.array(claimSchema).default([]),
   respondentClaims: z.array(claimSchema).default([]),
