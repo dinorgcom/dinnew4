@@ -88,6 +88,12 @@ type CaseDetailWorkspaceProps = {
       respondentStatementFileUrl?: string | null;
       respondentStatementFilePathname?: string | null;
       respondentStatementFileName?: string | null;
+      claimantStatementFileTranslationUrl?: string | null;
+      claimantStatementFileTranslationName?: string | null;
+      claimantStatementFileTranslationLang?: string | null;
+      respondentStatementFileTranslationUrl?: string | null;
+      respondentStatementFileTranslationName?: string | null;
+      respondentStatementFileTranslationLang?: string | null;
       claimantLawyerKey: string | null;
       respondentLawyerKey?: string | null;
       respondentLinkedAt?: string | Date | null;
@@ -245,6 +251,14 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const [statementError, setStatementError] = useState<string | null>(null);
   const statementFileInputRef = useRef<HTMLInputElement | null>(null);
   const [sanitizing, setSanitizing] = useState(false);
+  const [translating, setTranslating] = useState<"claimant" | "respondent" | null>(null);
+  const [translatingDoc, setTranslatingDoc] = useState<"claimant" | "respondent" | null>(null);
+  const [translationResult, setTranslationResult] = useState<{
+    side: "claimant" | "respondent";
+    text: string;
+    targetLang: string;
+    detectedSourceLang: string;
+  } | null>(null);
   const [sanitizeResult, setSanitizeResult] = useState<{
     side: "claimant" | "respondent";
     sanitized: string;
@@ -768,6 +782,62 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     }
   }
 
+  async function runTranslateText(side: "claimant" | "respondent") {
+    setStatementError(null);
+    setTranslating(side);
+    setTranslationResult(null);
+    try {
+      const response = await fetch(
+        `/api/cases/${detail.case.id}/statement/translate?side=${side}`,
+        { method: "POST" },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatementError(body?.error?.message || "Translation failed.");
+        return;
+      }
+      const data = body?.data as
+        | { translatedText: string; detectedSourceLang: string; targetLang: string }
+        | undefined;
+      if (!data) {
+        setStatementError("Translation returned no result.");
+        return;
+      }
+      setTranslationResult({
+        side,
+        text: data.translatedText,
+        targetLang: data.targetLang,
+        detectedSourceLang: data.detectedSourceLang,
+      });
+      router.refresh();
+    } catch (err) {
+      setStatementError(err instanceof Error ? err.message : "Translation failed.");
+    } finally {
+      setTranslating(null);
+    }
+  }
+
+  async function runTranslateDocument(side: "claimant" | "respondent") {
+    setStatementError(null);
+    setTranslatingDoc(side);
+    try {
+      const response = await fetch(
+        `/api/cases/${detail.case.id}/statement/translate-document?side=${side}`,
+        { method: "POST" },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatementError(body?.error?.message || "Document translation failed.");
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      setStatementError(err instanceof Error ? err.message : "Document translation failed.");
+    } finally {
+      setTranslatingDoc(null);
+    }
+  }
+
   async function runSanitize() {
     setStatementError(null);
     setSanitizing(true);
@@ -864,6 +934,21 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     const downloadHref = fileUrl
       ? (`/api/files/case/${detail.case.id}?asset=${side}-statement` as Route)
       : null;
+    const translationUrl = isClaimantSide
+      ? detail.case.claimantStatementFileTranslationUrl
+      : detail.case.respondentStatementFileTranslationUrl;
+    const translationName = isClaimantSide
+      ? detail.case.claimantStatementFileTranslationName
+      : detail.case.respondentStatementFileTranslationName;
+    const translationLang = isClaimantSide
+      ? detail.case.claimantStatementFileTranslationLang
+      : detail.case.respondentStatementFileTranslationLang;
+    const translationHref = translationUrl
+      ? (`/api/files/case/${detail.case.id}?asset=${side}-statement-translation` as Route)
+      : null;
+    const caseLanguage = (detail.case.language || "en").toLowerCase();
+    const sourceLanguageMatchesCase =
+      translationLang && translationLang === caseLanguage;
 
     return (
       <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
@@ -902,50 +987,145 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
         ) : null}
 
         {downloadHref ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-            <svg
-              className="h-4 w-4 text-slate-500"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.6}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6"
-              />
-            </svg>
-            <span className="font-medium text-slate-700">
-              Attached: {fileName || "statement document"}
-            </span>
-            <Link
-              href={downloadHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-700 hover:border-slate-400"
-            >
-              View
-            </Link>
-            <a
-              href={`${downloadHref}${(downloadHref as string).includes("?") ? "&" : "?"}download=1` as Route}
-              download={fileName || "statement.pdf"}
-              className="rounded-md bg-ink px-2 py-0.5 font-medium text-white hover:bg-slate-800"
-            >
-              Download
-            </a>
-            {canEdit ? (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+              <svg
+                className="h-4 w-4 text-slate-500"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6"
+                />
+              </svg>
+              <span className="font-medium text-slate-700">
+                Original: {fileName || "statement document"}
+              </span>
+              <Link
+                href={downloadHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-700 hover:border-slate-400"
+              >
+                View
+              </Link>
+              <a
+                href={`${downloadHref}${(downloadHref as string).includes("?") ? "&" : "?"}download=1` as Route}
+                download={fileName || "statement.pdf"}
+                className="rounded-md bg-ink px-2 py-0.5 font-medium text-white hover:bg-slate-800"
+              >
+                Download
+              </a>
+              {canEdit ? (
+                <button
+                  type="button"
+                  disabled={statementSaving || statementUploading}
+                  onClick={() => void removeStatementFile()}
+                  className="rounded-md border border-rose-300 px-2 py-0.5 font-medium text-rose-700 hover:border-rose-400 disabled:opacity-60"
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+
+            {/* Translation row — either show the existing translated doc or
+                offer to produce one. Either party can translate either side's
+                document; cost is on the requester. */}
+            {translationHref ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs">
+                <span className="font-medium text-emerald-800">
+                  Translation ({(translationLang || "?").toUpperCase()}):{" "}
+                  {translationName || "translated.pdf"}
+                </span>
+                <Link
+                  href={translationHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md border border-emerald-300 bg-white px-2 py-0.5 font-medium text-emerald-800 hover:border-emerald-400"
+                >
+                  View
+                </Link>
+                <a
+                  href={`${translationHref}${(translationHref as string).includes("?") ? "&" : "?"}download=1` as Route}
+                  download={translationName || "translated.pdf"}
+                  className="rounded-md bg-emerald-700 px-2 py-0.5 font-medium text-white hover:bg-emerald-800"
+                >
+                  Download
+                </a>
+                {!sourceLanguageMatchesCase ? (
+                  <button
+                    type="button"
+                    disabled={translatingDoc !== null}
+                    onClick={() => void runTranslateDocument(side)}
+                    className="rounded-md border border-emerald-300 px-2 py-0.5 font-medium text-emerald-800 hover:border-emerald-400 disabled:opacity-60"
+                  >
+                    {translatingDoc === side
+                      ? "Re-translating..."
+                      : `Re-translate to ${caseLanguage.toUpperCase()}`}
+                  </button>
+                ) : null}
+              </div>
+            ) : (
               <button
                 type="button"
-                disabled={statementSaving || statementUploading}
-                onClick={() => void removeStatementFile()}
-                className="rounded-md border border-rose-300 px-2 py-0.5 font-medium text-rose-700 hover:border-rose-400 disabled:opacity-60"
+                disabled={translatingDoc !== null}
+                onClick={() => void runTranslateDocument(side)}
+                title={`Translate the attached document to ${caseLanguage.toUpperCase()} via DeepL — formatting is preserved.`}
+                className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:border-emerald-400 disabled:opacity-60"
               >
-                Remove
+                {translatingDoc === side
+                  ? `Translating to ${caseLanguage.toUpperCase()}... (this can take ~30s)`
+                  : `Translate document to ${caseLanguage.toUpperCase()} (${ACTION_COSTS.document_translate} tokens)`}
               </button>
-            ) : null}
+            )}
           </div>
+        ) : null}
+
+        {/* Text translation result, shown inline below the statement display */}
+        {translationResult && translationResult.side === side ? (
+          <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50/40 p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs uppercase tracking-[0.18em] text-emerald-800">
+                Translation{" "}
+                {translationResult.detectedSourceLang
+                  ? `${translationResult.detectedSourceLang} → ${translationResult.targetLang.toUpperCase()}`
+                  : `→ ${translationResult.targetLang.toUpperCase()}`}{" "}
+                (DeepL)
+              </div>
+              <button
+                type="button"
+                onClick={() => setTranslationResult(null)}
+                className="text-xs text-slate-600 underline hover:text-slate-800"
+              >
+                Hide
+              </button>
+            </div>
+            <div className="whitespace-pre-wrap rounded-md bg-white p-3 leading-7 text-slate-800">
+              {translationResult.text}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Translate-text button — both sides see this on the OTHER party's
+            section to read in their case language, plus on their own if the
+            language doesn't match. */}
+        {original.trim().length > 0 ? (
+          <button
+            type="button"
+            disabled={translating !== null}
+            onClick={() => void runTranslateText(side)}
+            title={`Translate the saved statement text to ${caseLanguage.toUpperCase()} via DeepL.`}
+            className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:border-emerald-400 disabled:opacity-60"
+          >
+            {translating === side
+              ? "Translating..."
+              : `Translate text to ${caseLanguage.toUpperCase()} (${ACTION_COSTS.statement_translate} tokens)`}
+          </button>
         ) : null}
 
         {canEdit ? (

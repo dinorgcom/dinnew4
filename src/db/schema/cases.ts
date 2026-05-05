@@ -61,6 +61,16 @@ export const cases = pgTable(
     respondentStatementFileUrl: text("respondent_statement_file_url"),
     respondentStatementFilePathname: text("respondent_statement_file_pathname"),
     respondentStatementFileName: text("respondent_statement_file_name"),
+    // Cached DeepL translation of the statement document, keyed implicitly
+    // by (case, side). Re-translation overwrites these columns.
+    claimantStatementFileTranslationUrl: text("claimant_statement_file_translation_url"),
+    claimantStatementFileTranslationPathname: text("claimant_statement_file_translation_pathname"),
+    claimantStatementFileTranslationName: text("claimant_statement_file_translation_name"),
+    claimantStatementFileTranslationLang: text("claimant_statement_file_translation_lang"),
+    respondentStatementFileTranslationUrl: text("respondent_statement_file_translation_url"),
+    respondentStatementFileTranslationPathname: text("respondent_statement_file_translation_pathname"),
+    respondentStatementFileTranslationName: text("respondent_statement_file_translation_name"),
+    respondentStatementFileTranslationLang: text("respondent_statement_file_translation_lang"),
     arbitratorAssignedName: text("arbitrator_assigned_name"),
     arbitratorAssignedUserId: text("arbitrator_assigned_user_id"),
     claimantLawyerKey: text("claimant_lawyer_key"),

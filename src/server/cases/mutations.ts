@@ -48,6 +48,8 @@ import {
 import { notifyCaseEvent } from "@/server/notifications/service";
 import { spendForAction } from "@/server/billing/service";
 import { generateStructuredObject, generatePlainTextFromMessages } from "@/server/ai/service";
+import { translateText, translateDocument } from "@/server/translation/deepl";
+import { uploadBlob } from "@/server/blob/service";
 import { head } from "@vercel/blob";
 import { env } from "@/lib/env";
 import { z } from "zod";
@@ -2669,4 +2671,184 @@ export async function declinePartyInvitation(token: string) {
   );
 
   return { success: true };
+}
+
+// ============================================================================
+// Translation (DeepL)
+// ============================================================================
+
+// Phase 1 — translate one side's statement TEXT to the case language.
+// The viewer asks for it; charges 5 tokens; returns the translation but
+// does NOT persist it (each invocation is a fresh translation, keep the
+// data model simple). Either party can translate either side's text.
+export async function translateStatementText(
+  user: AppUser,
+  caseId: string,
+  side: "claimant" | "respondent",
+) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+  if (authorized.role !== "claimant" && authorized.role !== "respondent") {
+    throw new Error("Only the claimant or respondent can translate statements");
+  }
+  const text = (
+    side === "claimant" ? authorized.case.claimantStatement : authorized.case.respondentStatement
+  ) ?? "";
+  if (!text.trim()) {
+    throw new Error("There is no text to translate on this side yet.");
+  }
+
+  const targetLang = (authorized.case.language || "en").toLowerCase();
+
+  const spend = await spendForAction(user, {
+    actionCode: "statement_translate",
+    caseId,
+    idempotencyKey: `statement_translate:${caseId}:${side}:${Date.now()}`,
+    metadata: { side, targetLang, length: text.length },
+  });
+  if (!spend.success) {
+    throw new Error(spend.error || "Insufficient tokens");
+  }
+
+  const result = await translateText(text, targetLang);
+
+  await createCaseActivity(
+    caseId,
+    "note",
+    "Statement translated",
+    `${side} statement translated ${result.detectedSourceLang || "?"} → ${targetLang}.`,
+    { user, impersonation: authorized.impersonation },
+  );
+
+  return {
+    translatedText: result.translatedText,
+    detectedSourceLang: result.detectedSourceLang,
+    targetLang,
+  };
+}
+
+// Phase 2 — translate the attached statement DOCUMENT (PDF/DOCX) to the
+// case language via DeepL's document API. Stores the translated file
+// alongside the original on the cases row. Re-running overwrites the
+// previous translation. Charges 50 tokens.
+export async function translateStatementDocument(
+  user: AppUser,
+  caseId: string,
+  side: "claimant" | "respondent",
+) {
+  const authorized = await getAuthorizedCase(user, caseId);
+  if (!authorized) {
+    throw new Error("Forbidden");
+  }
+  if (authorized.role !== "claimant" && authorized.role !== "respondent") {
+    throw new Error("Only the claimant or respondent can translate documents");
+  }
+
+  const isClaimant = side === "claimant";
+  const sourceUrl = isClaimant
+    ? authorized.case.claimantStatementFileUrl
+    : authorized.case.respondentStatementFileUrl;
+  const sourceName = isClaimant
+    ? authorized.case.claimantStatementFileName
+    : authorized.case.respondentStatementFileName;
+  if (!sourceUrl) {
+    throw new Error("There is no document attached on this side to translate.");
+  }
+
+  const targetLang = (authorized.case.language || "en").toLowerCase();
+
+  // Skip if we already translated to this language (cache hit).
+  const existingLang = isClaimant
+    ? authorized.case.claimantStatementFileTranslationLang
+    : authorized.case.respondentStatementFileTranslationLang;
+  const existingUrl = isClaimant
+    ? authorized.case.claimantStatementFileTranslationUrl
+    : authorized.case.respondentStatementFileTranslationUrl;
+  if (existingLang === targetLang && existingUrl) {
+    return {
+      translatedUrl: existingUrl,
+      targetLang,
+      cached: true,
+    };
+  }
+
+  const spend = await spendForAction(user, {
+    actionCode: "document_translate",
+    caseId,
+    idempotencyKey: `document_translate:${caseId}:${side}:${targetLang}:${Date.now()}`,
+    metadata: { side, targetLang, sourceFileName: sourceName },
+  });
+  if (!spend.success) {
+    throw new Error(spend.error || "Insufficient tokens");
+  }
+
+  // Pull the original file from blob.
+  if (!env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error("Blob token not configured");
+  }
+  const meta = await head(sourceUrl, { token: env.BLOB_READ_WRITE_TOKEN });
+  const upstream = await fetch(meta.url, {
+    headers: { Authorization: `Bearer ${env.BLOB_READ_WRITE_TOKEN}` },
+  });
+  if (!upstream.ok || !upstream.body) {
+    throw new Error("Could not download the original document.");
+  }
+  const sourceBuffer = Buffer.from(await upstream.arrayBuffer());
+
+  // Send to DeepL.
+  const translated = await translateDocument({
+    buffer: sourceBuffer,
+    fileName: sourceName ?? "statement",
+    contentType: meta.contentType,
+    targetLang,
+  });
+
+  // Save translated bytes back to blob with a recognizable pathname.
+  const translatedFileName = `${(sourceName ?? "statement").replace(/\.[^.]+$/, "")}.${targetLang}${
+    translated.fileName.match(/\.[^.]+$/)?.[0] ?? ""
+  }`;
+  const blobPath = `cases/${caseId}/translations/${Date.now()}-${translatedFileName.replace(
+    /[^a-zA-Z0-9._-]/g,
+    "_",
+  )}`;
+  const uploaded = await uploadBlob({
+    pathname: blobPath,
+    body: translated.translatedBlob,
+    contentType: translated.contentType,
+  });
+
+  // Persist translation columns.
+  const db = getDb();
+  const update = isClaimant
+    ? {
+        claimantStatementFileTranslationUrl: uploaded.url,
+        claimantStatementFileTranslationPathname: uploaded.pathname,
+        claimantStatementFileTranslationName: translatedFileName,
+        claimantStatementFileTranslationLang: targetLang,
+      }
+    : {
+        respondentStatementFileTranslationUrl: uploaded.url,
+        respondentStatementFileTranslationPathname: uploaded.pathname,
+        respondentStatementFileTranslationName: translatedFileName,
+        respondentStatementFileTranslationLang: targetLang,
+      };
+
+  await db.update(cases).set(update).where(eq(cases.id, caseId)).returning();
+
+  await createCaseActivity(
+    caseId,
+    "note",
+    "Document translated",
+    `${side} statement document translated to ${targetLang} (${translated.billedCharacters.toLocaleString()} chars).`,
+    { user, impersonation: authorized.impersonation },
+  );
+
+  return {
+    translatedUrl: uploaded.url,
+    targetLang,
+    cached: false,
+    billedCharacters: translated.billedCharacters,
+  };
 }

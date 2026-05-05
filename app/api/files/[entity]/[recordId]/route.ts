@@ -199,6 +199,12 @@ export async function GET(request: Request, { params }: RouteProps) {
     } else if (asset === "respondent-statement") {
       sourceUrl = record.respondentStatementFileUrl ?? null;
       fileName = record.respondentStatementFileName ?? null;
+    } else if (asset === "claimant-statement-translation") {
+      sourceUrl = record.claimantStatementFileTranslationUrl ?? null;
+      fileName = record.claimantStatementFileTranslationName ?? null;
+    } else if (asset === "respondent-statement-translation") {
+      sourceUrl = record.respondentStatementFileTranslationUrl ?? null;
+      fileName = record.respondentStatementFileTranslationName ?? null;
     }
     if (!sourceUrl) {
       return new Response("Not found", { status: 404 });
