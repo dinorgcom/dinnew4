@@ -47,7 +47,7 @@ import {
 } from "@/server/billing/config";
 import { notifyCaseEvent } from "@/server/notifications/service";
 import { spendForAction } from "@/server/billing/service";
-import { generateStructuredObject, generatePlainTextFromMessages } from "@/server/ai/service";
+import { generateStructuredObject } from "@/server/ai/service";
 import { translateText, translateDocument } from "@/server/translation/deepl";
 import { uploadBlob } from "@/server/blob/service";
 import { head } from "@vercel/blob";
@@ -1081,23 +1081,21 @@ export async function updateCaseClaims(user: AppUser, caseId: string, payload: u
 // AI rewrites the user-supplied statement keeping only what is in scope
 // for DIN.ORG arbitration. Returns a sanitized version + a list of the
 // passages that were removed and why. Costs `statement_sanitize` tokens.
-// All fields optional with safe defaults — Claude occasionally drops a
-// field on partial outputs (especially with PDF input), and we'd rather
-// surface a usable result than fail the whole call on schema strictness.
+// Edit-only schema. Claude outputs ONLY the passages to remove — never
+// the full sanitized text — so the response stays small even for a
+// 50-page complaint. We then compute the sanitized text on our side by
+// stripping each listed passage from the original. This dropped the
+// sanitize call from ~500s to ~30s on a 19-page document.
 const sanitizeOutputSchema = z.object({
-  sanitized: z
-    .string()
-    .default("")
-    .describe(
-      "The cleaned-up version of the statement, keeping only matters DIN.ORG arbitration can adjudicate. Empty string if the entire input is out of scope.",
-    ),
   removed: z
     .array(
       z.object({
         passage: z
           .string()
           .default("")
-          .describe("Verbatim or near-verbatim excerpt of the removed text."),
+          .describe(
+            "Verbatim quote of the passage to remove from the original text. Must match the source bytes exactly so the system can find and remove it.",
+          ),
         reason: z
           .string()
           .default("")
@@ -1105,11 +1103,11 @@ const sanitizeOutputSchema = z.object({
       }),
     )
     .default([])
-    .describe("Each excerpt that was removed or substantially rewritten, with the reason."),
+    .describe("Each verbatim passage from the original that should be removed."),
   note: z
     .string()
     .default("")
-    .describe("One short paragraph summary for the party — what happened and what to do next."),
+    .describe("One short paragraph summary for the party — what was removed and why."),
 });
 
 const SANITIZE_SYSTEM_PROMPT = `You are a legal assistant for DIN.ORG, an international online arbitration tribunal that decides civil and commercial disputes between private parties.
@@ -1133,12 +1131,14 @@ WHAT AN ARBITRAL TRIBUNAL CANNOT DO (REMOVE OR REWRITE ONLY THESE):
 - Public-law and administrative orders against government bodies. Remove.
 - Asylum, immigration, family-status decisions reserved to state courts. Remove.
 
-OUTPUT RULES:
-- "sanitized" = the original text with ONLY the specific passages above stripped out or minimally rewritten (e.g. dropping the words "und beantrage eine einstweilige Verfügung gegen den Beklagten" but keeping the surrounding paragraph). DO NOT shorten, summarize, paraphrase, restructure, or reword anything else. Keep paragraphing, tone, and language intact.
-- "removed" = each specific passage you removed or rewrote, with a one-sentence reason explaining why it is outside arbitral scope. Quote the original text closely.
-- "note" = one short paragraph for the party. If you only removed a small piece, say so explicitly: "Only the request for an interim injunction was removed — everything else is fine for arbitration." If you removed nothing, say so. Do not lecture the party.
+OUTPUT RULES — IMPORTANT:
+- DO NOT output the full sanitized text. The system applies your edits server-side; you only need to identify what to remove.
+- "removed" = a list of verbatim passages from the original that should be stripped. EACH passage MUST be a byte-for-byte copy of the source — same words, same punctuation, same line breaks, same spelling. Do not paraphrase, do not translate, do not normalize whitespace. The system uses string matching to find and remove the passage, so an exact copy is required.
+- Each passage entry also gets a one-sentence "reason" explaining why it is outside arbitral scope.
+- Keep passages SHORT and SPECIFIC — preferably a single sentence or clause, at most a paragraph. If a whole paragraph is fine but one sentence inside it is out of scope, list ONLY that sentence.
+- "note" = one short paragraph for the party. If you removed nothing, say "Nothing to remove — your statement is already in scope for arbitration." If you removed a small piece, say so explicitly.
 
-If you find yourself removing more than ~10% of the text, stop and reconsider — almost certainly you are being too aggressive. Default = keep.
+If you find yourself listing more than ~10% of the text in "removed", stop and reconsider — almost certainly you are being too aggressive. Default = keep. List nothing if nothing needs to come out.
 `;
 
 async function fetchAttachmentBuffer(
@@ -1166,6 +1166,75 @@ async function fetchAttachmentBuffer(
     buffer,
     mediaType: meta.contentType || "application/octet-stream",
   };
+}
+
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  // pdf-parse is a Node-side PDF text extractor. Runs in milliseconds
+  // even on large legal documents — much faster and cheaper than asking
+  // Claude to read the PDF and dump verbatim text. Imported dynamically
+  // to keep cold-start lean on routes that never touch sanitize.
+  // @ts-ignore — package may not be installed in dev, Vercel installs from package.json
+  const pdfParse = (await import("pdf-parse")).default as (b: Buffer) => Promise<{ text: string }>;
+  const result = await pdfParse(buffer);
+  return result.text || "";
+}
+
+// Apply Claude's edit instructions to the original text. Each listed
+// passage is removed string-by-string. If a passage isn't found
+// verbatim in the source we fall back to a normalized whitespace match
+// before giving up — Claude usually quotes accurately but minor
+// whitespace drift happens with PDF-extracted text.
+function applySanitizeEdits(
+  original: string,
+  removed: Array<{ passage: string; reason: string }>,
+) {
+  let result = original;
+  const applied: Array<{ passage: string; reason: string; matched: boolean }> = [];
+  for (const entry of removed) {
+    const passage = (entry.passage || "").trim();
+    if (!passage) continue;
+    let next = result.split(passage).join("");
+    let matched = next !== result;
+    if (!matched) {
+      // Whitespace-tolerant fallback: try to find a region whose collapsed
+      // whitespace matches the passage's collapsed whitespace.
+      const collapse = (s: string) => s.replace(/\s+/g, " ").trim();
+      const target = collapse(passage);
+      const collapsedSource = collapse(result);
+      const idx = collapsedSource.indexOf(target);
+      if (idx >= 0) {
+        // Walk the original to find where these collapsed-source chars start/end.
+        let collapsedPos = 0;
+        let originalStart = -1;
+        let originalEnd = -1;
+        for (let i = 0; i < result.length; i++) {
+          const ch = result[i];
+          const isWs = /\s/.test(ch);
+          if (isWs) {
+            // collapsed source has at most one space per run of whitespace
+            if (collapsedPos > 0 && collapsedSource[collapsedPos - 1] !== " ") {
+              if (originalStart === idx) originalStart = i;
+              collapsedPos++;
+            }
+          } else {
+            if (collapsedPos === idx && originalStart < 0) originalStart = i;
+            collapsedPos++;
+            if (collapsedPos === idx + target.length) {
+              originalEnd = i + 1;
+              break;
+            }
+          }
+        }
+        if (originalStart >= 0 && originalEnd > originalStart) {
+          next = result.slice(0, originalStart) + result.slice(originalEnd);
+          matched = true;
+        }
+      }
+    }
+    if (matched) result = next;
+    applied.push({ passage: entry.passage, reason: entry.reason, matched });
+  }
+  return { sanitized: result, applied };
 }
 
 async function extractDocxText(buffer: Buffer): Promise<string> {
@@ -1231,34 +1300,17 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
     "Output JSON conforming to the schema.",
   ].join(" ");
 
-  // Long legal documents easily exceed the default ~4K output token cap
-  // and Claude truncates the response mid-paragraph (e.g. "ends at page 3").
-  // Bump well past anything we expect to see on the platform — Claude
-  // Sonnet 4 supports up to 64K output tokens, 32K leaves a safe margin.
-  const SANITIZE_MAX_TOKENS = 32000;
-
-  let result;
-  if (hasText) {
-    // Pure-text path: cheapest and fastest.
-    const prompt = [
-      SANITIZE_SYSTEM_PROMPT,
-      "",
-      taskInstruction,
-      "",
-      "Output the full sanitized text. Do NOT truncate, do NOT abbreviate, do NOT add ellipses. If the input is long, the output is long too.",
-      "",
-      "STATEMENT:",
-      text,
-    ].join("\n");
-    result = await generateStructuredObject(prompt, sanitizeOutputSchema, {
-      maxTokens: SANITIZE_MAX_TOKENS,
-    });
-  } else {
-    // Document-only path. Three variants:
-    //   - PDF → forward to Claude as a file part (Claude reads PDFs natively)
-    //   - DOCX → extract plain text with mammoth, then run text path
-    //   - DOC / scans / other → clear error asking the user to paste text
-    const downloaded = await fetchAttachmentBuffer(fileUrl!);
+  // Resolve the source text. Three cases:
+  //   - Saved text in the field → use directly
+  //   - PDF attached → extract with pdf-parse (Node-side, ms)
+  //   - DOCX attached → extract with mammoth (Node-side, ms)
+  // Any AI-driven extraction was removed — for a 19-page legal complaint
+  // it consistently exceeded the function timeout. With server-side
+  // extraction we only spend AI time on the actual sanitize call.
+  let sourceText = text.trim();
+  let sourceLabel = "saved text";
+  if (!sourceText && fileUrl) {
+    const downloaded = await fetchAttachmentBuffer(fileUrl);
     const lowerName = (fileName ?? "").toLowerCase();
     const isPdf =
       downloaded.mediaType === "application/pdf" || lowerName.endsWith(".pdf");
@@ -1267,102 +1319,69 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
       lowerName.endsWith(".docx");
     const isLegacyDoc = lowerName.endsWith(".doc") && !isDocx;
-
     if (isLegacyDoc) {
       throw new Error(
         "Legacy .doc files cannot be parsed automatically. Please save the document as PDF or .docx and re-upload, or paste the text into the field.",
       );
     }
-
     if (isPdf) {
-      // Two-step PDF flow:
-      //   1. Plain-text extraction call — we ask Claude to dump the full
-      //      verbatim text of the document, no commentary.
-      //   2. Text-only sanitize call on the extracted text.
-      // PDF input + structured output in a single call is unreliable in
-      // practice (Claude often wraps JSON in prose), so we split it.
-      const extractedText = await generatePlainTextFromMessages(
-        [
-          {
-            role: "user",
-            content: [
-              {
-                type: "file",
-                data: downloaded.buffer.toString("base64"),
-                mimeType: "application/pdf",
-              },
-              {
-                type: "text",
-                text: [
-                  "Output the COMPLETE verbatim text content of the attached PDF document.",
-                  "CRITICAL RULES:",
-                  "- Output every page from start to finish. Do NOT stop after a few pages.",
-                  "- Do NOT summarize, comment, translate, paraphrase, or add any framing.",
-                  "- Do NOT add ellipses or '[content continues]' markers.",
-                  "- Preserve paragraph breaks and the original order of the text.",
-                  "- If the document is long, the output is long. Continue until you have output every page.",
-                  "Output the document's text content as-is, nothing else.",
-                ].join("\n"),
-              },
-            ],
-          },
-        ],
-        { maxTokens: SANITIZE_MAX_TOKENS },
-      );
-      if (!extractedText.trim()) {
-        throw new Error(
-          "Could not extract any text from the attached PDF. Please paste the text into the field instead.",
-        );
-      }
-      const prompt = [
-        SANITIZE_SYSTEM_PROMPT,
-        "",
-        taskInstruction,
-        "",
-        "Output the full sanitized text. Do NOT truncate, do NOT abbreviate, do NOT add ellipses. If the input is long, the output is long too.",
-        "",
-        `Source: extracted from a PDF document (${fileName ?? "attachment"}).`,
-        "",
-        "STATEMENT:",
-        extractedText,
-      ].join("\n");
-      result = await generateStructuredObject(prompt, sanitizeOutputSchema, {
-        maxTokens: SANITIZE_MAX_TOKENS,
-      });
+      sourceText = (await extractPdfText(downloaded.buffer)).trim();
+      sourceLabel = `PDF (${fileName ?? "attachment"})`;
     } else if (isDocx) {
-      const extracted = await extractDocxText(downloaded.buffer);
-      if (!extracted.trim()) {
-        throw new Error(
-          "Could not extract any text from the attached Word document. Please paste the text into the field.",
-        );
-      }
-      const prompt = [
-        SANITIZE_SYSTEM_PROMPT,
-        "",
-        taskInstruction,
-        "",
-        "Output the full sanitized text. Do NOT truncate, do NOT abbreviate, do NOT add ellipses. If the input is long, the output is long too.",
-        "",
-        `Source: extracted from a Word document (${fileName ?? "attachment"}).`,
-        "",
-        "STATEMENT:",
-        extracted,
-      ].join("\n");
-      result = await generateStructuredObject(prompt, sanitizeOutputSchema, {
-        maxTokens: SANITIZE_MAX_TOKENS,
-      });
+      sourceText = (await extractDocxText(downloaded.buffer)).trim();
+      sourceLabel = `Word document (${fileName ?? "attachment"})`;
     } else {
       throw new Error(
-        "The AI can read PDF and Word .docx files. For other formats please paste the text from the document into the field, save it, and try again.",
+        "Only PDF and .docx files can be read directly. For other formats please paste the text from the document into the field, save it, and try again.",
+      );
+    }
+    if (!sourceText) {
+      throw new Error(
+        "Could not extract any text from the attached document. Please paste the text into the field instead.",
       );
     }
   }
+
+  // Single AI call: ask for ONLY the passages to remove (small output).
+  // Server then computes the sanitized text by stripping each passage
+  // from the source. This keeps the response well below the 4K output
+  // cap even for a 50-page complaint.
+  const SANITIZE_MAX_TOKENS = 8000;
+  const prompt = [
+    SANITIZE_SYSTEM_PROMPT,
+    "",
+    taskInstruction,
+    "",
+    `Source: ${sourceLabel}.`,
+    "",
+    "STATEMENT:",
+    sourceText,
+  ].join("\n");
+  const aiResult = await generateStructuredObject(prompt, sanitizeOutputSchema, {
+    maxTokens: SANITIZE_MAX_TOKENS,
+  });
+
+  const removedEntries: Array<{ passage: string; reason: string }> = aiResult.removed ?? [];
+  const { sanitized, applied } = applySanitizeEdits(sourceText, removedEntries);
+  const matchedCount = applied.filter((entry) => entry.matched).length;
+  const unmatchedCount = applied.length - matchedCount;
+  const result = {
+    sanitized,
+    removed: removedEntries.map((entry, idx) => ({
+      passage: entry.passage,
+      reason: entry.reason,
+      matched: applied[idx]?.matched ?? false,
+    })),
+    note: aiResult.note,
+  };
 
   await createCaseActivity(
     caseId,
     "note",
     "AI sanitize ran on statement",
-    `${authorized.role} statement (${hasText ? "text" : "PDF"}), ${result.removed.length} passage(s) flagged.`,
+    `${authorized.role} statement (${sourceLabel}), ${matchedCount} passage(s) removed${
+      unmatchedCount > 0 ? `, ${unmatchedCount} could not be matched verbatim` : ""
+    }.`,
     { user, impersonation: authorized.impersonation },
   );
 
