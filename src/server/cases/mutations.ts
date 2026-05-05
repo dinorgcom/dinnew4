@@ -1231,6 +1231,12 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
     "Output JSON conforming to the schema.",
   ].join(" ");
 
+  // Long legal documents easily exceed the default ~4K output token cap
+  // and Claude truncates the response mid-paragraph (e.g. "ends at page 3").
+  // Bump well past anything we expect to see on the platform — Claude
+  // Sonnet 4 supports up to 64K output tokens, 32K leaves a safe margin.
+  const SANITIZE_MAX_TOKENS = 32000;
+
   let result;
   if (hasText) {
     // Pure-text path: cheapest and fastest.
@@ -1239,10 +1245,14 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
       "",
       taskInstruction,
       "",
+      "Output the full sanitized text. Do NOT truncate, do NOT abbreviate, do NOT add ellipses. If the input is long, the output is long too.",
+      "",
       "STATEMENT:",
       text,
     ].join("\n");
-    result = await generateStructuredObject(prompt, sanitizeOutputSchema);
+    result = await generateStructuredObject(prompt, sanitizeOutputSchema, {
+      maxTokens: SANITIZE_MAX_TOKENS,
+    });
   } else {
     // Document-only path. Three variants:
     //   - PDF → forward to Claude as a file part (Claude reads PDFs natively)
@@ -1271,26 +1281,34 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
       //   2. Text-only sanitize call on the extracted text.
       // PDF input + structured output in a single call is unreliable in
       // practice (Claude often wraps JSON in prose), so we split it.
-      const extractedText = await generatePlainTextFromMessages([
-        {
-          role: "user",
-          content: [
-            {
-              type: "file",
-              data: downloaded.buffer.toString("base64"),
-              mimeType: "application/pdf",
-            },
-            {
-              type: "text",
-              text: [
-                "Output ONLY the verbatim text content of the attached PDF document.",
-                "Preserve paragraph breaks. Do not summarize, comment, translate, or add any framing — just the document's text content as-is.",
-                "If the document has multiple pages, concatenate them.",
-              ].join("\n"),
-            },
-          ],
-        },
-      ]);
+      const extractedText = await generatePlainTextFromMessages(
+        [
+          {
+            role: "user",
+            content: [
+              {
+                type: "file",
+                data: downloaded.buffer.toString("base64"),
+                mimeType: "application/pdf",
+              },
+              {
+                type: "text",
+                text: [
+                  "Output the COMPLETE verbatim text content of the attached PDF document.",
+                  "CRITICAL RULES:",
+                  "- Output every page from start to finish. Do NOT stop after a few pages.",
+                  "- Do NOT summarize, comment, translate, paraphrase, or add any framing.",
+                  "- Do NOT add ellipses or '[content continues]' markers.",
+                  "- Preserve paragraph breaks and the original order of the text.",
+                  "- If the document is long, the output is long. Continue until you have output every page.",
+                  "Output the document's text content as-is, nothing else.",
+                ].join("\n"),
+              },
+            ],
+          },
+        ],
+        { maxTokens: SANITIZE_MAX_TOKENS },
+      );
       if (!extractedText.trim()) {
         throw new Error(
           "Could not extract any text from the attached PDF. Please paste the text into the field instead.",
@@ -1301,12 +1319,16 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
         "",
         taskInstruction,
         "",
+        "Output the full sanitized text. Do NOT truncate, do NOT abbreviate, do NOT add ellipses. If the input is long, the output is long too.",
+        "",
         `Source: extracted from a PDF document (${fileName ?? "attachment"}).`,
         "",
         "STATEMENT:",
         extractedText,
       ].join("\n");
-      result = await generateStructuredObject(prompt, sanitizeOutputSchema);
+      result = await generateStructuredObject(prompt, sanitizeOutputSchema, {
+        maxTokens: SANITIZE_MAX_TOKENS,
+      });
     } else if (isDocx) {
       const extracted = await extractDocxText(downloaded.buffer);
       if (!extracted.trim()) {
@@ -1319,12 +1341,16 @@ export async function sanitizeStatementForArbitration(user: AppUser, caseId: str
         "",
         taskInstruction,
         "",
+        "Output the full sanitized text. Do NOT truncate, do NOT abbreviate, do NOT add ellipses. If the input is long, the output is long too.",
+        "",
         `Source: extracted from a Word document (${fileName ?? "attachment"}).`,
         "",
         "STATEMENT:",
         extracted,
       ].join("\n");
-      result = await generateStructuredObject(prompt, sanitizeOutputSchema);
+      result = await generateStructuredObject(prompt, sanitizeOutputSchema, {
+        maxTokens: SANITIZE_MAX_TOKENS,
+      });
     } else {
       throw new Error(
         "The AI can read PDF and Word .docx files. For other formats please paste the text from the document into the field, save it, and try again.",

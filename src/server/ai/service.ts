@@ -56,12 +56,13 @@ export async function getModel() {
   throw new Error("No AI provider configured.");
 }
 
-export async function generatePlainText(prompt: string) {
+export async function generatePlainText(prompt: string, options?: { maxTokens?: number }) {
   const result = await generateText({
     model: await getModel(),
     prompt,
     // Explicitly avoid temperature for Claude 4 compatibility
     temperature: undefined,
+    maxTokens: options?.maxTokens,
   });
 
   return result.text;
@@ -70,6 +71,7 @@ export async function generatePlainText(prompt: string) {
 export async function generateStructuredObject<TSchema extends z.ZodTypeAny>(
   prompt: string,
   schema: TSchema,
+  options?: { maxTokens?: number },
 ) {
   const model = await getModel();
   const result = await generateObject({
@@ -78,6 +80,7 @@ export async function generateStructuredObject<TSchema extends z.ZodTypeAny>(
     schema,
     // Explicitly avoid temperature for Claude 4 compatibility
     temperature: undefined,
+    maxTokens: options?.maxTokens,
   });
 
   return result.object;
@@ -90,6 +93,7 @@ export async function generateStructuredObject<TSchema extends z.ZodTypeAny>(
 export async function generateStructuredObjectFromMessages<TSchema extends z.ZodTypeAny>(
   messages: CoreMessage[],
   schema: TSchema,
+  options?: { maxTokens?: number },
 ) {
   const model = await getModel();
   const result = await generateObject({
@@ -97,6 +101,7 @@ export async function generateStructuredObjectFromMessages<TSchema extends z.Zod
     messages,
     schema,
     temperature: undefined,
+    maxTokens: options?.maxTokens,
   });
 
   return result.object;
@@ -107,12 +112,16 @@ export async function generateStructuredObjectFromMessages<TSchema extends z.Zod
 // constrain Claude to a JSON schema. PDF + structured-output in one call
 // is flaky; doing extraction in plain text first and then a text-only
 // schema'd call is much more reliable.
-export async function generatePlainTextFromMessages(messages: CoreMessage[]) {
+export async function generatePlainTextFromMessages(
+  messages: CoreMessage[],
+  options?: { maxTokens?: number },
+) {
   const model = await getModel();
   const result = await generateText({
     model,
     messages,
     temperature: undefined,
+    maxTokens: options?.maxTokens,
   });
   return result.text;
 }
