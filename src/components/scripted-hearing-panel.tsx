@@ -188,6 +188,17 @@ export function ScriptedHearingPanel({
     );
   }
 
+  function sessionStatusClasses(status: string) {
+    if (status === "in_progress") return "border-amber-200 bg-amber-50 text-amber-800";
+    if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    return "border-rose-200 bg-rose-50 text-rose-800";
+  }
+
+  function sessionStatusLabel(session: HearingSession) {
+    const role = session.participantRole.charAt(0).toUpperCase() + session.participantRole.slice(1);
+    return `${role} Hearing ${session.status.replaceAll("_", " ")}`;
+  }
+
   return (
     <section className="rounded-md border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -198,14 +209,20 @@ export function ScriptedHearingPanel({
             The judge prepares a script after discovery and KYC, asks each party for a narrative, then works through contradictions and evidence.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={generatePreparation}
-          className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
-        >
-          {flow?.preparation ? "Regenerate scripts" : "Generate scripts"}
-        </button>
+        {!flow?.preparation ? (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={generatePreparation}
+            className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+          >
+            Generate scripts
+          </button>
+        ) : activeSession ? (
+          <div className={`rounded-md border px-3 py-2 text-sm font-semibold capitalize ${sessionStatusClasses(activeSession.status)}`}>
+            {sessionStatusLabel(activeSession)}
+          </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -241,27 +258,29 @@ export function ScriptedHearingPanel({
           No scripted hearing has been prepared yet.
         </div>
       ) : (
-        <div className="mt-5 grid gap-5 lg:grid-cols-[240px_1fr]">
-          <div className="space-y-2">
-            {visibleSessions.map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => setActiveSessionId(session.id)}
-                className={`w-full rounded-md border px-3 py-3 text-left text-sm transition ${
-                  activeSession?.id === session.id
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                }`}
-              >
-                <div className="font-semibold capitalize">{session.participantRole} hearing</div>
-                <div className="mt-1 text-xs opacity-75">{session.status.replaceAll("_", " ")}</div>
-              </button>
-            ))}
-          </div>
+        <div className="mt-5 space-y-4">
+          {visibleSessions.length > 1 ? (
+            <div className="flex flex-wrap gap-2">
+              {visibleSessions.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => setActiveSessionId(session.id)}
+                  className={`rounded-md border px-3 py-2 text-left text-sm transition ${
+                    activeSession?.id === session.id
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="font-semibold capitalize">{session.participantRole} hearing</span>
+                  <span className="ml-2 text-xs opacity-75">{session.status.replaceAll("_", " ")}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           {activeSession ? (
-            <div className="rounded-md border border-slate-200">
+            <div className="w-full rounded-md border border-slate-200">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold capitalize text-slate-900">

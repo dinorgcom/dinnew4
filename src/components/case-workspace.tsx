@@ -89,6 +89,12 @@ type EvidenceContext = {
   conclusionForJudge?: string | null;
 };
 
+type EvidenceForm = {
+  notes: string;
+  context: EvidenceContext;
+  attachment: FileReference | null;
+};
+
 const evidenceContextFields: Array<{ key: keyof EvidenceContext; label: string; help: string }> = [
   {
     key: "whatThisEvidenceIs",
@@ -126,6 +132,74 @@ const evidenceContextFields: Array<{ key: keyof EvidenceContext; label: string; 
     help: "Explain what conclusion you think the judge should draw from this evidence.",
   },
 ];
+
+function emptyEvidenceContext(): EvidenceContext {
+  return {
+    whatThisEvidenceIs: "",
+    whatThisEvidenceShows: "",
+    importantDatesOrEvents: "",
+    relatedClaimOrDefense: "",
+    peopleOrCompaniesInvolved: "",
+    authenticityOrCompleteness: "",
+    conclusionForJudge: "",
+  };
+}
+
+function emptyEvidenceForm(): EvidenceForm {
+  return {
+    notes: "",
+    context: emptyEvidenceContext(),
+    attachment: null,
+  };
+}
+
+function inferEvidenceType(attachment: FileReference | null, context: EvidenceContext) {
+  const contentType = (attachment?.contentType || "").toLowerCase();
+  const fileName = (attachment?.fileName || "").toLowerCase();
+  const contextText = Object.values(context).filter(Boolean).join(" ").toLowerCase();
+
+  if (contentType.startsWith("image/")) return "photo";
+  if (contentType.startsWith("video/")) return "video";
+  if (contentType.startsWith("audio/")) return "audio";
+  if (/\.(png|jpe?g|gif|webp|heic|tiff?)$/.test(fileName)) return "photo";
+  if (/\.(mp4|mov|avi|webm|mkv)$/.test(fileName)) return "video";
+  if (/\.(mp3|wav|m4a|aac|ogg)$/.test(fileName)) return "audio";
+  if (/\.(xls|xlsx|csv|ofx|qif)$/.test(fileName) || /\b(bank|receipt|invoice|payment|transfer|financial)\b/.test(contextText)) {
+    return "financial_record";
+  }
+  if (/\b(contract|agreement|terms)\b/.test(contextText) || /\bcontract\b/.test(fileName)) return "contract";
+  if (/\b(email|message|whatsapp|letter|correspondence)\b/.test(contextText) || /\.(eml|msg)$/.test(fileName)) {
+    return "correspondence";
+  }
+  if (/\bexpert report\b/.test(contextText)) return "expert_report";
+  return "document";
+}
+
+function compactText(value: string | null | undefined, fallback = "") {
+  return (value || "").trim() || fallback;
+}
+
+function buildEvidencePayload(form: EvidenceForm) {
+  const titleSource =
+    compactText(form.context.whatThisEvidenceIs) ||
+    compactText(form.attachment?.fileName) ||
+    compactText(form.context.whatThisEvidenceShows) ||
+    "Evidence";
+  const title = titleSource.length > 120 ? `${titleSource.slice(0, 117)}...` : titleSource;
+  const description =
+    compactText(form.context.whatThisEvidenceShows) ||
+    compactText(form.context.whatThisEvidenceIs) ||
+    null;
+
+  return {
+    title,
+    description,
+    type: inferEvidenceType(form.attachment, form.context),
+    notes: form.notes,
+    context: form.context,
+    attachment: form.attachment,
+  };
+}
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -847,22 +921,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const expertiseFileRef = useRef<HTMLInputElement | null>(null);
   const messageFileRef = useRef<HTMLInputElement | null>(null);
   const [forms, setForms] = useState({
-    evidence: {
-      title: "",
-      description: "",
-      type: "document",
-      notes: "",
-      context: {
-        whatThisEvidenceIs: "",
-        whatThisEvidenceShows: "",
-        importantDatesOrEvents: "",
-        relatedClaimOrDefense: "",
-        peopleOrCompaniesInvolved: "",
-        authenticityOrCompleteness: "",
-        conclusionForJudge: "",
-      } as EvidenceContext,
-      attachment: null as FileReference | null,
-    },
+    evidence: emptyEvidenceForm(),
     witness: {
       fullName: "",
       email: "",
@@ -1375,70 +1434,36 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               onSubmit={(event) => {
                 event.preventDefault();
                 startTransition(async () => {
-                  const success = await submit(`/api/cases/${props.caseId}/evidence`, forms.evidence);
+                  const success = await submit(`/api/cases/${props.caseId}/evidence`, buildEvidencePayload(forms.evidence));
                   if (success) {
                     setForms((current) => ({
                       ...current,
-                      evidence: {
-                        title: "",
-                        description: "",
-                        type: "document",
-                        notes: "",
-                        context: {
-                          whatThisEvidenceIs: "",
-                          whatThisEvidenceShows: "",
-                          importantDatesOrEvents: "",
-                          relatedClaimOrDefense: "",
-                          peopleOrCompaniesInvolved: "",
-                          authenticityOrCompleteness: "",
-                          conclusionForJudge: "",
-                        },
-                        attachment: null,
-                      },
+                      evidence: emptyEvidenceForm(),
                     }));
                   }
                 });
               }}
             >
-              <input
-                value={forms.evidence.title}
-                onChange={(event) =>
-                  setForms((current) => ({
-                    ...current,
-                    evidence: { ...current.evidence, title: event.target.value },
-                  }))
-                }
-                placeholder="Evidence title"
-                className="rounded-md border border-slate-300 px-4 py-3 text-sm"
-              />
-              <select
-                value={forms.evidence.type}
-                onChange={(event) =>
-                  setForms((current) => ({
-                    ...current,
-                    evidence: { ...current.evidence, type: event.target.value },
-                  }))
-                }
-                className="rounded-md border border-slate-300 px-4 py-3 text-sm"
-              >
-                {["document", "contract", "correspondence", "photo", "video", "audio", "financial_record", "expert_report", "other"].map((type) => (
-                  <option key={type} value={type}>
-                    {type.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </select>
-              <textarea
-                value={forms.evidence.description}
-                onChange={(event) =>
-                  setForms((current) => ({
-                    ...current,
-                    evidence: { ...current.evidence, description: event.target.value },
-                  }))
-                }
-                placeholder="Description"
-                rows={3}
-                className="rounded-md border border-slate-300 px-4 py-3 text-sm md:col-span-2"
-              />
+              <div className="md:col-span-2 flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-slate-300 bg-white px-4 py-5 text-center">
+                <input ref={evidenceFileRef} type="file" className="hidden" onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  void handleUpload("evidence", file, (attachment) =>
+                    setForms((current) => ({
+                      ...current,
+                      evidence: { ...current.evidence, attachment },
+                    })),
+                  );
+                }} />
+                {attachmentBadge(forms.evidence.attachment)}
+                <button
+                  type="button"
+                  onClick={() => evidenceFileRef.current?.click()}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                >
+                  {uploadingKey === "evidence" ? "Uploading..." : forms.evidence.attachment ? "Replace file" : "Attach file"}
+                </button>
+              </div>
               <div className="md:col-span-2 grid gap-3 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <div className="text-sm font-semibold text-slate-900">Evidence context for the judge</div>
@@ -1469,26 +1494,6 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                     />
                   </label>
                 ))}
-              </div>
-              {attachmentBadge(forms.evidence.attachment)}
-              <div className="md:col-span-2">
-                <input ref={evidenceFileRef} type="file" className="hidden" onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) return;
-                  void handleUpload("evidence", file, (attachment) =>
-                    setForms((current) => ({
-                      ...current,
-                      evidence: { ...current.evidence, attachment },
-                    })),
-                  );
-                }} />
-                <button
-                  type="button"
-                  onClick={() => evidenceFileRef.current?.click()}
-                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
-                >
-                  {uploadingKey === "evidence" ? "Uploading..." : "Attach file"}
-                </button>
               </div>
               <button
                 type="submit"
