@@ -1,7 +1,7 @@
 import { get, head } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { caseMessages, consultants, evidence, expertiseRequests, lawyers, witnesses } from "@/db/schema";
+import { caseMessages, cases, consultants, evidence, expertiseRequests, lawyers, witnesses } from "@/db/schema";
 import { env } from "@/lib/env";
 import { ensureAppUser } from "@/server/auth/provision";
 import { getAuthorizedCase } from "@/server/cases/access";
@@ -176,6 +176,34 @@ export async function GET(request: Request, { params }: RouteProps) {
       return new Response("Forbidden", { status: 403 });
     }
     return serveBlob(selected.url, { download, fileName: selected.fileName ?? null });
+  }
+
+  // Case-level assets (currently the per-side statement attachment).
+  // recordId is the caseId; ?asset selects which slot.
+  if (entity === "case") {
+    const asset = requestUrl.searchParams.get("asset");
+    const rows = await db.select().from(cases).where(eq(cases.id, recordId)).limit(1);
+    const record = rows[0];
+    if (!record) {
+      return new Response("Not found", { status: 404 });
+    }
+    const authorized = await getAuthorizedCase(user, record.id);
+    if (!authorized) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    let sourceUrl: string | null = null;
+    let fileName: string | null = null;
+    if (asset === "claimant-statement") {
+      sourceUrl = record.claimantStatementFileUrl ?? null;
+      fileName = record.claimantStatementFileName ?? null;
+    } else if (asset === "respondent-statement") {
+      sourceUrl = record.respondentStatementFileUrl ?? null;
+      fileName = record.respondentStatementFileName ?? null;
+    }
+    if (!sourceUrl) {
+      return new Response("Not found", { status: 404 });
+    }
+    return serveBlob(sourceUrl, { download, fileName });
   }
 
   return new Response("Not found", { status: 404 });

@@ -49,6 +49,14 @@ export const cases = pgTable(
     // kept for back-compat with old rows but no longer written by the UI.
     claimantStatement: text("claimant_statement"),
     respondentStatement: text("respondent_statement"),
+    // Optional document upload that backs the free-form statement —
+    // typically a PDF or Word file containing the original pleading.
+    claimantStatementFileUrl: text("claimant_statement_file_url"),
+    claimantStatementFilePathname: text("claimant_statement_file_pathname"),
+    claimantStatementFileName: text("claimant_statement_file_name"),
+    respondentStatementFileUrl: text("respondent_statement_file_url"),
+    respondentStatementFilePathname: text("respondent_statement_file_pathname"),
+    respondentStatementFileName: text("respondent_statement_file_name"),
     arbitratorAssignedName: text("arbitrator_assigned_name"),
     arbitratorAssignedUserId: text("arbitrator_assigned_user_id"),
     claimantLawyerKey: text("claimant_lawyer_key"),

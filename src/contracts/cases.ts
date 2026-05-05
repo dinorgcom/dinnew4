@@ -62,9 +62,23 @@ export const caseMutationSchema = z.object({
 });
 
 // Replaces caseClaimsUpdateSchema. The server infers which side the
-// caller is on from their case role; the body just carries the new text.
+// caller is on from their case role; the body carries the new text and
+// an optional attached document (PDF/Word/etc) that holds the same
+// statement in its original form. removeAttachment=true clears any
+// existing attachment without touching the text.
 export const caseStatementUpdateSchema = z.object({
-  statement: z.string().trim().max(20000),
+  statement: z.string().trim().default(""),
+  attachment: z
+    .object({
+      url: z.string().url(),
+      pathname: z.string(),
+      fileName: z.string(),
+      contentType: z.string().optional().nullable(),
+      size: z.number().optional().nullable(),
+    })
+    .optional()
+    .nullable(),
+  removeAttachment: z.boolean().optional(),
 });
 
 // Kept for back-compat with the old endpoint, but no UI sends it now.

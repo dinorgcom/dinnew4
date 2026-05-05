@@ -1082,24 +1082,70 @@ export async function updateCaseStatement(user: AppUser, caseId: string, payload
   }
 
   const parsed = caseStatementUpdateSchema.parse(payload);
-  const cleaned = parsed.statement.trim() || null;
+  const cleanedText = parsed.statement.trim() || null;
+  const isClaimant = authorized.role === "claimant";
+
+  // Resolve attachment field: explicit replacement, explicit removal, or
+  // leave as-is. The user can save text changes without touching the file
+  // by passing only `statement`.
+  const currentFileUrl = isClaimant
+    ? authorized.case.claimantStatementFileUrl
+    : authorized.case.respondentStatementFileUrl;
+  const currentFilePath = isClaimant
+    ? authorized.case.claimantStatementFilePathname
+    : authorized.case.respondentStatementFilePathname;
+  const currentFileName = isClaimant
+    ? authorized.case.claimantStatementFileName
+    : authorized.case.respondentStatementFileName;
+
+  let nextFileUrl: string | null = currentFileUrl ?? null;
+  let nextFilePath: string | null = currentFilePath ?? null;
+  let nextFileName: string | null = currentFileName ?? null;
+  if (parsed.removeAttachment) {
+    nextFileUrl = null;
+    nextFilePath = null;
+    nextFileName = null;
+  } else if (parsed.attachment) {
+    nextFileUrl = parsed.attachment.url;
+    nextFilePath = parsed.attachment.pathname;
+    nextFileName = parsed.attachment.fileName;
+  }
+
   const db = getDb();
+  const update = isClaimant
+    ? {
+        claimantStatement: cleanedText,
+        claimantStatementFileUrl: nextFileUrl,
+        claimantStatementFilePathname: nextFilePath,
+        claimantStatementFileName: nextFileName,
+      }
+    : {
+        respondentStatement: cleanedText,
+        respondentStatementFileUrl: nextFileUrl,
+        respondentStatementFilePathname: nextFilePath,
+        respondentStatementFileName: nextFileName,
+      };
 
   const updated = await db
     .update(cases)
-    .set(
-      authorized.role === "claimant"
-        ? { claimantStatement: cleaned }
-        : { respondentStatement: cleaned },
-    )
+    .set(update)
     .where(eq(cases.id, caseId))
     .returning();
+
+  const summary =
+    cleanedText && nextFileUrl
+      ? "Statement and document saved."
+      : cleanedText
+        ? "Statement saved."
+        : nextFileUrl
+          ? "Document saved."
+          : "Statement cleared.";
 
   await createCaseActivity(
     caseId,
     "note",
-    authorized.role === "claimant" ? "Claimant statement updated" : "Respondent statement updated",
-    cleaned ? "Statement saved." : "Statement cleared.",
+    isClaimant ? "Claimant statement updated" : "Respondent statement updated",
+    summary,
     { user, impersonation: authorized.impersonation },
   );
 

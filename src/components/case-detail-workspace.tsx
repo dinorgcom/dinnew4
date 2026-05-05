@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
+import { upload as blobUpload } from "@vercel/blob/client";
 import { CaseWorkspace } from "@/components/case-workspace";
 import { LawyersPanel } from "@/components/lawyers-panel";
 import { AdditionalPartiesSection } from "@/components/additional-parties-panel";
@@ -80,6 +81,12 @@ type CaseDetailWorkspaceProps = {
       respondentClaims: Record<string, unknown>[] | null;
       claimantStatement?: string | null;
       respondentStatement?: string | null;
+      claimantStatementFileUrl?: string | null;
+      claimantStatementFilePathname?: string | null;
+      claimantStatementFileName?: string | null;
+      respondentStatementFileUrl?: string | null;
+      respondentStatementFilePathname?: string | null;
+      respondentStatementFileName?: string | null;
       claimantLawyerKey: string | null;
       respondentLawyerKey?: string | null;
       respondentLinkedAt?: string | Date | null;
@@ -233,7 +240,9 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     detail.case.respondentStatement ?? "",
   );
   const [statementSaving, setStatementSaving] = useState(false);
+  const [statementUploading, setStatementUploading] = useState(false);
   const [statementError, setStatementError] = useState<string | null>(null);
+  const statementFileInputRef = useRef<HTMLInputElement | null>(null);
   const [arbitrator, setArbitrator] = useState(detail.case.arbitratorAssignedName || "");
   const [error, setError] = useState<string | null>(null);
   const [contactsError, setContactsError] = useState<string | null>(null);
@@ -269,8 +278,12 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   // statement columns so existing cases stay intact.
   const claimsSubmitted =
     !!(detail.case.claimantStatement || "").trim() ||
-    !!(detail.case.respondentStatement || "").trim();
-  const respondentDefenceSubmitted = !!(detail.case.respondentStatement || "").trim();
+    !!(detail.case.respondentStatement || "").trim() ||
+    !!detail.case.claimantStatementFileUrl ||
+    !!detail.case.respondentStatementFileUrl;
+  const respondentDefenceSubmitted =
+    !!(detail.case.respondentStatement || "").trim() ||
+    !!detail.case.respondentStatementFileUrl;
   const discoveryStarted =
     detail.evidence.length > 0
     || detail.witnesses.length > 0
@@ -337,9 +350,13 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
   const activeStageIndex = firstPendingIndex === -1 ? progressStages.length - 1 : firstPendingIndex;
 
   // Calculate tab counts. The Claims tab shows 0/1/2 based on which sides
-  // have posted their statement.
-  const claimantHasStatement = !!(detail.case.claimantStatement || "").trim();
-  const respondentHasStatement = !!(detail.case.respondentStatement || "").trim();
+  // have posted their statement (text or attached document).
+  const claimantHasStatement =
+    !!(detail.case.claimantStatement || "").trim() ||
+    !!detail.case.claimantStatementFileUrl;
+  const respondentHasStatement =
+    !!(detail.case.respondentStatement || "").trim() ||
+    !!detail.case.respondentStatementFileUrl;
   const tabCounts = {
     claims: (claimantHasStatement ? 1 : 0) + (respondentHasStatement ? 1 : 0),
     evidence: detail.evidence.length,
@@ -640,6 +657,30 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
     );
   }
 
+  type StatementUpdateBody = {
+    statement: string;
+    attachment?: {
+      url: string;
+      pathname: string;
+      fileName: string;
+      contentType?: string | null;
+      size?: number | null;
+    };
+    removeAttachment?: boolean;
+  };
+
+  async function postStatementUpdate(body: StatementUpdateBody) {
+    const response = await fetch(`/api/cases/${detail.case.id}/statement`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error?.message || "Failed to save statement.");
+    }
+  }
+
   async function saveStatement() {
     setStatementError(null);
     setStatementSaving(true);
@@ -648,17 +689,68 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       const isRespondent = detail.role === "respondent";
       if (!isClaimant && !isRespondent) return;
       const text = (isClaimant ? claimantStatement : respondentStatement) ?? "";
-      const response = await fetch(`/api/cases/${detail.case.id}/statement`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ statement: text }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setStatementError(body?.error?.message || "Failed to save statement.");
+      await postStatementUpdate({ statement: text });
+      router.refresh();
+    } catch (err) {
+      setStatementError(err instanceof Error ? err.message : "Failed to save statement.");
+    } finally {
+      setStatementSaving(false);
+    }
+  }
+
+  async function uploadStatementFile(file: File) {
+    setStatementError(null);
+    setStatementUploading(true);
+    try {
+      const isClaimant = detail.role === "claimant";
+      const isRespondent = detail.role === "respondent";
+      if (!isClaimant && !isRespondent) return;
+
+      const MAX_BYTES = 100 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        setStatementError("File too large — 100 MB maximum.");
         return;
       }
+      const blob = await blobUpload(file.name || "statement.pdf", file, {
+        access: "private",
+        handleUploadUrl: `/api/cases/${detail.case.id}/uploads/token`,
+        clientPayload: JSON.stringify({ category: "statement" }),
+      });
+      const text = (isClaimant ? claimantStatement : respondentStatement) ?? "";
+      await postStatementUpdate({
+        statement: text,
+        attachment: {
+          url: blob.url,
+          pathname: blob.pathname,
+          fileName: file.name,
+          contentType: file.type || null,
+          size: file.size || null,
+        },
+      });
       router.refresh();
+    } catch (err) {
+      setStatementError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setStatementUploading(false);
+      if (statementFileInputRef.current) {
+        statementFileInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function removeStatementFile() {
+    if (!confirm("Remove the attached statement document?")) return;
+    setStatementError(null);
+    setStatementSaving(true);
+    try {
+      const isClaimant = detail.role === "claimant";
+      const isRespondent = detail.role === "respondent";
+      if (!isClaimant && !isRespondent) return;
+      const text = (isClaimant ? claimantStatement : respondentStatement) ?? "";
+      await postStatementUpdate({ statement: text, removeAttachment: true });
+      router.refresh();
+    } catch (err) {
+      setStatementError(err instanceof Error ? err.message : "Failed to remove document.");
     } finally {
       setStatementSaving(false);
     }
@@ -679,6 +771,16 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ? "State the claim against the respondent here. Plain language is fine."
       : "Write your response to the claimant's statement here.";
     const dirty = canEdit && (value ?? "") !== original;
+
+    const fileUrl = isClaimantSide
+      ? detail.case.claimantStatementFileUrl
+      : detail.case.respondentStatementFileUrl;
+    const fileName = isClaimantSide
+      ? detail.case.claimantStatementFileName
+      : detail.case.respondentStatementFileName;
+    const downloadHref = fileUrl
+      ? (`/api/files/case/${detail.case.id}?asset=${side}-statement` as Route)
+      : null;
 
     return (
       <section className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
@@ -704,26 +806,96 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             rows={10}
             className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm leading-7"
           />
-        ) : original.trim().length === 0 ? (
+        ) : original.trim().length === 0 && !downloadHref ? (
           <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-500">
             {isClaimantSide
               ? "The claimant has not posted a statement yet."
               : "The respondent has not posted a response yet."}
           </div>
-        ) : (
+        ) : original.trim().length > 0 ? (
           <div className="whitespace-pre-wrap rounded-md bg-slate-50 p-4 text-sm leading-7 text-slate-700">
             {original}
           </div>
-        )}
+        ) : null}
+
+        {downloadHref ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+            <svg
+              className="h-4 w-4 text-slate-500"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6"
+              />
+            </svg>
+            <span className="font-medium text-slate-700">
+              Attached: {fileName || "statement document"}
+            </span>
+            <Link
+              href={downloadHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-700 hover:border-slate-400"
+            >
+              View
+            </Link>
+            <a
+              href={`${downloadHref}${(downloadHref as string).includes("?") ? "&" : "?"}download=1` as Route}
+              download={fileName || "statement.pdf"}
+              className="rounded-md bg-ink px-2 py-0.5 font-medium text-white hover:bg-slate-800"
+            >
+              Download
+            </a>
+            {canEdit ? (
+              <button
+                type="button"
+                disabled={statementSaving || statementUploading}
+                onClick={() => void removeStatementFile()}
+                className="rounded-md border border-rose-300 px-2 py-0.5 font-medium text-rose-700 hover:border-rose-400 disabled:opacity-60"
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {canEdit ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs text-slate-500">
-              {dirty ? "Unsaved changes." : "Up to date."}
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={statementFileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void uploadStatementFile(file);
+                }}
+              />
+              <button
+                type="button"
+                disabled={statementSaving || statementUploading}
+                onClick={() => statementFileInputRef.current?.click()}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
+              >
+                {statementUploading
+                  ? "Uploading..."
+                  : downloadHref
+                    ? "Replace document"
+                    : "Attach document (PDF/Word)"}
+              </button>
+              <span className="text-xs text-slate-500">
+                {dirty ? "Unsaved text changes." : "Up to date."}
+              </span>
             </div>
             <button
               type="button"
-              disabled={statementSaving || !dirty}
+              disabled={statementSaving || statementUploading || !dirty}
               onClick={() => void saveStatement()}
               className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
