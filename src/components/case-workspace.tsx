@@ -913,6 +913,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedWitness, setExpandedWitness] = useState<string | null>(null);
+  // Drag-state for the evidence drop zone — flips on dragenter, off on
+  // dragleave/drop. Used purely for visual feedback (border/background).
+  const [evidenceDragOver, setEvidenceDragOver] = useState(false);
   const [expandedConsultant, setExpandedConsultant] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const evidenceFileRef = useRef<HTMLInputElement | null>(null);
@@ -1444,7 +1447,48 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 });
               }}
             >
-              <div className="md:col-span-2 flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-slate-300 bg-white px-4 py-5 text-center">
+              <div
+                className={`md:col-span-2 flex flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed px-4 py-8 text-center transition ${
+                  evidenceDragOver
+                    ? "border-rose-500 bg-rose-50/60"
+                    : "border-slate-300 bg-white"
+                }`}
+                onDragEnter={(event) => {
+                  if (uploadingKey === "evidence") return;
+                  // Only react to drags carrying files. Internal text/HTML
+                  // drags (e.g. browser-internal selections) are ignored.
+                  if (event.dataTransfer?.types?.includes("Files")) {
+                    event.preventDefault();
+                    setEvidenceDragOver(true);
+                  }
+                }}
+                onDragOver={(event) => {
+                  if (event.dataTransfer?.types?.includes("Files")) {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "copy";
+                  }
+                }}
+                onDragLeave={(event) => {
+                  // Only clear when leaving the drop zone itself, not when
+                  // moving between child elements.
+                  if (event.currentTarget === event.target) {
+                    setEvidenceDragOver(false);
+                  }
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setEvidenceDragOver(false);
+                  if (uploadingKey === "evidence") return;
+                  const file = event.dataTransfer?.files?.[0];
+                  if (!file) return;
+                  void handleUpload("evidence", file, (attachment) =>
+                    setForms((current) => ({
+                      ...current,
+                      evidence: { ...current.evidence, attachment },
+                    })),
+                  );
+                }}
+              >
                 <input ref={evidenceFileRef} type="file" className="hidden" onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (!file) return;
@@ -1455,13 +1499,40 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                     })),
                   );
                 }} />
+                <svg
+                  className={`h-8 w-8 ${evidenceDragOver ? "text-rose-500" : "text-slate-400"}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
+                  />
+                </svg>
+                <div className="text-sm font-medium text-slate-700">
+                  {evidenceDragOver
+                    ? "Drop file to upload"
+                    : "Drag a file here, or click to browse"}
+                </div>
+                <div className="text-xs text-slate-500">
+                  PDF, images, audio, video, Word, Excel — up to 100 MB
+                </div>
                 {attachmentBadge(forms.evidence.attachment)}
                 <button
                   type="button"
                   onClick={() => evidenceFileRef.current?.click()}
-                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                  disabled={uploadingKey === "evidence"}
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 disabled:opacity-60"
                 >
-                  {uploadingKey === "evidence" ? "Uploading..." : forms.evidence.attachment ? "Replace file" : "Attach file"}
+                  {uploadingKey === "evidence"
+                    ? "Uploading..."
+                    : forms.evidence.attachment
+                      ? "Replace file"
+                      : "Browse files"}
                 </button>
               </div>
               <div className="md:col-span-2 grid gap-3 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
