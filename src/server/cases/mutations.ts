@@ -10,6 +10,7 @@ import {
   expertiseRequests,
   kycVerifications,
   lawyers,
+  pleadings,
   users,
   witnesses,
   hearings,
@@ -211,6 +212,34 @@ export async function createCase(user: AppUser, payload: unknown) {
     .returning();
 
   const caseItem = inserted[0];
+  const initialPleadings: Array<typeof pleadings.$inferInsert> = [];
+  const claimantStatement = parsed.claimantStatement?.trim();
+  const respondentStatement = parsed.respondentStatement?.trim();
+
+  if (claimantStatement) {
+    initialPleadings.push({
+      caseId: caseItem.id,
+      side: "claimant",
+      round: 1,
+      text: claimantStatement,
+      submittedByUserId: user?.id ?? null,
+    });
+  }
+
+  if (respondentStatement) {
+    initialPleadings.push({
+      caseId: caseItem.id,
+      side: "respondent",
+      round: 1,
+      text: respondentStatement,
+      submittedByUserId: user?.id ?? null,
+    });
+  }
+
+  if (initialPleadings.length > 0) {
+    await db.insert(pleadings).values(initialPleadings);
+  }
+
   await createCaseActivity(
     caseItem.id,
     saveMode === "file" ? "filing" : "note",

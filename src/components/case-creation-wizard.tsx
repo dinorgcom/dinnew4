@@ -388,34 +388,39 @@ export function CaseCreationWizard({
 
             {filerRole === "claimant" ? (
               <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <div className="text-sm font-semibold text-slate-700">Add your claims now?</div>
-                <p className="mt-1 text-xs text-slate-500">
-                  As the claimant you can either spell out what you are asking for now, or
-                  invite the other side first and add claims later. Most filers add claims
-                  later — it is rarely useful to spell them out before the other side joins.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-700">Add claims</div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      As the claimant you can either spell out what you are asking for now, or
+                      invite the other side first and add claims later. Most filers add claims
+                      later — it is rarely useful to spell them out before the other side joins.
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setIncludeClaims(false)}
-                    className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
-                      !includeClaims
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-300 text-slate-700"
-                    }`}
-                  >
-                    Skip claims for now
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIncludeClaims(true)}
-                    className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+                    role="switch"
+                    aria-checked={includeClaims}
+                    onClick={() => setIncludeClaims((current) => !current)}
+                    className={`flex shrink-0 items-center gap-2 rounded-full border px-1.5 py-1 text-xs font-semibold transition ${
                       includeClaims
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-300 text-slate-700"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                        : "border-slate-300 bg-white text-slate-600"
                     }`}
                   >
-                    Add claims now
+                    <span
+                      className={`relative h-5 w-9 rounded-full transition ${
+                        includeClaims ? "bg-emerald-500" : "bg-slate-300"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      <span
+                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                          includeClaims ? "left-4" : "left-0.5"
+                        }`}
+                      />
+                    </span>
+                    <span>{includeClaims ? "On" : "Off"}</span>
                   </button>
                 </div>
               </div>
