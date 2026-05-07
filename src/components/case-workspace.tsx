@@ -1535,17 +1535,17 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                       : "Browse files"}
                 </button>
               </div>
-              <div className="md:col-span-2 grid gap-3 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
+              <div className="md:col-span-2 grid gap-4 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <div className="text-sm font-semibold text-slate-900">Evidence context for the judge</div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
                     These fields help the judge understand what the evidence means and when to surface it during the hearing.
                   </p>
                 </div>
                 {evidenceContextFields.map((field) => (
-                  <label key={field.key} className="space-y-1">
-                    <span className="text-sm font-medium text-slate-700">{field.label}</span>
-                    <span className="block text-xs leading-5 text-slate-500">{field.help}</span>
+                  <label key={field.key} className="grid gap-1.5">
+                    <span className="flex min-h-10 items-end text-sm font-medium leading-5 text-slate-700">{field.label}</span>
+                    <span className="block min-h-12 text-sm leading-6 text-slate-500">{field.help}</span>
                     <textarea
                       value={forms.evidence.context[field.key] || ""}
                       onChange={(event) =>
@@ -1561,7 +1561,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                         }))
                       }
                       rows={3}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm leading-6"
                     />
                   </label>
                 ))}
