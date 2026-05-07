@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { upload } from "@vercel/blob/client";
 import { ACTION_COSTS } from "@/server/billing/config";
+import { formatTokenCost } from "@/lib/utils";
 
 type FileReference = {
   url: string;
@@ -320,7 +321,7 @@ export function LawyersPanel({ caseId, caseRole, canContribute, lawyers }: Lawye
             disabled={isPending || uploading || !!emailError || !!nameError}
             className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
           >
-            Add lawyer ({ACTION_COSTS.lawyer_create} tokens)
+            Add lawyer ({formatTokenCost(ACTION_COSTS.lawyer_create)})
           </button>
         </form>
       ) : null}

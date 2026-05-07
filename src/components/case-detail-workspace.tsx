@@ -22,6 +22,7 @@ import { ExistingHearings } from "./existing-hearings";
 import { JudgementPanel } from "@/components/judgement-panel";
 import { LivekitAnamPanel } from "@/components/livekit-anam-panel";
 import { getLawyerById } from "@/lib/lawyers";
+import { formatTokenCost } from "@/lib/utils";
 import { formatCurrency, formatDateTime } from "@/server/format";
 import { resolveCaseClaimant, resolveCaseRespondent, type KycStatus } from "@/server/identity/resolve";
 
@@ -1116,7 +1117,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
               >
                 {translatingDoc === side
                   ? `Translating to ${caseLanguage.toUpperCase()}... (this can take ~30s)`
-                  : `Translate document to ${caseLanguage.toUpperCase()} (${ACTION_COSTS.document_translate} tokens)`}
+                  : `Translate document to ${caseLanguage.toUpperCase()} (${formatTokenCost(ACTION_COSTS.document_translate)})`}
               </button>
             )}
           </div>
@@ -1160,7 +1161,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
           >
             {translating === side
               ? "Translating..."
-              : `Translate text to ${caseLanguage.toUpperCase()} (${ACTION_COSTS.statement_translate} tokens)`}
+              : `Translate text to ${caseLanguage.toUpperCase()} (${formatTokenCost(ACTION_COSTS.statement_translate)})`}
           </button>
         ) : null}
 
@@ -1209,7 +1210,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
                   >
                     {sanitizing
                       ? "AI cleaning up..."
-                      : `Clean up for arbitration scope (${ACTION_COSTS.statement_sanitize} tokens)`}
+                      : `Clean up for arbitration scope (${formatTokenCost(ACTION_COSTS.statement_sanitize)})`}
                   </button>
                 );
               })()}
@@ -1933,7 +1934,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Request an appeal</h2>
             <p className="mt-2 text-sm text-slate-600">
               If you disagree with the judgement, you may request an appeal reviewed by a panel of jurors.
-              Each juror costs <strong>{ACTION_COSTS.appeal_request} tokens</strong>. Choose 1, 3, 5, or 7 jurors (max 7).
+              Each juror costs <strong>{formatTokenCost(ACTION_COSTS.appeal_request)}</strong>. Choose 1, 3, 5, or 7 jurors (max 7).
             </p>
             <AppealPanel caseId={detail.case.id} canRequest={detail.role === "claimant" || detail.role === "respondent"} />
           </div>

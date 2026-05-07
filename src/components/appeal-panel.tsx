@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ACTION_COSTS } from "@/server/billing/config";
+import { formatTokenCost } from "@/lib/utils";
 
 const JUROR_OPTIONS = [1, 3, 5, 7] as const;
 
@@ -87,7 +88,7 @@ export function AppealPanel({ caseId, canRequest }: Props) {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-slate-50 p-4">
         <div className="text-sm text-slate-700">
-          <span className="font-semibold text-ink">{totalCost} tokens</span>{" "}
+          <span className="font-semibold text-ink">{formatTokenCost(totalCost)}</span>{" "}
           ({ACTION_COSTS.appeal_request} × {jurors})
         </div>
         <button
@@ -100,7 +101,7 @@ export function AppealPanel({ caseId, canRequest }: Props) {
             ? "Appeal submitted"
             : submitting
               ? "Submitting..."
-              : `Request appeal (${totalCost} tokens)`}
+              : `Request appeal (${formatTokenCost(totalCost)})`}
         </button>
       </div>
       {!canRequest ? (

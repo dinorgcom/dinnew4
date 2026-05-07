@@ -6,6 +6,7 @@ import {
   PARTY_APPROVAL_EXTENSION_COSTS,
   PARTY_APPROVAL_MAX_EXTENSIONS,
 } from "@/server/billing/config";
+import { formatTokenCost } from "@/lib/utils";
 
 type PartyRecord = {
   id: string;
@@ -271,7 +272,7 @@ export function AdditionalPartiesSection({
                         >
                           {extendingId === party.id
                             ? "Extending..."
-                            : `Extend by 7 days (${cost} tokens)`}
+                            : `Extend by 7 days (${formatTokenCost(cost)})`}
                         </button>
                       );
                     })() : null}

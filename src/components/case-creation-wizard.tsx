@@ -234,50 +234,52 @@ export function CaseCreationWizard({
 
         {/* STEP: SELF-IDENTIFY */}
         {step === "self-identify" ? (
-          <section className="space-y-5 rounded-md border border-slate-200 bg-white p-6">
-            <p className="text-sm text-slate-600">
-              You can either bring a claim against another party, or proactively initiate
-              arbitration as the responding side. The platform supports both.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setFilerRole("claimant")}
-                className={`rounded-md border p-5 text-left transition ${
-                  filerRole === "claimant"
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white hover:border-slate-300"
-                }`}
-              >
-                <div className="text-base font-semibold">I am the Claimant</div>
-                <div
-                  className={`mt-1 text-xs leading-6 ${
-                    filerRole === "claimant" ? "text-slate-300" : "text-slate-500"
+          <section className="rounded-md border border-slate-200 bg-white p-6">
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-slate-600">
+                You can either bring a claim against another party, or proactively initiate
+                arbitration as the responding side. The platform supports both.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setFilerRole("claimant")}
+                  className={`rounded-md border p-5 text-left transition ${
+                    filerRole === "claimant"
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
-                  I have a claim against the other side.
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilerRole("respondent")}
-                className={`rounded-md border p-5 text-left transition ${
-                  filerRole === "respondent"
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white hover:border-slate-300"
-                }`}
-              >
-                <div className="text-base font-semibold">I am the Respondent</div>
-                <div
-                  className={`mt-1 text-xs leading-6 ${
-                    filerRole === "respondent" ? "text-slate-300" : "text-slate-500"
+                  <div className="text-base font-semibold">I am the Claimant</div>
+                  <div
+                    className={`mt-2 text-sm leading-6 ${
+                      filerRole === "claimant" ? "text-slate-300" : "text-slate-500"
+                    }`}
+                  >
+                    I have a claim against the other side.
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilerRole("respondent")}
+                  className={`rounded-md border p-5 text-left transition ${
+                    filerRole === "respondent"
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
-                  I want to start arbitration on a dispute the other side raised.
-                </div>
-              </button>
+                  <div className="text-base font-semibold">I am the Respondent</div>
+                  <div
+                    className={`mt-2 text-sm leading-6 ${
+                      filerRole === "respondent" ? "text-slate-300" : "text-slate-500"
+                    }`}
+                  >
+                    I want to start arbitration on a dispute the other side raised.
+                  </div>
+                </button>
+              </div>
             </div>
-            <label className="space-y-2">
+            <label className="mt-8 block space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
                 Your name
                 {filerNameLocked ? (

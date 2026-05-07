@@ -8,6 +8,7 @@ import type { Route } from "next";
 import { upload } from "@vercel/blob/client";
 import { WitnessQuestionsSection } from "@/components/witness-questions-section";
 import { ACTION_COSTS } from "@/server/billing/config";
+import { formatTokenCost } from "@/lib/utils";
 
 type FileReference = {
   url: string;
@@ -479,7 +480,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
               >
                 {submitting === "request_expertise"
                   ? "Requesting..."
-                  : `Request AI expertise (${ACTION_COSTS.expertise_create} tokens)`}
+                  : `Request AI expertise (${formatTokenCost(ACTION_COSTS.expertise_create)})`}
               </button>
               {nextExtensionCost !== null ? (
                 <button
@@ -490,7 +491,7 @@ function RecordReviewSection({ record, caseId, caseRole, kind, onUpload, uploadi
                 >
                   {submitting === "extend"
                     ? "Extending..."
-                    : `Extend +14d (${nextExtensionCost} tokens)`}
+                    : `Extend +14d (${formatTokenCost(nextExtensionCost)})`}
                 </button>
               ) : (
                 <span className="text-xs text-slate-500 self-center">Extensions exhausted; deadline final.</span>
@@ -1571,7 +1572,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 disabled={isPending || uploadingKey === "evidence"}
                 className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
               >
-                Add evidence ({ACTION_COSTS.evidence_create} tokens)
+                Add evidence ({formatTokenCost(ACTION_COSTS.evidence_create)})
               </button>
             </form>
           ) : null}
@@ -1746,7 +1747,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 disabled={isPending || uploadingKey === "witness-photo" || !!emailError || !!fullNameError}
                 className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2"
               >
-                Add witness ({ACTION_COSTS.witness_create} tokens)
+                Add witness ({formatTokenCost(ACTION_COSTS.witness_create)})
               </button>
             </form>
           ) : null}
@@ -1893,7 +1894,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 </button>
               </div>
               <button type="submit" disabled={isPending || uploadingKey === "consultants" || !!consultantEmailError || !!consultantFullNameError} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 md:col-span-2">
-                Add consultant ({ACTION_COSTS.consultant_create} tokens)
+                Add consultant ({formatTokenCost(ACTION_COSTS.consultant_create)})
               </button>
             </form>
           ) : null}
@@ -1978,7 +1979,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 </button>
               </div>
               <button type="submit" disabled={isPending || uploadingKey === "expertise"} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
-                Generate expertise by AI with human review ({ACTION_COSTS.expertise_create} tokens)
+                Generate expertise by AI with human review ({formatTokenCost(ACTION_COSTS.expertise_create)})
               </button>
             </form>
           ) : null}

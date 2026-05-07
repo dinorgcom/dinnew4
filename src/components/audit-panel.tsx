@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ACTION_COSTS } from "@/server/billing/config";
+import { formatTokenCost } from "@/lib/utils";
 
 type AuditRecord = {
   id: string;
@@ -73,28 +74,30 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
   return (
     <div className="space-y-6">
       <section className="rounded-md border border-slate-200 bg-white p-6">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1">
+        <div className="space-y-4">
+          <div>
             <div className="text-xs uppercase tracking-[0.2em] text-slate-400">AI summary</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Case summary</h2>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
               Generate a party-side summary that scores the current record, missing proof, and next moves.
             </p>
           </div>
-          <select
-            value={side}
-            onChange={(event) => setSide(event.target.value as "claimant" | "respondent")}
-            className="rounded-md border border-slate-300 px-4 py-3 text-sm"
-          >
-            <option value="claimant">Claimant side</option>
-            <option value="respondent">Respondent side</option>
-          </select>
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Optional audit title"
-            className="rounded-md border border-slate-300 px-4 py-3 text-sm"
-          />
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
+            <select
+              value={side}
+              onChange={(event) => setSide(event.target.value as "claimant" | "respondent")}
+              className="rounded-md border border-slate-300 px-4 py-3 text-sm"
+            >
+              <option value="claimant">Claimant side</option>
+              <option value="respondent">Respondent side</option>
+            </select>
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Optional audit title"
+              className="rounded-md border border-slate-300 px-4 py-3 text-sm"
+            />
+          </div>
           <button
             type="button"
             disabled={isGenerating}
@@ -103,7 +106,7 @@ export function AuditPanel({ caseId, audits, userRole }: AuditPanelProps) {
           >
             {isGenerating
               ? "Generating..."
-              : `Generate summary (${ACTION_COSTS.audit_request} tokens)`}
+              : `Generate summary (${formatTokenCost(ACTION_COSTS.audit_request)})`}
           </button>
         </div>
 

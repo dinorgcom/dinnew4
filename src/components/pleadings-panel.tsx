@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { upload as blobUpload } from "@vercel/blob/client";
 import { ACTION_COSTS } from "@/server/billing/config";
+import { formatTokenCost } from "@/lib/utils";
 
 type PleadingSlot = {
   side: "claimant" | "respondent";
@@ -561,7 +562,7 @@ export function PleadingsPanel({
               >
                 {sanitizingKey === k
                   ? "AI cleaning up..."
-                  : `AI clean-up (${ACTION_COSTS.statement_sanitize} tokens)`}
+                  : `AI clean-up (${formatTokenCost(ACTION_COSTS.statement_sanitize)})`}
               </button>
               {original.trim() ? (
                 <button
@@ -572,7 +573,7 @@ export function PleadingsPanel({
                 >
                   {translatingKey === k
                     ? "Translating..."
-                    : `Translate text to ${langUpper} (${ACTION_COSTS.statement_translate} tokens)`}
+                    : `Translate text to ${langUpper} (${formatTokenCost(ACTION_COSTS.statement_translate)})`}
                 </button>
               ) : null}
               {slot.fileUrl ? (
@@ -586,7 +587,7 @@ export function PleadingsPanel({
                     ? `Translating to ${langUpper}...`
                     : slot.translationLang === lang
                       ? `Re-translate document to ${langUpper}`
-                      : `Translate document to ${langUpper} (${ACTION_COSTS.document_translate} tokens)`}
+                      : `Translate document to ${langUpper} (${formatTokenCost(ACTION_COSTS.document_translate)})`}
                 </button>
               ) : null}
             </div>
