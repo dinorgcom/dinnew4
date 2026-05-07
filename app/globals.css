@@ -66,3 +66,40 @@ h4 {
       0 0 0 6px var(--focus-ring);
   }
 }
+
+@layer components {
+  .din-workspace {
+    border: 1px solid color-mix(in oklab, var(--line-soft) 88%, var(--ink-strong));
+    background: color-mix(in oklab, var(--bg-panel) 94%, white);
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.08);
+  }
+
+  .din-pane-border {
+    border-color: color-mix(in oklab, var(--line-soft) 86%, var(--ink-strong));
+  }
+
+  .din-subtle-panel {
+    background: color-mix(in oklab, var(--bg-canvas) 72%, white);
+  }
+
+  .din-rail-item {
+    border-radius: 8px;
+    color: color-mix(in oklab, var(--ink-soft) 88%, var(--ink-strong));
+  }
+
+  .din-rail-item:hover {
+    background: color-mix(in oklab, var(--bg-tint) 45%, white);
+    color: var(--ink-strong);
+  }
+
+  .din-rail-item-active {
+    background: var(--ink-strong);
+    color: white;
+  }
+
+  .din-composer {
+    border: 1px solid color-mix(in oklab, var(--line-soft) 76%, var(--ink-strong));
+    background: white;
+    box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
+  }
+}

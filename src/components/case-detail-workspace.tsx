@@ -213,6 +213,17 @@ const VISIBLE_TAB_KEYS = new Set([
   "final-judgement",
 ]);
 
+const CASE_NAV_GROUPS: Array<{
+  label: string;
+  items: Array<(typeof tabs)[number]["key"]>;
+}> = [
+  { label: "Start", items: ["todo", "progress"] },
+  { label: "Case file", items: ["claimant", "respondent", "claims"] },
+  { label: "Discovery", items: ["evidence", "witnesses", "consultants", "lawyers", "expertise"] },
+  { label: "Decision", items: ["hearing", "audit", "arbitration", "judgement", "appeal", "final-judgement"] },
+  { label: "History", items: ["activity"] },
+];
+
 function asClaims(input: Record<string, unknown>[] | null | undefined): Claim[] {
   return (input || []).map((item) => ({
     claim: typeof item.claim === "string" ? item.claim : "",
@@ -1322,70 +1333,87 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       <div
         className={`grid gap-6 ${
           showLawyerChat
-            ? "lg:grid-cols-[200px_minmax(0,1fr)_360px]"
-            : "lg:grid-cols-[200px_minmax(0,1fr)]"
+            ? "lg:grid-cols-[248px_minmax(0,1fr)_360px]"
+            : "lg:grid-cols-[248px_minmax(0,1fr)]"
         }`}
       >
-        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto bg-ink p-4 lg:pt-[68px] text-white">
-          <div role="tablist" aria-label="Case workspace sections" className="flex flex-col gap-1">
-            {tabs.filter((tab) => VISIBLE_TAB_KEYS.has(tab.key)).map((tab) => {
-              const needsAttention = !!tabAttention[tab.key];
-              const isOverview = tab.key === "overview";
-              const isActive = activeTab === tab.key;
-              if (isOverview) {
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveTab(tab.key)}
-                    role="tab"
-                    id={`tab-${tab.key}`}
-                    aria-selected={isActive}
-                    aria-controls={`panel-${tab.key}`}
-                    className={`block min-h-[88px] w-full rounded-md px-3 py-2.5 text-left transition ${
-                      isActive ? "bg-rose-700 shadow" : "bg-rose-600 hover:bg-rose-700"
-                    }`}
-                  >
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-rose-100">Case</div>
-                    <div className="mt-1 text-sm font-semibold leading-snug text-white line-clamp-3">
-                      {detail.case.title}
-                    </div>
-                  </button>
-                );
-              }
-              const tabClass = isActive
-                ? "bg-white text-ink shadow"
-                : needsAttention
-                  ? "bg-orange-500/90 text-white hover:bg-orange-500"
-                  : "text-slate-300 hover:bg-white/10 hover:text-white";
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  role="tab"
-                  id={`tab-${tab.key}`}
-                  aria-selected={isActive}
-                  aria-controls={`panel-${tab.key}`}
-                  className={`flex items-start justify-between rounded-md px-4 py-2.5 text-sm font-medium transition ${tabClass}`}
-                >
-                  <span className="truncate">{tab.label}</span>
-                  {tabCounts[tab.key as keyof typeof tabCounts] > 0 ? (
-                    <span className={`ml-2 rounded-md px-2 py-0.5 text-xs font-semibold ${
-                      isActive ? "bg-ink/10 text-ink" : needsAttention ? "bg-white/30 text-white" : "bg-white/10 text-slate-200"
-                    }`}>
-                      {tabCounts[tab.key as keyof typeof tabCounts]}
-                    </span>
-                  ) : needsAttention ? (
-                    <span className="ml-2 inline-block h-2 w-2 shrink-0 self-center rounded-md bg-white" aria-hidden="true" />
-                  ) : null}
-                </button>
-              );
-            })}
+        <aside className="lg:sticky lg:top-0 lg:h-screen lg:self-start lg:overflow-y-auto border-r border-slate-200 bg-white p-3 lg:pt-[68px]">
+          <div role="tablist" aria-label="Case workspace sections" className="space-y-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab("overview")}
+              role="tab"
+              id="tab-overview"
+              aria-selected={activeTab === "overview"}
+              aria-controls="panel-overview"
+              className={`block min-h-[104px] w-full rounded-lg px-3 py-3 text-left transition ${
+                activeTab === "overview"
+                  ? "bg-ink text-white shadow-sm"
+                  : "bg-slate-100 text-ink hover:bg-slate-200"
+              }`}
+            >
+              <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                activeTab === "overview" ? "text-white/60" : "text-slate-500"
+              }`}>
+                Case
+              </div>
+              <div className="mt-1 line-clamp-3 text-sm font-semibold leading-snug">
+                {detail.case.title}
+              </div>
+              <div className={`mt-2 text-xs ${activeTab === "overview" ? "text-white/65" : "text-slate-500"}`}>
+                {detail.case.caseNumber}
+              </div>
+            </button>
+
+            {CASE_NAV_GROUPS.map((group) => (
+              <div key={group.label}>
+                <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  {group.label}
+                </div>
+                <div className="space-y-1">
+                  {group.items.map((key) => {
+                    if (!VISIBLE_TAB_KEYS.has(key)) return null;
+                    const tab = tabs.find((item) => item.key === key);
+                    if (!tab) return null;
+                    const needsAttention = !!tabAttention[tab.key];
+                    const isActive = activeTab === tab.key;
+                    const count = tabCounts[tab.key as keyof typeof tabCounts] || 0;
+                    const tabClass = isActive
+                      ? "bg-ink text-white"
+                      : needsAttention
+                        ? "bg-amber-50 text-amber-950 ring-1 ring-amber-200 hover:bg-amber-100"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-ink";
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveTab(tab.key)}
+                        role="tab"
+                        id={`tab-${tab.key}`}
+                        aria-selected={isActive}
+                        aria-controls={`panel-${tab.key}`}
+                        className={`flex min-h-9 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${tabClass}`}
+                      >
+                        <span className="truncate">{tab.label}</span>
+                        {count > 0 ? (
+                          <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                            isActive ? "bg-white/15 text-white" : needsAttention ? "bg-amber-200/70 text-amber-950" : "bg-slate-200 text-slate-700"
+                          }`}>
+                            {count}
+                          </span>
+                        ) : needsAttention ? (
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${isActive ? "bg-white" : "bg-amber-500"}`} aria-hidden="true" />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
             {detail.role === "moderator" ? (
               <Link
                 href={`/cases/${detail.case.id}/edit` as Route}
-                className="mt-3 block rounded-md border border-white/30 px-4 py-2.5 text-center text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white"
+                className="block rounded-md border border-slate-200 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
               >
                 Edit case
               </Link>
@@ -2167,7 +2195,7 @@ export function CaseDetailWorkspace({ detail, userRole, user }: CaseDetailWorksp
       ) : null}
 
       {activeTab === "hearing" ? (
-        <div id="panel-hearing" role="tabpanel" aria-labelledby="tab-hearing" className="space-y-6">
+        <div id="panel-hearing" role="tabpanel" aria-labelledby="tab-hearing" className="space-y-4">
           <ScriptedHearingPanel
             caseId={detail.case.id}
             caseRole={detail.role}

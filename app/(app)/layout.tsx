@@ -5,6 +5,7 @@ import { ensureAppUser } from "@/server/auth/provision";
 import { getTokenBalance } from "@/server/billing/service";
 import { getCaseList } from "@/server/cases/queries";
 import { isDatabaseConfigured } from "@/server/runtime";
+import { env } from "@/lib/env";
 import { AppShellNav } from "@/components/app-shell-nav";
 import { IdentityBadge, TermsLinkSidebar } from "@/components/identity-warning-sidebar";
 import { AdminViewToggle } from "@/components/admin-view-toggle";
@@ -47,7 +48,7 @@ export default async function AppLayout({
             <Link href="/dashboard" className="text-xl font-semibold tracking-tight text-white">
               DIN.ORG
             </Link>
-            <UserButton afterSignOutUrl="/" />
+            {env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? <UserButton afterSignOutUrl="/" /> : null}
           </div>
 
           <div className="mt-6 min-h-[88px] rounded-md border border-white/10 bg-white/5 px-3 py-2.5">
